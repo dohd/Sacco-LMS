@@ -1,0 +1,8 @@
+========= Zoho Auth Code ============
+https://accounts.zoho.com/oauth/v2/auth?
+scope=ZohoInventory.fullaccess.ALL
+&client_id=YOUR-CLIENT-ID
+&response_type=code
+&access_type=offline
+&redirect_uri=YOUR-SAVED-REDIRECT-URL
+&prompt=consent
