@@ -1,11 +1,12 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\HomeController;
 use App\Http\Controllers\config\ConfigController;
-use App\Http\Controllers\invoices\InvoicesController;
+use App\Http\Controllers\HomeController;
+use App\Http\Controllers\LoanApplications\LoanApplicationsController;
+use App\Http\Controllers\Memberships\MembershipsController;
+use App\Http\Controllers\Nominations\NominationsController;
 use App\Http\Controllers\Users\UsersController;
-use App\Http\Controllers\whatsapp\WhatsAppController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
 
@@ -28,25 +29,10 @@ Route::group(['middleware' => 'auth'], function() {
     // Dashboard
     Route::get('dashboard', [HomeController::class, 'index'])->name('home');
 
-    // Invoices
-    Route::get('invoices/datatable', [InvoicesController::class, 'datatable'])->name('invoices.datatable');
-    Route::get('invoices/duedate', [InvoicesController::class, 'getDuedate'])->name('invoices.get_duedate');
-    Route::get('invoices/currencies', [InvoicesController::class, 'currencies'])->name('invoices.currencies');
-    Route::get('invoices/itemlocations', [InvoicesController::class, 'itemLocations'])->name('invoices.itemlocations');
-    Route::get('invoices/paymentterms', [InvoicesController::class, 'paymentTerms'])->name('invoices.paymentterms');
-    Route::get('invoices/items', [InvoicesController::class, 'searchItems'])->name('invoices.search_items');
-    Route::get('invoices/salespersons', [InvoicesController::class, 'searchSalesPersons'])->name('invoices.search_salespersons');
-    Route::get('invoices/contacts', [InvoicesController::class, 'searchContacts'])->name('invoices.search_contacts');
-    Route::post('invoices/update_status', [InvoicesController::class, 'updateStatus'])->name('invoices.update_status');
-    Route::resource('invoices', InvoicesController::class);
-
-    // whatsapp
-    Route::get('whatsapp/overview', [WhatsAppController::class, 'overview'])->name('whatsapp.overview');
-    Route::get('whatsapp/customer_rating', [WhatsAppController::class, 'customerRating'])->name('whatsapp.customer_rating');
-    Route::get('whatsapp/message_log', [WhatsAppController::class, 'messageLog'])->name('whatsapp.message_log');
-    Route::get('whatsapp/message_log_datatable', [WhatsAppController::class, 'messageLogDatatable'])->name('whatsapp.message_log_datatable');
-    Route::post('whatsapp/customer_rating_datatable', [WhatsAppController::class, 'customerRatingDatatable'])->name('whatsapp.customer_rating_datatable');    
-
+    Route::resource('memberships', MembershipsController::class);
+    Route::resource('nominations', NominationsController::class);
+    Route::resource('loan_applications', LoanApplicationsController::class);
+  
     // User Profiles
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');
     Route::post('users/update_active_profile/{user}', [UsersController::class, 'update_active_profile'])->name('users.update_active_profile');

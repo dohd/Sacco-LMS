@@ -3,8 +3,8 @@
 namespace App\Http\Controllers\Users;
 
 use App\Http\Controllers\Controller;
-use App\Models\role\Role;
-use App\Models\User;
+use App\Models\Roles\Role;
+use App\Models\Users\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -158,7 +158,7 @@ class UsersController extends Controller
     public function active_profile()
     {
         $user = auth()->user();
-        $role = $user->roles()->first() ?: new Role;
+        $role = auth()->user()->roles()->first() ?: new Role;
         
         return view('users.active_profile', compact('user', 'role'));
     }
