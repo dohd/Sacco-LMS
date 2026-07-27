@@ -1,7 +1,9 @@
 <?php
 
-namespace App\Models\Users;
+namespace App\Models;
 
+use App\Models\Users\UserAttribute;
+use App\Models\Users\UserRelationship;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
