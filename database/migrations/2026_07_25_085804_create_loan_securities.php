@@ -20,7 +20,7 @@ class CreateLoanSecurities extends Migration
              * One loan application may have multiple securities,
              * such as pledged shares, a motor vehicle or property.
              */
-            $table->unsignedBigInteger('loan_app_id');
+            $table->unsignedBigInteger('loan_application_id');
             $table->unsignedBigInteger('member_id');
 
             /*

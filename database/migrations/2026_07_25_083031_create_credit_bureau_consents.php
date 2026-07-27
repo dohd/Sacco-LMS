@@ -16,7 +16,7 @@ class CreateCreditBureauConsents extends Migration
         Schema::create('credit_bureau_consents', function (Blueprint $table) {
             $table->id();
 
-            $table->unsignedBigInteger('loan_app_id');
+            $table->unsignedBigInteger('loan_application_id');
             $table->unsignedBigInteger('member_id');
 
             $table->boolean('consented')->default(true);

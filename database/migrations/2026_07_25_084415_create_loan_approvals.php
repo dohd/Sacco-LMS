@@ -20,7 +20,7 @@ class CreateLoanApprovals extends Migration
              * One loan application can have multiple approval
              * or review records.
              */
-            $table->unsignedBigInteger('loan_app_id');
+            $table->unsignedBigInteger('loan_application_id');
             $table->unsignedBigInteger('member_id');
 
             $table->decimal('approved_amount', 15, 2);

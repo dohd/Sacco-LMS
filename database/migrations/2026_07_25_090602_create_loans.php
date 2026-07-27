@@ -20,7 +20,7 @@ class CreateLoans extends Migration
              * Each approved loan application should create
              * only one active loan account.
              */
-            $table->unsignedBigInteger('loan_app_id')->unique();
+            $table->unsignedBigInteger('loan_application_id')->unique();
             $table->unsignedBigInteger('member_id');
 
             /*

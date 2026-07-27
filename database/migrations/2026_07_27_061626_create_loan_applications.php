@@ -4,7 +4,7 @@ use Illuminate\Database\Migrations\Migration;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
-class CreateLoanApps extends Migration
+class CreateLoanApplications extends Migration
 {
     /**
      * Run the migrations.
@@ -13,7 +13,7 @@ class CreateLoanApps extends Migration
      */
     public function up()
     {
-        Schema::create('loan_apps', function (Blueprint $table) {
+        Schema::create('loan_applications', function (Blueprint $table) {
             $table->id();
             
             $table->unsignedBigInteger('member_id');
@@ -88,6 +88,6 @@ class CreateLoanApps extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('loan_apps');
+        Schema::dropIfExists('loan_applications');
     }
 }

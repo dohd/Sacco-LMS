@@ -15,7 +15,7 @@ class CreateLoanGuarantors extends Migration
     {
         Schema::create('loan_guarantors', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('loan_app_id');
+            $table->unsignedBigInteger('loan_application_id');
             $table->unsignedBigInteger('member_id');
 
             $table->string('guarantor_name');
