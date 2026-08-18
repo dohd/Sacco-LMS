@@ -104,7 +104,8 @@
             </div>
         @endif
 
-        {{ Form::open(['route' => 'memberships.store', 'method' => 'POST', 'id' => 'applicationForm', 'enctype' => 'multipart/form-data', 'novalidate' => 'novalidate']) }}       
+        {{ Form::open(['route' => 'memberships.store', 'method' => 'POST', 'id' => 'applicationForm', 'enctype' => 'multipart/form-data', 'novalidate' => 'novalidate']) }} 
+            {{ Form::hidden('submission_action', 'draft', ['id' => 'submission_action']) }}      
             <!-- Personal Details -->
             <div class="card form-card">
                 <div class="card-header">

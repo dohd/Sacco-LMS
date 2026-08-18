@@ -9,7 +9,7 @@ class MemberApplication extends Model
 {
     use HasFactory;
 
-    protected $fillable = [];
+    protected $guarded = [];
 
     protected $casts = [
         'date_of_birth' => 'date',
@@ -21,4 +21,16 @@ class MemberApplication extends Model
         'approved_at' => 'datetime',
         'rejected_at' => 'datetime',
     ];
+
+    public function getMemberNameAttribute()
+    {
+        return $this->middle_name? 
+            "{$this->first_name} {$this->middle_name} {$this->last_name}" : 
+            "{$this->first_name} {$this->last_name}";
+    }
+
+    public function getKycStatusAttribute()
+    {
+        return in_array($this->status, ['draft', 'pending'])? 'pending' : 'verified';
+    }
 }

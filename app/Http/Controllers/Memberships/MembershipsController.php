@@ -46,9 +46,9 @@ class MembershipsController extends Controller
      */
     public function store(Request $request): RedirectResponse
     {
-        // $request->validate([
-        //     'submission_action' => ['required', Rule::in(['draft', 'submit'])],
-        // ]);
+        $request->validate([
+            'submission_action' => ['required', Rule::in(['draft', 'submit'])],
+        ]);
 
         $isDraft = $request->input('submission_action') === 'draft';
         $required = $isDraft ? 'nullable' : 'required';
@@ -136,7 +136,7 @@ class MembershipsController extends Controller
                     continue;
                 }
 
-                $directory = "member-applications/{$applicationNumber}/{$field}";
+                $directory = "memberships/{$applicationNumber}/{$field}";
                 $path = $request->file($field)->store($directory, 'public');
 
                 $payload[$field] = $path;
@@ -162,32 +162,30 @@ class MembershipsController extends Controller
                 'review_notes' => null,
             ]);
 
-            dd($payload);
-            $application = DB::transaction(
-                fn () => MemberApplication::create($payload)
-            );
+            // dd($payload);
+            DB::beginTransaction();
+            $application = MemberApplication::create($payload);
+            DB::commit();
 
             if ($isDraft) {
                 return redirect()
-                    ->route('member-applications.edit', $application)
+                    ->route('memberships.index', $application)
                     ->with('success', "Draft {$application->application_number} was saved successfully.");
             }
 
             return redirect()
-                ->route('member-applications.show', $application)
+                ->route('memberships.show', $application)
                 ->with('success', "Application {$application->application_number} was submitted successfully.");
-        } catch (Throwable $exception) {
+        } catch (\Exception $e) {
             if ($uploadedPaths !== []) {
                 Storage::disk('public')->delete($uploadedPaths);
             }
-
-            report($exception);
 
             $message = $isDraft
                 ? 'The draft could not be saved. Please try again.'
                 : 'The application could not be submitted. Please try again.';
 
-            return back()->withInput()->with('error', $message);
+            return errorHandler($message, $e);
         }
     }
 

@@ -147,10 +147,12 @@ if (!function_exists('printLog')) {
 if (!function_exists('errorHandler')) {
     function errorHandler($msg='', $e=null)
     {
-        if ($e && env('APP_ENV') == 'local' && env('APP_DEBUG')) dd($e->getMessage(), $e);
-        if ($e instanceof \Illuminate\Validation\ValidationException) throw $e;
-        if ($e) \Illuminate\Support\Facades\Log::error($e->getMessage() . ' {user_id:'. auth()->user()->id . '} at ' . $e->getFile() . ':' . $e->getLine());
-        return redirect()->back()->with(['error' => $msg ?: 'Internal server error! Please try again later.']);
+        if ($e) {
+            \Illuminate\Support\Facades\Log::error($e->getMessage() . ' {user_id:'. auth()->id() . '} at ' . $e->getFile() . ':' . $e->getLine());
+            if (env('APP_ENV') === 'local' && env('APP_DEBUG')) dd($e->getMessage(), $e);
+            if ($e instanceof \Illuminate\Validation\ValidationException) throw $e;
+        } 
+        return back()->withInput()->with(['error' => $msg ?: 'Internal server error! Please try again later.']);
     }
 }
 

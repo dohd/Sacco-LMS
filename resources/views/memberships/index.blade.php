@@ -21,14 +21,16 @@
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($memberships as $app)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td>{{ $app->application_number }}</td>
+                                    <td>{{ $app->member_name }}</td>
+                                    <td>{{ $app->phone }} @if ($app->email) <br>{{ $app->email }} @endif</td>
+                                    <td>{{ $app->kyc_status }}</td>
+                                    <td>{{ $app->status }}</td>
+                                    <td>{{ '0.0' }}</td>
+                                    <td>{{ '0' }}</td>
+                                    <td>{!! $app->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>
