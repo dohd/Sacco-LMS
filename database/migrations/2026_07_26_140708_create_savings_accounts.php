@@ -17,7 +17,6 @@ class CreateSavingsAccounts extends Migration
             $table->id();
 
             $table->unsignedBigInteger('member_id');
-
             $table->unsignedBigInteger('savings_product_id');
 
             $table->string('account_number')->unique();
@@ -27,6 +26,13 @@ class CreateSavingsAccounts extends Migration
             $table->decimal('available_balance', 15, 2)->default(0);
 
             $table->date('opened_date');
+            $table->unsignedBigInteger('opened_by');
+
+            $table->date('closed_date')->nullable();
+            $table->unsignedBigInteger('closed_by')->nullable();
+            $table->text('closure_reason')->nullable();
+
+            $table->date('last_transaction_date')->nullable();
 
             $table->enum('status', [
                 'active',
@@ -35,6 +41,10 @@ class CreateSavingsAccounts extends Migration
             ])->default('active');
 
             $table->timestamps();
+
+            $table->index('member_id');
+            $table->index('savings_product_id');
+            $table->index('status');
         });
     }
 

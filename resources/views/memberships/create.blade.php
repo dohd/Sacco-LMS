@@ -1,9 +1,9 @@
 @extends('layouts.core')
 
-@section('title', 'Membership Application')
+@section('title', 'Membership Management')
 
 @section('content')
-    @include('memberships.header')
+    @include('memberships.partial.header')
     <style>
         body {
             background-color: #f4f6f9;

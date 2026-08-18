@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\Nominations;
 
 use App\Http\Controllers\Controller;
-use App\Models\Memberships\Membership;
+use App\Models\Memberships\MemberApplication;
+use App\Models\Nominations\Nomination;
 use Illuminate\Http\Request;
 
 class NominationsController extends Controller
@@ -15,7 +16,8 @@ class NominationsController extends Controller
      */
     public function index()
     {
-        return redirect(route('nominations.create'));
+        $nominations = Nomination::latest()->get();
+        return view('nominations.index', compact('nominations'));
     }
 
     /**
@@ -25,7 +27,7 @@ class NominationsController extends Controller
      */
     public function create()
     {
-        $member = Membership::make();
+        $member = MemberApplication::make();
         return view('nominations.create', compact('member'));
     }
 

@@ -16,7 +16,7 @@ class CreateNominees extends Migration
         Schema::create('nominees', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('nomination_id');
-            $table->unsignedBigInteger('membership_id');
+            $table->unsignedBigInteger('member_application_id');
 
             $table->string('full_name');
             $table->string('national_id');

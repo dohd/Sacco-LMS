@@ -15,7 +15,7 @@ class CreateNominations extends Migration
     {
         Schema::create('nominations', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('membership_id');
+            $table->unsignedBigInteger('member_application_id');
 
             $table->text('special_instructions')->nullable();
             $table->string('member_signature')->nullable();

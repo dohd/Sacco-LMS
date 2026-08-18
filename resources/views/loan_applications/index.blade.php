@@ -1,9 +1,8 @@
 @extends('layouts.core')
-
-@section('title', 'User Management')
+@section('title', 'Loan Applications')
     
 @section('content')
-    @include('users.header')
+    @include('loan_applications.partial.header')
     <div class="card">
         <div class="card-body">
             <div class="card-content p-2">
@@ -11,16 +10,18 @@
                     <table class="table table-borderless datatable">
                         <thead>
                           <tr>
-                            <th>#No</th>
-                            <th>Name</th>
-                            <th>Phone</th>
-                            <th>Email</th>
-                            <th>Status</th>
-                            <th>Action</th>
+                            <th>APPLICATION NO#</th>
+                            <th>LOAN PRODUCT</th>
+                            <th>MEMBER</th>
+                            <th>AMOUNT REQUESTED</th>
+                            <th>MONTHLY INSTALLMENT</th>
+                            <th>REQUIRED DATE</th>
+                            <th>STATUS</th>
+                            <th>DECLARATION DATE</th>
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ($users as $i => $user)
+                            @foreach ([] as $i => $user)
                                 <tr>
                                     <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
                                     <td>{{ $user->name }}</td>
@@ -36,19 +37,10 @@
             </div>
         </div>
     </div>
-    @include('users.partial.status_modal')
 @stop
 
 @section('script')
 <script>
-    const formAttr = {url: '', status: 'Active'};
-    $('table').on('click', '.modal-btn', function() {
-        formAttr.url = $(this).attr('data-url');
-        formAttr.status = $(this).text().replace(/\s+/g,'');
-    });
-    $('#status_modal').on('shown.bs.modal', function() {
-        $(this).find('form').attr('action', formAttr.url);
-        $(this).find('select#status').val((formAttr.status == 'Active'? 1 : 0));
-    });
+    
 </script>
 @stop

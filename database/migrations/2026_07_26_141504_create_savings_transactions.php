@@ -17,7 +17,6 @@ class CreateSavingsTransactions extends Migration
             $table->id();
 
             $table->unsignedBigInteger('savings_account_id');
-
             $table->string('transaction_number')->unique();
 
             $table->enum('transaction_type', [
@@ -39,8 +38,8 @@ class CreateSavingsTransactions extends Migration
             $table->decimal('amount', 15, 2);
             $table->decimal('running_balance', 15, 2);
 
-            $table->date('transaction_date');
-            $table->date('value_date');
+            $table->date('transaction_date'); // actual transaction date
+            $table->date('value_date'); // date saved
 
             $table->enum('payment_method', [
                 'cash',
@@ -62,12 +61,22 @@ class CreateSavingsTransactions extends Migration
             ])->default('confirmed');
 
             $table->unsignedBigInteger('recorded_by');
-
-            $table->unsignedBigInteger('reversal_of_id');
+            $table->unsignedBigInteger('reversal_of_id')->nullable();
 
             $table->text('description')->nullable();
 
             $table->timestamps();
+
+            $table->index('savings_account_id');
+            $table->index('transaction_date');
+            $table->index('value_date');
+            $table->index('status');
+            $table->index('transaction_type');
+            $table->index('payment_method');
+            $table->index([
+                'savings_account_id',
+                'transaction_date'
+            ]);
         });
     }
 

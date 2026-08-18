@@ -4,8 +4,15 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\config\ConfigController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LoanApplications\LoanApplicationsController;
+use App\Http\Controllers\LoanDisbursements\LoanDisbursementsController;
+use App\Http\Controllers\LoanProducts\LoanProductsController;
+use App\Http\Controllers\LoanRepayments\LoanRepaymentsController;
 use App\Http\Controllers\Memberships\MembershipsController;
 use App\Http\Controllers\Nominations\NominationsController;
+use App\Http\Controllers\SavingsAccounts\SavingsAccountsController;
+use App\Http\Controllers\SavingsProducts\SavingsProductsController;
+use App\Http\Controllers\SavingsTransactions\SavingsTransactionsController;
+use App\Http\Controllers\SavingsWithdrawals\SavingsWithdrawalsController;
 use App\Http\Controllers\Users\UsersController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -29,10 +36,22 @@ Route::group(['middleware' => 'auth'], function() {
     // Dashboard
     Route::get('dashboard', [HomeController::class, 'index'])->name('home');
 
+    // Memberships
     Route::resource('memberships', MembershipsController::class);
     Route::resource('nominations', NominationsController::class);
+
+    // Loans
+    Route::resource('loan_products', LoanProductsController::class);
     Route::resource('loan_applications', LoanApplicationsController::class);
-  
+    Route::resource('loan_disbursements', LoanDisbursementsController::class);
+    Route::resource('loan_repayments', LoanRepaymentsController::class);
+
+    // Savings
+    Route::resource('savings_products', SavingsProductsController::class);
+    Route::resource('savings_accounts', SavingsAccountsController::class);
+    Route::resource('savings_transactions', SavingsTransactionsController::class);
+    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class);
+
     // User Profiles
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');
     Route::post('users/update_active_profile/{user}', [UsersController::class, 'update_active_profile'])->name('users.update_active_profile');

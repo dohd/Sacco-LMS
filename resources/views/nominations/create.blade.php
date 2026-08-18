@@ -1,9 +1,8 @@
 @extends('layouts.core')
-
-@section('title', 'Member Nominations')
+@section('title', 'Nomination Management')
 
 @section('content')
-    @include('nominations.header')
+    @include('nominations.partial.header')
     <style>
         body {
             background: #f4f6f9;

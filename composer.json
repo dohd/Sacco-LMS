@@ -16,7 +16,8 @@
         "livewire/livewire": "^2.12",
         "maatwebsite/excel": "^3.1",
         "mpdf/mpdf": "^8.1",
-        "spatie/laravel-permission": "^5.9"
+        "spatie/laravel-permission": "^5.9",
+        "vanthao03596/laravel-ulid": "^0.1.0"
     },
     "require-dev": {
         "facade/ignition": "^2.5",

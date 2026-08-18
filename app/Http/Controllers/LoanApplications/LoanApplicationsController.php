@@ -3,7 +3,8 @@
 namespace App\Http\Controllers\LoanApplications;
 
 use App\Http\Controllers\Controller;
-use App\Models\Memberships\Membership;
+use App\Models\LoanApplications\LoanApplication;
+use App\Models\Memberships\MemberApplication;
 use Illuminate\Http\Request;
 
 class LoanApplicationsController extends Controller
@@ -15,7 +16,7 @@ class LoanApplicationsController extends Controller
      */
     public function index()
     {
-        return redirect(route('loan_applications.create'));
+        return view('loan_applications.index');
     }
 
     /**
@@ -25,8 +26,8 @@ class LoanApplicationsController extends Controller
      */
     public function create()
     {
-        $member = Membership::make();
-        return view('loan_applications.create', compact('member'));
+        $application = LoanApplication::make();
+        return view('loan_applications.create', compact('application'));
     }
 
     /**
