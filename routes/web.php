@@ -38,6 +38,10 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Memberships
     Route::resource('memberships', MembershipsController::class);
+    Route::patch('memberships/approve/{membership}', [MembershipsController::class, 'approve'])->name('memberships.approve');
+    Route::patch('memberships/reject/{membership}', [MembershipsController::class, 'reject'])->name('memberships.reject');
+    Route::patch('memberships/review/{membership}', [MembershipsController::class, 'review'])->name('memberships.review');
+
     Route::resource('nominations', NominationsController::class);
 
     // Loans

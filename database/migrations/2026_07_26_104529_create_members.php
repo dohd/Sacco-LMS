@@ -40,7 +40,7 @@ class CreateMembers extends Migration
              * A member may be registered before receiving
              * access to the system.
              */
-            $table->unsignedBigInteger('user_id');            
+            $table->unsignedBigInteger('user_id')->nullable();            
 
             /*
              * Core member details copied from the approved application.
@@ -95,7 +95,7 @@ class CreateMembers extends Migration
              */
             $table->date('closure_date')->nullable();
 
-            $table->unsignedBigInteger('closed_by'); 
+            $table->unsignedBigInteger('closed_by')->nullable();
 
             $table->text('closure_reason')->nullable();
 

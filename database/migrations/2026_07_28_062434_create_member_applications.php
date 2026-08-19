@@ -64,7 +64,15 @@ class CreateMemberApplications extends Migration
             // Next of Kin
             $table->string('next_of_kin_name');
             $table->string('next_of_kin_id');
-            $table->string('next_of_kin_relationship');
+            $table->enum('next_of_kin_relationship', [
+                'spouse',
+                'parent',
+                'child',
+                'sibling',
+                'relative',
+                'guardian',
+                'other'
+            ]);
 
             // Contributions
             $table->decimal('monthly_contribution', 10, 2);

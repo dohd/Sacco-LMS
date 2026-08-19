@@ -18,12 +18,13 @@
                             <th>ACCOUNT STATUS</th>
                             <th>LOAN LIMIT</th>
                             <th>CREDIT SCORE</th>
+                            <th>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
                             @foreach ($memberships as $app)
                                 <tr>
-                                    <td>{{ $app->application_number }}</td>
+                                    <td style="height: {{ $memberships->count() == 1? '80px': '' }}">{{ $app->application_number }}</td>
                                     <td>{{ $app->member_name }}</td>
                                     <td>{{ $app->phone }} @if ($app->email) <br>{{ $app->email }} @endif</td>
                                     <td>{{ $app->kyc_status }}</td>
