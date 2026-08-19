@@ -23,7 +23,7 @@ class MembershipsController extends Controller
      */
     public function index()
     {
-        $memberships = MemberApplication::latest()->get();
+        $memberships = MemberApplication::with('member:id,member_application_id,membership_number')->latest()->get();
         return view('memberships.index', compact('memberships'));
     }
 

@@ -11,27 +11,40 @@
                     <table class="table table-borderless datatable">
                         <thead>
                           <tr>
-                            <th>MEMBERSHIP#</th>
-                            <th>MEMBER</th>
+                            <th>APPLICATION NO#</th>
+                            <th>APPLICANT NAME</th>
                             <th>CONTACT</th>
-                            <th>KYC STATUS</th>
-                            <th>ACCOUNT STATUS</th>
-                            <th>LOAN LIMIT</th>
-                            <th>CREDIT SCORE</th>
+                            <th>APPLICATION DATE</th> 
+                            <th>ACCOUNT STATUS</th> 
+                            <th>MEMBERSHIP NO#</th>                           
                             <th>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ($memberships as $app)
+                            @foreach ($memberships as $appl)
                                 <tr>
-                                    <td style="height: {{ $memberships->count() == 1? '80px': '' }}">{{ $app->application_number }}</td>
-                                    <td>{{ $app->member_name }}</td>
-                                    <td>{{ $app->phone }} @if ($app->email) <br>{{ $app->email }} @endif</td>
-                                    <td>{{ $app->kyc_status }}</td>
-                                    <td>{{ $app->status }}</td>
-                                    <td>{{ '0.0' }}</td>
-                                    <td>{{ '0' }}</td>
-                                    <td>{!! $app->action_buttons !!}</td>
+                                    <td style="height: {{ $memberships->count() == 1? '80px': '' }}">{{ $appl->application_number }}</td>
+                                    <td>{{ $appl->member_name }}</td>
+                                    <td>{{ $appl->phone }} @if ($appl->email) <br>{{ $appl->email }} @endif</td>
+                                    <td>{{ dateFormat($appl->application_date, 'd M Y') }}</td> 
+                                    <td>
+                                        @php
+                                            $statusClasses = [
+                                                'draft' => 'secondary',
+                                                'pending' => 'warning',
+                                                'under_review' => 'info',
+                                                'approved' => 'success',
+                                                'rejected' => 'danger',
+                                                'withdrawn' => 'dark',
+                                                'cancelled' => 'secondary',
+                                            ];
+                                        @endphp
+                                        <span class="badge bg-{{ $statusClasses[$appl->status] ?? 'secondary' }} fs-6">
+                                            {{ ucfirst(str_replace('_', ' ', $appl->status)) }}
+                                        </span>
+                                    </td> 
+                                    <td>{{ @$appl->member->membership_number }}</td>                                   
+                                    <td>{!! $appl->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>
