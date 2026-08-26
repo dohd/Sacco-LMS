@@ -34,6 +34,8 @@ class MembershipsController extends Controller
      */
     public function create()
     {
+        request()->session()->forget(['_old_input', 'errors']);
+        
         return view('memberships.create');
     }
 

@@ -48,7 +48,9 @@ Route::group(['middleware' => 'auth'], function() {
 
 
     // Loans
+    Route::patch('loan_products/status/{loanProduct}', [LoanProductsController::class, 'status'])->name('loan_products.status');
     Route::resource('loan_products', LoanProductsController::class);
+
     Route::resource('loan_applications', LoanApplicationsController::class);
     Route::resource('loan_disbursements', LoanDisbursementsController::class);
     Route::resource('loan_repayments', LoanRepaymentsController::class);

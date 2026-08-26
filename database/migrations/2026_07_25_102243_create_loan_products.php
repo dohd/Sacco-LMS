@@ -56,31 +56,22 @@ class CreateLoanProducts extends Migration
              */
             $table->decimal('interest_rate', 8, 4);
 
-            $table->enum('interest_method', [
-                'flat_rate',
-                'reducing_balance',
-            ])->default('reducing_balance');
+            $table->enum('interest_method', ['flat_rate','reducing_balance'])->default('reducing_balance');
 
             /*
              * Allows the product rate to be interpreted as annual,
              * monthly or one-off.
              */
-            $table->enum('interest_frequency', [
-                'annual',
-                'monthly',
-                'one_time',
-            ])->default('annual');
+            $table->enum('interest_frequency', ['annual','monthly','one_time'])->default('annual');
 
             /*
              * Guarantor requirements.
              */
             $table->boolean('requires_guarantors')->default(true);
 
-            $table->unsignedInteger('minimum_guarantors')
-                ->default(1);
+            $table->unsignedInteger('minimum_guarantors')->default(1);
 
-            $table->unsignedInteger('maximum_guarantors')
-                ->nullable();
+            $table->unsignedInteger('maximum_guarantors')->nullable();
 
             /*
              * Percentage of the approved amount that must be covered
@@ -88,29 +79,16 @@ class CreateLoanProducts extends Migration
              *
              * Example: 100.0000 means full loan coverage.
              */
-            $table->decimal(
-                'minimum_guarantor_coverage_percentage',
-                8,
-                4
-            )->default(100);
+            $table->decimal('minimum_guarantor_coverage_percentage',8,4)->default(100);
 
             /*
              * Member eligibility requirements.
              */
-            $table->unsignedInteger('minimum_membership_months')
-                ->default(0);
+            $table->unsignedInteger('minimum_membership_months')->default(0);
 
-            $table->decimal(
-                'minimum_share_contribution',
-                15,
-                2
-            )->default(0);
+            $table->decimal('minimum_share_contribution',15,2)->default(0);
 
-            $table->decimal(
-                'minimum_monthly_contribution',
-                15,
-                2
-            )->default(0);
+            $table->decimal('minimum_monthly_contribution',15,2)->default(0);
 
             /*
              * Maximum loan amount as a multiple of the member's
