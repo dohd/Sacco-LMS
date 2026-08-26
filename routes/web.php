@@ -37,12 +37,15 @@ Route::group(['middleware' => 'auth'], function() {
     Route::get('dashboard', [HomeController::class, 'index'])->name('home');
 
     // Memberships
-    Route::resource('memberships', MembershipsController::class);
     Route::patch('memberships/approve/{membership}', [MembershipsController::class, 'approve'])->name('memberships.approve');
     Route::patch('memberships/reject/{membership}', [MembershipsController::class, 'reject'])->name('memberships.reject');
     Route::patch('memberships/review/{membership}', [MembershipsController::class, 'review'])->name('memberships.review');
+    Route::resource('memberships', MembershipsController::class);
 
+    Route::patch('nominations/approve/{nomination}', [NominationsController::class, 'approve'])->name('nominations.approve');
+    Route::patch('nominations/reject/{nomination}', [NominationsController::class, 'reject'])->name('nominations.reject');
     Route::resource('nominations', NominationsController::class);
+
 
     // Loans
     Route::resource('loan_products', LoanProductsController::class);

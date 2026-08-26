@@ -15,7 +15,7 @@ class CreateNominations extends Migration
     {
         Schema::create('nominations', function (Blueprint $table) {
             $table->id();
-            $table->unsignedBigInteger('member_application_id');
+            $table->unsignedBigInteger('member_id');
 
             $table->text('special_instructions')->nullable();
             $table->string('member_signature')->nullable();
@@ -25,6 +25,19 @@ class CreateNominations extends Migration
                 'approved',
                 'rejected'
             ])->default('pending');
+
+            $table->tinyInteger('is_active')->default(1);
+            $table->tinyInteger('confirmed_declaration')->default(0);
+
+            $table->unsignedBigInteger('submitted_by')->nullable();
+            $table->unsignedBigInteger('approved_by')->nullable();
+            $table->unsignedBigInteger('rejected_by')->nullable();
+            $table->text('rejection_reason')->nullable();
+             $table->unsignedBigInteger('updated_by')->nullable();
+
+            $table->dateTime('submitted_at')->nullable();
+            $table->dateTime('approved_at')->nullable();
+            $table->dateTime('rejected_at')->nullable();
             
             $table->timestamps();
         });

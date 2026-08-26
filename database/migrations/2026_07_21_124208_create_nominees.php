@@ -16,18 +16,20 @@ class CreateNominees extends Migration
         Schema::create('nominees', function (Blueprint $table) {
             $table->id();
             $table->unsignedBigInteger('nomination_id');
-            $table->unsignedBigInteger('member_application_id');
+            $table->unsignedBigInteger('member_id');
 
             $table->string('full_name');
             $table->string('national_id');
             $table->string('postal_address')->nullable();
             $table->string('phone')->nullable();
+            $table->string('email')->nullable();
             $table->string('relationship');
             $table->decimal('percentage', 5, 2);
 
             $table->boolean('is_minor')->default(false);
             $table->date('date_of_birth')->nullable();
 
+            $table->softDeletes();
             $table->timestamps();
         });
     }

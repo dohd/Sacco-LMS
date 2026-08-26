@@ -13,18 +13,33 @@
                             <th>MEMBERSHIP#</th>
                             <th>MEMBER</th>
                             <th>DECLARATION DATE</th>
-                            <th>STATUS</th>                            
+                            <th>STATUS</th> 
+                            <th>NOMINEES</th> 
+                            <th>WITNESSES</th> 
+                            <th>ACTION</th>                            
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($nominations as $nomination)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td style="height: {{ $nominations->count() == 1? '80px': '' }}">{{ @$nomination->member->membership_number }}</td>
+                                    <td>{{ @$nomination->member->full_name }}</td>
+                                    <td>{{ dateFormat($nomination->declaration_date) }}</td>
+                                    <td>
+                                        @php
+                                            $statusClasses = [                                                
+                                                'pending' => 'warning',                                                
+                                                'approved' => 'success',
+                                                'rejected' => 'danger',                                                
+                                            ];
+                                        @endphp
+                                        <span class="badge bg-{{ $statusClasses[$nomination->status] ?? 'secondary' }} fs-6">
+                                            {{ ucfirst(str_replace('_', ' ', $nomination->status)) }}
+                                        </span>
+                                    </td> 
+                                    <td>{{ @$nomination->nominees->count() }}</td>
+                                    <td>{{ @$nomination->witnesses->count() }}</td>
+                                    <td>{!! $nomination->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

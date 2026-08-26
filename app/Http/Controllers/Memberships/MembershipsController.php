@@ -209,7 +209,6 @@ class MembershipsController extends Controller
     {
         // Inject the key-value pair into the request payload
         $payload = $membership->toArray();
-        unset($payload['id'], $payload['created_at'], $payload['updated_at']);
         $request->merge($payload);
 
         // Flash the modified request to the old input session store

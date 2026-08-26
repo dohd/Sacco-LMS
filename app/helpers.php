@@ -145,14 +145,16 @@ if (!function_exists('printLog')) {
 }
 
 if (!function_exists('errorHandler')) {
-    function errorHandler($msg='', $e=null)
+    function errorHandler($errorMsg = '', $e = null)
     {
         if ($e) {
             \Illuminate\Support\Facades\Log::error($e->getMessage() . ' {user_id:'. auth()->id() . '} at ' . $e->getFile() . ':' . $e->getLine());
-            if (env('APP_ENV') === 'local' && env('APP_DEBUG')) dd($e->getMessage(), $e);
+            if (env('APP_ENV') === 'local' && env('APP_DEBUG') === true) dd($e->getMessage(), $e);
             if ($e instanceof \Illuminate\Validation\ValidationException) throw $e;
-        } 
-        return back()->withInput()->with(['error' => $msg ?: 'Internal server error! Please try again later.']);
+        } else {
+            \Illuminate\Support\Facades\Log::error('Custom exception message: ' . $errorMsg);
+        }
+        return back()->withInput()->with(['error' => $errorMsg ?: 'Internal server error! Please try again later.']);
     }
 }
 
