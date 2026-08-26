@@ -2,6 +2,7 @@
 
 namespace App\Models\LoanApplications;
 
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\ModelTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -32,5 +33,38 @@ class LoanProduct extends Model
             $this->getEditButtonAttribute('loan_products.edit', null),
             null,
         );
+    }
+
+    /**
+     * Relationships
+     * */
+    public function loanPrincipalAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'loan_principal_account_id');
+    }
+
+    public function interestReceivableAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'interest_receivable_account_id');
+    }
+
+    public function interestIncomeAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'interest_income_account_id');
+    }
+
+    public function penaltyReceivableAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'penalty_receivable_account_id');
+    }
+
+    public function penaltyIncomeAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'penalty_income_account_id');
+    }
+
+    public function processingFeeIncomeAccount()
+    {
+        return $this->belongsTo(ChartOfAccount::class, 'processing_fee_income_account_id');
     }
 }

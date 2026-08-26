@@ -270,12 +270,12 @@
 
                         <div class="col-md-4 mb-3">
                             <small class="text-muted d-block">Processing Fee</small>
-                            <strong>{{ number_format($loanProduct->processing_fee_percentage, 4) }}%</strong>
+                            <strong>{{ +$loanProduct->processing_fee_percentage }}%</strong>
                         </div>
 
                         <div class="col-md-4 mb-3">
                             <small class="text-muted d-block">Insurance Fee</small>
-                            <strong>{{ number_format($loanProduct->insurance_fee_percentage, 4) }}%</strong>
+                            <strong>{{ +$loanProduct->insurance_fee_percentage }}%</strong>
                         </div>
                     </div>
                 </div>
@@ -324,7 +324,7 @@
 
                     <div class="mb-3">
                         <small class="text-muted d-block">Interest</small>
-                        <strong>{{ number_format($loanProduct->interest_rate, 2) }}%</strong>
+                        <strong>{{ +$loanProduct->interest_rate }}%</strong>
                     </div>
 
                     <div class="mb-3">
