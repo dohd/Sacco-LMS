@@ -196,6 +196,10 @@ return [
     |
     */
 
-    'same_site' => 'lax',
+    'same_site' => env('SESSION_SAME_SITE', 'lax'),
+
+    'iframe_website' => env('SESSION_IFRAME_WEBSITE'),
+
+    'partitioned' => env('SESSION_PARTITIONED'),
 
 ];
