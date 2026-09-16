@@ -77,6 +77,25 @@ class CreateLoanApplications extends Migration
                 'closed'
             ])->default('submitted');
 
+            $table->unsignedBigInteger('drafted_by')->nullable();
+            $table->unsignedBigInteger('submitted_by')->nullable();
+            $table->unsignedBigInteger('reviewed_by')->nullable();
+            $table->unsignedBigInteger('approved_by')->nullable();
+            $table->unsignedBigInteger('deferred_by')->nullable();
+            $table->unsignedBigInteger('rejected_by')->nullable();
+            $table->unsignedBigInteger('closed_by')->nullable();
+
+            $table->dateTime('drafted_at')->nullable();
+            $table->dateTime('submitted_at')->nullable();
+            $table->dateTime('reviewed_at')->nullable();
+            $table->dateTime('approved_at')->nullable();
+            $table->dateTime('deferred_at')->nullable();
+            $table->dateTime('rejected_at')->nullable();
+            $table->dateTime('closed_at')->nullable();
+
+            $table->text('defer_note')->nullable();
+            $table->text('rejection_note')->nullable();
+
             $table->timestamps();
         });
     }

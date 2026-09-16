@@ -87,7 +87,7 @@ class CreateLoanSecurities extends Migration
              */
             $table->boolean('is_verified')->default(false);
 
-            $table->unsignedBigInteger('verified_by');
+            $table->unsignedBigInteger('verified_by')->nullable();
 
             $table->timestamp('verified_at')->nullable();
 

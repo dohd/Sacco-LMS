@@ -18,17 +18,21 @@
                             <th>REQUIRED DATE</th>
                             <th>STATUS</th>
                             <th>DECLARATION DATE</th>
+                            <th>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($loanApplications as $i => $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td style="height: {{ $loanApplications->count() == 1? '80px': '' }}">{{ $row->application_number }}</td>
+                                    <td>{{ @$row->loanProduct->name }}</td>
+                                    <td>{{ @$row->member->full_name }}</td>
+                                    <td>{{ numberFormat($row->amount_requested) }}</td>
+                                    <td>{{ $row->monthly_installment }}</td>
+                                    <td>{{ dateFormat($row->required_date) }}</td>
+                                    <td>{{ ucfirst($row->status) }}</td>
+                                    <td>{{ dateFormat($row->declaration_date) }}</td>
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>
