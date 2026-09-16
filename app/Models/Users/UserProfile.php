@@ -39,12 +39,10 @@ class UserProfile extends Model
     ];
 
     /**
-     * Guarded fields of model
+     * $guarded = ['id']; fields of model
      * @var array
      */
-    protected $guarded = [
-        'id'
-    ];
+    protected $guarded = ['id'];
 
     /**
      * Constructor of Model

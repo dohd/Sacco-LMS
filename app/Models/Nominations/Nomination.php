@@ -12,7 +12,7 @@ class Nomination extends Model
 {
     use HasFactory, ModelTrait;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     /**
      * Getters

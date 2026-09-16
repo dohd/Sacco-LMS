@@ -11,7 +11,7 @@ class MemberApplication extends Model
 {
     use HasFactory, ModelTrait;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     protected $casts = [
         'date_of_birth' => 'date',

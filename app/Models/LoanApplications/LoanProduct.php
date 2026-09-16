@@ -11,7 +11,7 @@ class LoanProduct extends Model
 {
     use HasFactory, ModelTrait;
 
-    protected $guarded = [];
+    protected $guarded = ['id'];
 
     protected $casts = [
         'requires_guarantors' => 'boolean',
