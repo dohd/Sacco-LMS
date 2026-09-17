@@ -1,21 +1,23 @@
 @extends('layouts.core')
+@section('title', 'Edit | Savings Products')
 
-@section('title', 'Edit | User Profile Management')
-    
 @section('content')
-    @include('users.header')
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">User Profile Details</h5>
-            <div class="card-content p-2">
-                {{ Form::model($user_profile, ['route' => ['users.update', $user_profile], 'method' => 'PATCH', 'class' => 'form']) }}
-                    @include('users.form')
-                    <div class="text-center">
-                        <a href="{{ route('users.index') }}" class="btn btn-secondary">Cancel</a>
-                        {{ Form::submit('Submit', ['class' => 'btn btn-primary']) }}
-                    </div>
-                {{ Form::close() }}
-            </div>
-        </div>
+    @include('savings_products.partial.header')
+    <div class="container-fluid py-3">
+        @php
+            $savingsProduct = $savingsProduct ?? null;
+            $editing = isset($savingsProduct);
+            $booleanValue = function ($field, $default = false) use ($savingsProduct) {
+                return old($field, @$savingsProduct->{$field} ?? $default) ? 1 : 0;
+            };
+        @endphp
+
+        {{ Form::model($savingsProduct, ['route' => ['savings_products.update', $savingsProduct], 'method' => 'PATCH', 'novalidate' => 'novalidate', 'id' => 'savingsProductForm']) }}
+            @include('savings_products.form')
+        {{ Form::close() }}
     </div>
-@stop
+@endsection
+
+@section('script')
+@include('savings_products.form_js')
+@endsection

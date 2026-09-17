@@ -21,14 +21,18 @@
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($savingsProducts as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $savingsProducts->count() == 1? '80px': '' }}">
+                                        {{ $row->code }}
+                                    </td>
+                                    <td>{{ $row->name }}</td>
+                                    <td>{{ $row->product_type }}</td>
+                                    <td>{{ $row->minimum_monthly_contribution }}</td>
+                                    <td>{{ $row->allows_withdrawals }}</td>
+                                    <td>{{ $row->withdrawal_notice_days }}</td>
+                                    <td>{{ $row->is_active? 'Active' : 'Inactive' }}</td>
+                                    <td>{!! $row->action_buttons !!}</td>                                    
                                 </tr>
                             @endforeach
                         </tbody>
