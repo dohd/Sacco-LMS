@@ -73,10 +73,8 @@ class CreateSavingsTransactions extends Migration
             $table->index('status');
             $table->index('transaction_type');
             $table->index('payment_method');
-            $table->index([
-                'savings_account_id',
-                'transaction_date'
-            ]);
+            $table->index(['savings_account_id', 'transaction_date']);
+             $table->index('reversal_of_id');
         });
     }
 

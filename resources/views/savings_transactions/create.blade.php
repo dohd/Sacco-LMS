@@ -1,5 +1,5 @@
 @extends('layouts.core')
-@section('title', 'Savings Transactions')
+@section('title', 'Create | Savings Transactions')
 
 @section('content')
     @include('savings_transactions.partial.header')

@@ -34,11 +34,7 @@ class CreateSavingsAccounts extends Migration
 
             $table->date('last_transaction_date')->nullable();
 
-            $table->enum('status', [
-                'active',
-                'frozen',
-                'closed',
-            ])->default('active');
+            $table->enum('status', ['active', 'frozen', 'closed'])->default('active');
 
             $table->timestamps();
 

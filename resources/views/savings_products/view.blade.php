@@ -69,7 +69,7 @@
                             <div class="col-sm-6">
                                 <div class="text-muted small">Interest Rate</div>
                                 <div class="fs-5 fw-semibold">
-                                    {{ number_format($savingsProduct->interest_rate, 4) }}%
+                                    {{ number_format($savingsProduct->interest_rate, 2) }}%
                                 </div>
                             </div>
                             <div class="col-sm-6">
@@ -175,7 +175,7 @@
                             <div class="col-sm-6">
                                 <div class="text-muted small">Premature Withdrawal Penalty</div>
                                 <div class="fw-semibold">
-                                    {{ number_format($savingsProduct->premature_withdrawal_penalty_percentage, 4) }}%
+                                    {{ number_format($savingsProduct->premature_withdrawal_penalty_percentage, 2) }}%
                                 </div>
                             </div>
                         </div>
