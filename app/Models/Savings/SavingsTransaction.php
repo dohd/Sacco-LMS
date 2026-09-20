@@ -13,6 +13,17 @@ class SavingsTransaction extends Model
 
     protected $guarded = ['id'];
 
+    /**
+     * Getters
+     * */
+    public function getActionButtonsAttribute()
+    {
+        return $this->getButtonWrapperAttribute(
+            $this->getViewButtonAttribute('savings_transactions.show', null),
+            $this->getEditButtonAttribute('savings_transactions.edit', null),
+            null,
+        );
+    }
 
     /**
      * Relationships

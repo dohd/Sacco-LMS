@@ -16,18 +16,23 @@
                             <th>AMOUNT</th>
                             <th>PAYMENT METHOD</th>
                             <th>REFERENCE</th> 
-                            <th>STATUS</th>                            
+                            <th>STATUS</th>   
+                            <th>ACTION</th>                         
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($savingsTranx as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $savingsTranx->count() == 1? '80px': '' }}">
+                                        {{ $row->transaction_number }}
+                                    </td>
+                                    <td>{{ $row->transaction_type }}</td>
+                                    <td>{{ dateFormat($row->transaction_date)  }}</td>
+                                    <td>{{ $row->amount }}</td>
+                                    <td>{{ $row->payment_method }}</td>
+                                    <td>{{ $row->external_reference }}</td>
+                                    <td>{{ $row->status }}</td>                                    
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

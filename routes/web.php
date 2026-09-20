@@ -60,9 +60,12 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Savings
     Route::resource('savings_products', SavingsProductsController::class);
-    Route::resource('savings_accounts', SavingsAccountsController::class);
-    Route::resource('savings_transactions', SavingsTransactionsController::class);
+    Route::resource('savings_accounts', SavingsAccountsController::class);    
     Route::resource('savings_withdrawals', SavingsWithdrawalsController::class);
+
+    Route::post('savings_transactions/confirm/{id}', [SavingsTransactionsController::class, 'confirm'])->name('savings_transactions.confirm');
+    Route::post('savings_transactions/reverse/{id}', [SavingsTransactionsController::class, 'reverse'])->name('savings_transactions.reverse');
+    Route::resource('savings_transactions', SavingsTransactionsController::class);
 
     // User Profiles
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');
