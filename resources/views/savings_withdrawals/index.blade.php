@@ -1,6 +1,5 @@
 @extends('layouts.core')
-
-@section('title', 'Savings Withdrawals')
+@section('title', 'Savings Withdrawal Requests')
     
 @section('content')
     @include('savings_withdrawals.partial.header')
@@ -20,14 +19,16 @@
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($savingsWithdrawals as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $savingsWithdrawals->count() == 1? '80px': '' }}">
+                                        {{ $row->request_number }}
+                                    </td>
+                                    <td>{{ dateFormat($row->requested_date) }}</td>
+                                    <td>{{ numberFormat($row->amount) }}</td>
+                                    <td>{{ $row->payment_method }}</td>
+                                    <td>{{ ucfirst($row->status) }}</td>                                    
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

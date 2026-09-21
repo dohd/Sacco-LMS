@@ -245,6 +245,8 @@ class SavingsTransactionsController extends Controller
                 $transaction->update([
                     'running_balance' => $newLedgerBalance,
                     'status' => 'confirmed',
+                    'confirmed_by' => Auth::id(),
+                    'confirmed_at' => now(),
                 ]);
 
                 /*
@@ -640,7 +642,7 @@ class SavingsTransactionsController extends Controller
         //
     }
 
-    private function generateSavingsTransactionNumber()
+    public function generateSavingsTransactionNumber()
     {
         do {
             $number = 'SAV-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(6));

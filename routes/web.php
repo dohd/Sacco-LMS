@@ -60,12 +60,17 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Savings
     Route::resource('savings_products', SavingsProductsController::class);
-    Route::resource('savings_accounts', SavingsAccountsController::class);    
-    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class);
+    Route::resource('savings_accounts', SavingsAccountsController::class);
 
     Route::post('savings_transactions/confirm/{id}', [SavingsTransactionsController::class, 'confirm'])->name('savings_transactions.confirm');
     Route::post('savings_transactions/reverse/{id}', [SavingsTransactionsController::class, 'reverse'])->name('savings_transactions.reverse');
     Route::resource('savings_transactions', SavingsTransactionsController::class);
+
+    Route::post('savings_withdrawals/reject/{id}', [SavingsWithdrawalsController::class, 'reject'])->name('savings_withdrawals.reject');
+    Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
+    Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
+    Route::post('savings_withdrawals/approve/{id}', [SavingsWithdrawalsController::class, 'approve'])->name('savings_withdrawals.approve');    
+    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class);    
 
     // User Profiles
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');

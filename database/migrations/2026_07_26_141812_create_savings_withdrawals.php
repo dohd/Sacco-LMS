@@ -40,7 +40,7 @@ class CreateSavingsWithdrawals extends Migration
             $table->timestamp('paid_at')->nullable();
             $table->unsignedBigInteger('paid_by')->nullable();
 
-            $table->string('payment_reference')->nullable();
+            $table->string('payment_reference')->nullable()->unique();
 
             $table->enum('status', [
                 'pending',
@@ -52,6 +52,9 @@ class CreateSavingsWithdrawals extends Migration
 
             $table->unsignedBigInteger('approved_by')->nullable();
             $table->timestamp('approved_at')->nullable();
+
+            $table->unsignedBigInteger('rejected_by')->nullable();
+            $table->timestamp('rejected_at')->nullable();
 
             $table->unsignedBigInteger('savings_transaction_id');
 

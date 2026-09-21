@@ -61,6 +61,9 @@ class CreateSavingsTransactions extends Migration
             ])->default('confirmed');
 
             $table->unsignedBigInteger('recorded_by');
+            $table->unsignedBigInteger('confirmed_by')->nullable();
+            $table->timestamp('confirmed_at')->nullable();
+
             $table->unsignedBigInteger('reversal_of_id')->nullable();
 
             $table->text('description')->nullable();

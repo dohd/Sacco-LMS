@@ -1,7 +1,7 @@
 <div class="pagetitle">
   <div class="row">
     <div class="col-6">
-      <h1>Savings Withdrawals</h1>
+      <h1>Savings Withdrawal Requests</h1>
     </div>
     <div class="col-6">
       {{-- @can('create-user') --}}
@@ -14,7 +14,7 @@
   <nav>
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-      <li class="breadcrumb-item active"><a href="{{ route('savings_withdrawals.index') }}">Savings Withdrawals</a></li>
+      <li class="breadcrumb-item active"><a href="{{ route('savings_withdrawals.index') }}">Savings Withdrawal Requests</a></li>
     </ol>
   </nav>
 </div>
