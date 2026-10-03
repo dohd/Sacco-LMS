@@ -47,8 +47,8 @@
       </a>
       <ul id="accounting" class="nav-content collapse" data-bs-parent="#sidebar-nav">
         <li><a href="#"><i class="bi bi-circle"></i><span>Charts Of Accounts</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
       </ul>
     </li> 
 
@@ -57,7 +57,7 @@
         <i class="bi bi-graph-up"></i><span>Shares & Dividends</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="shares" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="#"><i class="bi bi-circle"></i><span>Share Products</span></a></li>
+        <li><a href="{{ route('share_products.index') }}"><i class="bi bi-circle"></i><span>Share Products</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Share Accounts</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Share Hold</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Share Transactions</span></a></li>
