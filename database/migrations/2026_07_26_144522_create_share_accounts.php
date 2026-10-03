@@ -13,38 +13,26 @@ class CreateMemberShareAccounts extends Migration
      */
     public function up()
     {
-        Schema::create('member_share_accounts', function (Blueprint $table) {
+        Schema::create('share_accounts', function (Blueprint $table) {
             $table->id();
 
             $table->unsignedBigInteger('member_id');
-
             $table->unsignedBigInteger('share_product_id');
-
             $table->string('account_number')->unique();
 
-            /*
-             * Cached balances.
-             * The transaction ledger remains the source of truth.
-             */
             $table->unsignedInteger('total_units')->default(0);
             $table->decimal('share_balance', 15, 2)->default(0);
             $table->decimal('held_amount', 15, 2)->default(0);
             $table->decimal('available_amount', 15, 2)->default(0);
 
             $table->date('opened_date');
-
-            $table->enum('status', [
-                'active',
-                'frozen',
-                'closed',
-            ])->default('active');
-
+            $table->enum('status', ['active', 'frozen', 'closed'])->default('active');
+            $table->date('closed_date')->nullable();
+            $table->unsignedBigInteger('closed_by')->nullable();
+            $table->text('closure_reason')->nullable();
             $table->timestamps();
 
-            $table->unique([
-                'member_id',
-                'share_product_id',
-            ]);
+            $table->unique(['member_id', 'share_product_id']);
         });
     }
 
@@ -55,6 +43,6 @@ class CreateMemberShareAccounts extends Migration
      */
     public function down()
     {
-        Schema::dropIfExists('member_share_accounts');
+        Schema::dropIfExists('share_accounts');
     }
 }

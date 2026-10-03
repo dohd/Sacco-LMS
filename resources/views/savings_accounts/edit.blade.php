@@ -4,7 +4,7 @@
 @section('content')
     @include('savings_accounts.partial.header')
     <div class="container-fluid">
-        {{ Form::open(['route' => ['savings_accounts.update', $savingsAccount], 'method' => 'PATCH', 'id' => 'savingsAccountForm']) }}
+        {{ Form::model($savingsAccount, ['route' => ['savings_accounts.update', $savingsAccount], 'method' => 'PATCH', 'id' => 'savingsAccountForm']) }}
             @include('savings_accounts.form')
         {{ Form::close() }}
     </div>    

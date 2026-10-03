@@ -41,7 +41,7 @@
       </ul>
     </li>   
 
-    <li class="nav-item">
+    {{-- <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#accounting" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-journal-bookmark"></i><span>Accounting</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
@@ -50,7 +50,7 @@
         <li><a href="#"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
       </ul>
-    </li> 
+    </li>  --}}
 
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#shares" data-bs-toggle="collapse" href="#">      
@@ -58,8 +58,8 @@
       </a>
       <ul id="shares" class="nav-content collapse" data-bs-parent="#sidebar-nav">
         <li><a href="{{ route('share_products.index') }}"><i class="bi bi-circle"></i><span>Share Products</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Share Accounts</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Share Hold</span></a></li>
+        <li><a href="{{ route('share_accounts.index') }}"><i class="bi bi-circle"></i><span>Share Accounts</span></a></li>
+        {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Share Hold</span></a></li> --}}
         <li><a href="#"><i class="bi bi-circle"></i><span>Share Transactions</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Dividend Runs</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i><span>Dividend Allocations</span></a></li>

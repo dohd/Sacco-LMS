@@ -13,6 +13,7 @@ use App\Http\Controllers\SavingsAccounts\SavingsAccountsController;
 use App\Http\Controllers\SavingsProducts\SavingsProductsController;
 use App\Http\Controllers\SavingsTransactions\SavingsTransactionsController;
 use App\Http\Controllers\SavingsWithdrawals\SavingsWithdrawalsController;
+use App\Http\Controllers\ShareAccounts\ShareAccountsController;
 use App\Http\Controllers\ShareProducts\ShareProductsController;
 use App\Http\Controllers\Users\UsersController;
 use Illuminate\Support\Facades\Auth;
@@ -75,7 +76,10 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Shares
     Route::post('share_products/toggle_status/{id}', [ShareProductsController::class, 'toggleStatus'])->name('share_products.toggle_status'); 
-    Route::resource('share_products', ShareProductsController::class); 
+    Route::resource('share_products', ShareProductsController::class);
+
+    Route::post('share_accounts/close/{id}', [ShareAccountsController::class, 'close'])->name('share_accounts.close');
+    Route::resource('share_accounts', ShareAccountsController::class); 
 
     // User Profiles
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');
