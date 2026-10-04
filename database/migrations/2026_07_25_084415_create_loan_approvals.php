@@ -23,16 +23,16 @@ class CreateLoanApprovals extends Migration
             $table->unsignedBigInteger('loan_application_id');
             $table->unsignedBigInteger('member_id');
 
-            $table->decimal('approved_amount', 15, 2);
+            $table->decimal('approved_amount', 15, 2)->default(0);
 
-            $table->unsignedInteger('repayment_months');
+            $table->unsignedInteger('repayment_months')->default(0);
 
-            $table->decimal('monthly_installment', 15, 2);
+            $table->decimal('monthly_installment', 15, 2)->default(0);
 
             /*
              * Supports rates such as 12.5000%.
              */
-            $table->decimal('interest_rate', 8, 4);
+            $table->decimal('interest_rate', 8, 4)->default(0);
 
             $table->enum('decision', [
                 'approved',
@@ -40,21 +40,21 @@ class CreateLoanApprovals extends Migration
                 'rejected',
             ]);
 
-            $table->text('reason');
+            $table->text('reason')->nullable();
 
             /*
              * The same meeting minute may cover several applications,
              * so this field is indexed but not unique.
              */
-            $table->string('minute_number')->index();
+            $table->string('minute_number')->nullable()->index();
 
-            $table->date('meeting_date');
+            $table->date('meeting_date')->nullable();
 
             /*
              * Assumption: chairman and approving officer are users.
              * Change 'users' to 'employees' or another table where needed.
              */
-            $table->unsignedBigInteger('chairman_id');
+            $table->unsignedBigInteger('chairman_id')->nullable();
             $table->unsignedBigInteger('approved_by');
 
             $table->timestamps();

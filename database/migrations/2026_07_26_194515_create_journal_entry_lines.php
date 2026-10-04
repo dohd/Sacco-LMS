@@ -34,7 +34,7 @@ class CreateJournalEntryLines extends Migration
 
             $table->unsignedBigInteger('savings_account_id');
 
-            $table->unsignedBigInteger('member_share_account_id');
+            $table->unsignedBigInteger('share_account_id');
 
             $table->timestamps();
 

@@ -77,7 +77,7 @@ class CreateShareTransactions extends Migration
             $table->timestamps();
 
             $table->index([
-                'member_share_account_id',
+                'share_account_id',
                 'value_date',
             ]);
         });

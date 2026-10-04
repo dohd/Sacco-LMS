@@ -16,7 +16,7 @@ class CreateShareHolds extends Migration
         Schema::create('share_holds', function (Blueprint $table) {
             $table->id();
 
-            $table->unsignedBigInteger('member_share_account_id');
+            $table->unsignedBigInteger('share_account_id');
 
             $table->unsignedBigInteger('loan_id');
 

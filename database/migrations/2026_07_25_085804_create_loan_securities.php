@@ -49,14 +49,14 @@ class CreateLoanSecurities extends Migration
             /*
              * Estimated or assessed value of the security.
              */
-            $table->decimal('security_value', 15, 2);
+            $table->decimal('security_value', 15, 2)->default(0);
 
             /*
              * Amount of the security value accepted for loan coverage.
              * This may differ from the market value after applying
              * valuation or lending policy limits.
              */
-            $table->decimal('accepted_value', 15, 2)->nullable();
+            $table->decimal('accepted_value', 15, 2)->default(0);
 
             /*
              * Reference details for the pledged asset.

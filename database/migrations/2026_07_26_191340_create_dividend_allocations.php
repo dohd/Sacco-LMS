@@ -20,7 +20,7 @@ class CreateDividendAllocations extends Migration
 
             $table->unsignedBigInteger('member_id');
 
-            $table->unsignedBigInteger('member_share_account_id');
+            $table->unsignedBigInteger('share_account_id');
 
             /*
              * Share balance used when calculating the dividend.

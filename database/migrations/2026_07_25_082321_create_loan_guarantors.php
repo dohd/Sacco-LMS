@@ -20,13 +20,14 @@ class CreateLoanGuarantors extends Migration
 
             $table->string('guarantor_name');
             $table->string('member_number');
-            $table->decimal('shares_offered',15,2);
+            $table->decimal('shares_offered',15,2)->default(0);
 
             $table->string('national_id');
             $table->string('signature')->nullable();
             $table->string('witness_name')->nullable();
 
             $table->timestamps();
+            $table->unique(['loan_application_id', 'member_id'], 'loan_guarantors_application_member_unique');
         });
     }
 
