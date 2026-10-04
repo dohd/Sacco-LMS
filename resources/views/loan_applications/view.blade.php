@@ -50,7 +50,7 @@
                             Back
                         </a>
 
-                        @if($application->status === 'draft')
+                        @if(in_array($application->status, ['draft', 'deferred']))
                             <a href="{{ route('loan_applications.edit', $application->id) }}"
                                class="btn btn-sm btn-outline-primary">
                                 Edit
@@ -73,6 +73,18 @@
             {{-- =================================================== --}}
             {{-- 1. LOAN DETAILS --}}
             {{-- =================================================== --}}
+
+            @if(in_array($application->status, ['approved', 'disbursed', 'closed']))
+                <div class="card shadow-sm mb-4">
+                    <div class="card-header"><h5 class="mb-0">Approved Terms</h5></div>
+                    <div class="card-body pt-3">
+                        <p>Amount: KES {{ number_format($application->amount_approved, 2) }}</p>
+                        <p>Repayment: {{ $application->approved_repayment_months }} months</p>
+                        <p>Monthly installment: KES {{ number_format($application->approved_monthly_installment, 2) }}</p>
+                        <p class="mb-0">Interest: {{ $application->approved_interest_rate }}% · {{ str_replace('_', ' ', $application->approved_interest_method ?? '') }} · {{ str_replace('_', ' ', $application->approved_interest_frequency ?? '') }}</p>
+                    </div>
+                </div>
+            @endif
 
             <div class="card shadow-sm mb-4">
                 <div class="card-header">
@@ -701,6 +713,21 @@
                                     @endif
 
                                 </div>
+
+                                @if(in_array($application->status, ['submitted', 'under_review']) && !$security->is_verified)
+                                    <div class="col-12 mb-3">
+                                        <form method="POST" action="{{ route('loan_applications.verify_security', $application) }}" class="d-flex gap-2 align-items-end">
+                                            @csrf
+                                            @method('PATCH')
+                                            <input type="hidden" name="security_id" value="{{ $security->id }}">
+                                            <div>
+                                                <label class="form-label">Accepted Value</label>
+                                                <input name="accepted_value" type="number" min="0.01" max="{{ $security->security_value }}" step="0.01" required class="form-control">
+                                            </div>
+                                            <button class="btn btn-outline-success">Verify Security</button>
+                                        </form>
+                                    </div>
+                                @endif
 
                                 @if($security->remarks)
 
@@ -1358,7 +1385,7 @@
 
                 <div class="card-body d-grid gap-2">
 
-                    @if($application->status === 'draft')
+                    @if(in_array($application->status, ['draft', 'deferred']))
 
                         <a href="{{ route('loan_applications.edit', $application->id) }}"
                            class="btn btn-outline-primary">
@@ -1377,6 +1404,14 @@
 
                     @endif
 
+
+                    @if($application->status === 'draft')
+                        <form method="POST" action="{{ route('loan_applications.destroy', $application) }}" onsubmit="return confirm('Delete this draft?')">
+                            @csrf
+                            @method('DELETE')
+                            <button class="btn btn-outline-danger w-100">Delete Draft</button>
+                        </form>
+                    @endif
 
                     @if($application->status === 'submitted')
 
@@ -1425,7 +1460,7 @@
 
                     @if($application->status === 'approved')
 
-                        <a href="{{ route('loan-disbursements.create', ['loan_application_id' => $application->id]) }}"
+                        <a href="{{ route('loan_disbursements.create', ['loan_application_id' => $application->id]) }}"
                            class="btn btn-primary">
 
                             Proceed to Disbursement

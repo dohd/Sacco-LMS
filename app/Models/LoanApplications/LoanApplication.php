@@ -18,6 +18,9 @@ class LoanApplication extends Model
         'required_date' => 'date',
         'declaration_date' => 'date',
         'amount_requested' => 'decimal:2',
+        'amount_approved' => 'decimal:2',
+        'approved_monthly_installment' => 'decimal:2',
+        'approved_interest_rate' => 'decimal:4',
         'monthly_installment' => 'decimal:2',
         'purpose_amount' => 'decimal:2',
         'total_share_contribution' => 'decimal:2',
@@ -34,7 +37,7 @@ class LoanApplication extends Model
     {
         return $this->getButtonWrapperAttribute(
             $this->getViewButtonAttribute('loan_applications.show', null),
-            $this->getEditButtonAttribute('loan_applications.edit', null),
+            in_array($this->status, ['draft', 'deferred']) ? $this->getEditButtonAttribute('loan_applications.edit', null) : null,
             null,
         );
     }
