@@ -10,6 +10,7 @@ use App\Models\LoanApplications\LoanProduct;
 use App\Models\LoanApplications\LoanSecurity;
 use App\Models\LoanApplications\LoanWitness;
 use App\Models\Memberships\Member;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -52,125 +53,6 @@ class LoanApplicationsController extends Controller
      * @param  \Illuminate\Http\Request  $request
      * @return \Illuminate\Http\Response
      */
-    public function store_old(Request $request)
-    {
-        $validated = $request->validate([
-            'member_id' => ['required', 'integer', 'exists:members,id'],
-            'loan_product_id' => ['required', 'integer', 'exists:loan_products,id'],
-            'amount_requested' => ['required', 'numeric', 'gt:0'],
-            'amount_in_words' => ['nullable', 'string'],
-            'repayment_period_months' => ['required', 'integer', 'min:1'],
-            'monthly_installment' => ['required', 'numeric', 'min:0'],
-            'required_date' => ['nullable', 'date'],
-            'payment_mode' => ['required', Rule::in(['standing_order', 'check_off', 'post_dated_cheques', 'cash'])],
-            'loan_purpose' => ['required', 'string'],
-            'purpose_amount' => ['nullable', 'numeric', 'min:0'],
-            'employer_name' => ['nullable', 'string', 'max:255'],
-            'employment_type' => ['nullable', Rule::in(['permanent', 'seasonal', 'contract', 'self_employed'])],
-            'work_station' => ['nullable', 'string', 'max:255'],
-            'employer_postal_address' => ['nullable', 'string', 'max:255'],
-            'business_name' => ['nullable', 'string', 'max:255'],
-            'business_postal_address' => ['nullable', 'string', 'max:255'],
-            'total_share_contribution' => ['nullable', 'numeric', 'min:0'],
-            'outstanding_loan_balance' => ['nullable', 'numeric', 'min:0'],
-            'monthly_share_contribution' => ['nullable', 'numeric', 'min:0'],
-            'security_shares' => ['nullable', 'numeric', 'min:0'],
-            'guarantor_security' => ['nullable', 'numeric', 'min:0'],
-            'applicant_signature' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
-            'declaration_date' => ['nullable', 'date', 'before_or_equal:today'],
-            'status' => ['nullable', Rule::in(['draft', 'submitted'])],
-        ]);
-
-        $signaturePath = null;
-
-        try {
-            $loanProduct = LoanProduct::findOrFail($validated['loan_product_id']);
-
-            if (!$loanProduct->is_active) {
-                throw ValidationException::withMessages([
-                    'loan_product_id' => 'The selected loan product is not currently active.',
-                ]);
-            }
-
-            if ($validated['amount_requested'] < $loanProduct->minimum_amount) {
-                throw ValidationException::withMessages([
-                    'amount_requested' => 'The requested amount is below the minimum allowed for this loan product.',
-                ]);
-            }
-
-            if ($loanProduct->maximum_amount !== null &&
-                $validated['amount_requested'] > $loanProduct->maximum_amount) {
-                throw ValidationException::withMessages([
-                    'amount_requested' => 'The requested amount exceeds the maximum allowed for this loan product.',
-                ]);
-            }
-
-            if ($validated['repayment_period_months'] < $loanProduct->minimum_repayment_months ||
-                $validated['repayment_period_months'] > $loanProduct->maximum_repayment_months) {
-                throw ValidationException::withMessages([
-                    'repayment_period_months' => 'The repayment period is outside the allowed range for this loan product.',
-                ]);
-            }
-            
-            if ($request->hasFile('applicant_signature')) {
-                $signaturePath = $request->file('applicant_signature')->store('loan_applications/signatures', 'public');
-            }
-
-            $loanApplication = DB::transaction(function () use ($validated, $signaturePath) {
-                $application = LoanApplication::create([
-                    'member_id' => $validated['member_id'],
-                    'loan_product_id' => $validated['loan_product_id'],
-                    'application_number' => $this->generateApplicationNumber(),
-                    'amount_requested' => $validated['amount_requested'],
-                    'amount_in_words' => $validated['amount_in_words'] ?? null,
-                    'repayment_period_months' => $validated['repayment_period_months'],
-                    'monthly_installment' => $validated['monthly_installment'],
-                    'required_date' => $validated['required_date'] ?? null,
-                    'payment_mode' => $validated['payment_mode'],
-                    'loan_purpose' => $validated['loan_purpose'],
-                    'purpose_amount' => $validated['purpose_amount'] ?? null,
-                    'employer_name' => $validated['employer_name'] ?? null,
-                    'employment_type' => $validated['employment_type'] ?? null,
-                    'work_station' => $validated['work_station'] ?? null,
-                    'employer_postal_address' => $validated['employer_postal_address'] ?? null,
-                    'business_name' => $validated['business_name'] ?? null,
-                    'business_postal_address' => $validated['business_postal_address'] ?? null,
-                    'total_share_contribution' => $validated['total_share_contribution'] ?? 0,
-                    'outstanding_loan_balance' => $validated['outstanding_loan_balance'] ?? 0,
-                    'monthly_share_contribution' => $validated['monthly_share_contribution'] ?? 0,
-                    'security_shares' => $validated['security_shares'] ?? 0,
-                    'guarantor_security' => $validated['guarantor_security'] ?? 0,
-                    'applicant_signature' => $signaturePath,
-                    'declaration_date' => $validated['declaration_date'] ?? null,
-                    'status' => $validated['status'] ?? 'submitted',
-                ]);
-
-                return $application;
-            });
-
-            return redirect()
-                ->route('loan_applications.show', $loanApplication->id)
-                ->with('success', 'Loan application created successfully.');
-        } catch (\Exception $e) {
-            if (isset($signaturePath)) {
-                Storage::disk('public')->delete($signaturePath);
-            }
-
-            return errorHandler("The loan application could not be created. Please try again.", $e);
-        }            
-    }
-
-    /**
-     * Display the specified resource.
-     *
-     * @param  int  $id
-     * @return \Illuminate\Http\Response
-     */
-    public function show(LoanApplication $application)
-    {
-        return view('loan_applications.view', compact('application'));
-    }
-
     public function store(Request $request)
     {
         $isDraft = $request->submission_action === 'draft';
@@ -304,7 +186,7 @@ class LoanApplicationsController extends Controller
                     'payment_mode' => $validated['payment_mode'] ?? null,
 
                     'loan_purpose' => $validated['loan_purpose'] ?? '',
-                    'purpose_amount' => $validated['purpose_amount'] ?? null,
+                    'purpose_amount' => $validated['purpose_amount'] ?? 0,
 
                     'employer_name' => $validated['employer_name'] ?? null,
                     'employment_type' => $validated['employment_type'] ?? null,
@@ -450,7 +332,18 @@ class LoanApplicationsController extends Controller
                     ? 'Loan application saved as draft.'
                     : 'Loan application submitted successfully.'
             );
-    }    
+    } 
+
+    /**
+     * Display the specified resource.
+     *
+     * @param  int  $id
+     * @return \Illuminate\Http\Response
+     */
+    public function show(LoanApplication $application)
+    {
+        return view('loan_applications.view', compact('application'));
+    }   
 
     /**
      * Show the form for editing the specified resource.
@@ -501,138 +394,138 @@ class LoanApplicationsController extends Controller
             'approval_note' => ['nullable', 'string'],
         ]);
 
-        $application->load([
-            'loanProduct',
-            'guarantors',
-            'securities',
-            'witnesses',
-        ]);
+        try {
+            DB::transaction(function () use (&$application, $validated) {
+                $application = LoanApplication::whereKey($application->id)->lockForUpdate()->first();
 
-        if (!in_array($application->status, ['submitted', 'under_review', 'deferred'])) {
-            throw ValidationException::withMessages([
-                'status' => 'This application cannot be approved from its current status.',
-            ]);
-        }
-
-        $product = $application->loanProduct;
-
-        if (!$product) {
-            throw ValidationException::withMessages([
-                'loan_product_id' => 'The loan product could not be found.',
-            ]);
-        }
-
-        $approvedAmount = (float) $validated['approved_amount'];
-        $repaymentMonths = (int) $validated['repayment_period_months'];
-
-        if ($approvedAmount > $application->amount_requested) {
-            throw ValidationException::withMessages([
-                'approved_amount' => 'Approved amount cannot exceed the requested amount.',
-            ]);
-        }
-
-        if ($approvedAmount < $product->minimum_amount) {
-            throw ValidationException::withMessages([
-                'approved_amount' => 'Approved amount is below the product minimum.',
-            ]);
-        }
-
-        if ($product->maximum_amount !== null && $approvedAmount > $product->maximum_amount) {
-            throw ValidationException::withMessages([
-                'approved_amount' => 'Approved amount exceeds the product maximum.',
-            ]);
-        }
-
-        if (
-            $repaymentMonths < $product->minimum_repayment_months ||
-            $repaymentMonths > $product->maximum_repayment_months
-        ) {
-            throw ValidationException::withMessages([
-                'repayment_period_months' => 'Approved repayment period is outside the product limits.',
-            ]);
-        }
-
-        if ($product->requires_guarantors) {
-            $acceptedGuarantorSecurity = $application->guarantors
-                ->sum(fn($guarantor) => (float) $guarantor->shares_offered);
-
-            $requiredCoverage = $approvedAmount
-                * ((float) $product->minimum_guarantor_coverage_percentage / 100);
-
-            if ($acceptedGuarantorSecurity < $requiredCoverage) {
-                throw ValidationException::withMessages([
-                    'guarantors' => 'Guarantor security does not sufficiently cover the approved amount.',
-                ]);
-            }
-
-            if ($application->guarantors->count() < $product->minimum_guarantors) {
-                throw ValidationException::withMessages([
-                    'guarantors' => 'Minimum guarantor requirement has not been met.',
-                ]);
-            }
-        }
-
-        $unverifiedSecurities = $application->securities
-            ->where('status', '!=', 'rejected')
-            ->filter(fn($security) => !$security->is_verified);
-
-        if ($unverifiedSecurities->isNotEmpty()) {
-            throw ValidationException::withMessages([
-                'securities' => 'All securities being used for this loan must be verified before approval.',
-            ]);
-        }
-
-        $monthlyInstallment = $this->calculateMonthlyInstallment(
-            $approvedAmount,
-            $repaymentMonths,
-            $product
-        );
-
-        DB::transaction(function () use (
-            $application,
-            $approvedAmount,
-            $repaymentMonths,
-            $monthlyInstallment,
-            $validated,
-            $product
-        ) {
-            $application->update([
-                'amount_requested' => $approvedAmount,
-                'repayment_period_months' => $repaymentMonths,
-                'monthly_installment' => $monthlyInstallment,
-
-                'status' => 'approved',
-                'approved_by' => Auth::id(),
-                'approved_at' => now(),
-
-                'defer_note' => null,
-                'rejection_note' => null,
-            ]);
-
-            $application->securities()
-                ->where('is_verified', true)
-                ->whereIn('status', ['pending', 'verified'])
-                ->update([
-                    'status' => 'pledged',
-                    'pledged_date' => now()->toDateString(),
+                $application->load([
+                    'loanProduct',
+                    'guarantors',
+                    'securities',
+                    'witnesses',
                 ]);
 
-            LoanApproval::create([
-                'loan_application_id' => $application->id,
-                'member_id' => $application->member_id,
-                'approved_amount' => $approvedAmount,
-                'repayment_months' => $repaymentMonths,
-                'monthly_installment' => $monthlyInstallment,
-                'interest_rate' => $product->interest_rate,
-                'decision' => 'approved',
-                'reason' => $validated['approval_note'] ?? null,
-                'approved_by' => Auth::id(),
-            ]);    
-        });
+                if (!in_array($application->status, ['submitted', 'under_review', 'deferred'])) {
+                    throw ValidationException::withMessages([
+                        'status' => 'This application cannot be approved from its current status.',
+                    ]);
+                }
 
-        return redirect()
-            ->route('loan_applications.show', $application->id)
-            ->with('success', 'Loan application approved successfully.');
+                $product = $application->loanProduct;
+
+                if (!$product) {
+                    throw ValidationException::withMessages([
+                        'loan_product_id' => 'The loan product could not be found.',
+                    ]);
+                }
+
+                $approvedAmount = (float) $validated['approved_amount'];
+                $repaymentMonths = (int) $validated['repayment_period_months'];
+
+                if ($approvedAmount > $application->amount_requested) {
+                    throw ValidationException::withMessages([
+                        'approved_amount' => 'Approved amount cannot exceed the requested amount.',
+                    ]);
+                }
+
+                if ($approvedAmount < $product->minimum_amount) {
+                    throw ValidationException::withMessages([
+                        'approved_amount' => 'Approved amount is below the product minimum.',
+                    ]);
+                }
+
+                if ($product->maximum_amount !== null && $approvedAmount > $product->maximum_amount) {
+                    throw ValidationException::withMessages([
+                        'approved_amount' => 'Approved amount exceeds the product maximum.',
+                    ]);
+                }
+
+                if (
+                    $repaymentMonths < $product->minimum_repayment_months ||
+                    $repaymentMonths > $product->maximum_repayment_months
+                ) {
+                    throw ValidationException::withMessages([
+                        'repayment_period_months' => 'Approved repayment period is outside the product limits.',
+                    ]);
+                }
+
+                if ($product->requires_guarantors) {
+                    $acceptedGuarantorSecurity = $application->guarantors
+                        ->sum(fn($guarantor) => (float) $guarantor->shares_offered);
+
+                    $requiredCoverage = $approvedAmount
+                        * ((float) $product->minimum_guarantor_coverage_percentage / 100);
+
+                    if ($acceptedGuarantorSecurity < $requiredCoverage) {
+                        throw ValidationException::withMessages([
+                            'guarantors' => 'Guarantor security does not sufficiently cover the approved amount.',
+                        ]);
+                    }
+
+                    if ($application->guarantors->count() < $product->minimum_guarantors) {
+                        throw ValidationException::withMessages([
+                            'guarantors' => 'Minimum guarantor requirement has not been met.',
+                        ]);
+                    }
+                }
+
+                $unverifiedSecurities = $application->securities
+                    ->where('status', '!=', 'rejected')
+                    ->filter(fn($security) => !$security->is_verified);
+
+                if ($unverifiedSecurities->isNotEmpty()) {
+                    throw ValidationException::withMessages([
+                        'securities' => 'All securities being used for this loan must be verified before approval.',
+                    ]);
+                }
+
+                $monthlyInstallment = $this->calculateMonthlyInstallment(
+                    $approvedAmount,
+                    $repaymentMonths,
+                    $product
+                );                
+
+                $application->update([
+                    'amount_approved' => $approvedAmount,
+                    'repayment_period_months' => $repaymentMonths,
+                    'monthly_installment' => $monthlyInstallment,
+
+                    'status' => 'approved',
+                    'approved_by' => Auth::id(),
+                    'approved_at' => now(),
+
+                    'defer_note' => null,
+                    'rejection_note' => null,
+                ]);
+
+                $application->securities()
+                    ->where('is_verified', true)
+                    ->whereIn('status', ['pending', 'verified'])
+                    ->update([
+                        'status' => 'pledged',
+                        'pledged_date' => now()->toDateString(),
+                    ]);
+
+                LoanApproval::create([
+                    'loan_application_id' => $application->id,
+                    'member_id' => $application->member_id,
+                    'approved_amount' => $approvedAmount,
+                    'repayment_months' => $repaymentMonths,
+                    'monthly_installment' => $monthlyInstallment,
+                    'interest_rate' => $product->interest_rate,
+                    'decision' => 'approved',
+                    'reason' => $validated['approval_note'] ?? null,
+                    'approved_by' => Auth::id(),
+                ]);    
+            });
+
+            return redirect()
+                ->route('loan_applications.show', $application->id)
+                ->with('success', 'Loan application approved successfully.');
+
+        } catch (Exception $e) {
+            return errorHandler("Error approving loan application. Try again later", $e);
+        }
     }    
 
     private function generateApplicationNumber()
@@ -791,5 +684,4 @@ class LoanApplicationsController extends Controller
             }
         }
     }
-
 }

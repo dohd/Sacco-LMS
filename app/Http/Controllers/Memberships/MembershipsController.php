@@ -249,7 +249,7 @@ class MembershipsController extends Controller
                 $required,
                 'string',
                 'max:100',
-                Rule::unique('member_applications', 'national_id'),
+                Rule::unique('member_applications', 'national_id')->ignore($membership),
             ],
             'phone' => [$required, 'string', 'max:30'],
             'email' => ['nullable', 'email:rfc', 'max:255'],

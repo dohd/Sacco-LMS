@@ -20,11 +20,12 @@ class CreateLoanApplications extends Migration
             $table->unsignedBigInteger('loan_product_id');
 
             $table->string('application_number')->unique();
-            $table->decimal('amount_requested',15,2);
+            $table->decimal('amount_requested',15,2)->default(0);
+            $table->decimal('amount_approved',15,2)->default(0);
             $table->text('amount_in_words')->nullable();
 
             $table->unsignedInteger('repayment_period_months');
-            $table->decimal('monthly_installment',15,2);
+            $table->decimal('monthly_installment',15,2)->default(0);
 
             $table->date('required_date')->nullable();
 
@@ -36,7 +37,7 @@ class CreateLoanApplications extends Migration
             ]);
 
             $table->text('loan_purpose');
-            $table->decimal('purpose_amount',15,2)->nullable();
+            $table->decimal('purpose_amount',15,2)->default(0);
 
             // Employment
             $table->string('employer_name')->nullable();

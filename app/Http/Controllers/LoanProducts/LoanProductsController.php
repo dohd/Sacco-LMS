@@ -253,8 +253,14 @@ class LoanProductsController extends Controller
     public function update(Request $request, LoanProduct $loanProduct)
     {
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50', 'unique:loan_products,code'],
-            'name' => ['required', 'string', 'max:255', 'unique:loan_products,name'],
+            'code' => [
+                'required', 'string', 'max:50', 
+                Rule::unique('loan_products', 'code')->ignore($loanProduct),
+            ],
+            'name' => [
+                'required', 'string', 'max:255', 
+                Rule::unique('loan_products', 'name')->ignore($loanProduct),
+            ],
             'description' => ['nullable', 'string'],
 
             'loan_principal_account_id' => ['nullable', 'integer'],

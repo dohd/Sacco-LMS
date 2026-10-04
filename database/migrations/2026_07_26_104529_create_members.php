@@ -25,7 +25,7 @@ class CreateMembers extends Migration
              * Change 'membership_applications' if your application
              * table uses a different name.
              */
-            $table->unsignedBigInteger('member_id');
+            $table->unsignedBigInteger('member_application_id');
 
             /*
              * System-generated membership number.

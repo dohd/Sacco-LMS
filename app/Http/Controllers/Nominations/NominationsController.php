@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Nominations;
 use App\Http\Controllers\Controller;
 use App\Models\Memberships\Member;
 use App\Models\Nominations\Nomination;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -81,7 +82,7 @@ class NominationsController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($request, $validated) {
+            DB::transaction(function () use ($request, $validated, &$uploadedPaths) {
                 /*
                  * Deactivate previous nominations while preserving them
                  * for audit and historical reporting.
@@ -227,7 +228,8 @@ class NominationsController extends Controller
                 ]);
             }
 
-            DB::transaction(function () use ($request, $validated, $nomination) {
+            DB::transaction(function () use ($request, $validated, &$nomination, &$uploadedPaths) {
+                $nomination = Nomination::whereKey($nomination->id)->lockForUpdate()->first();
 
                 if (request('member_signature')) {
                     $memberSignature = $request
@@ -243,6 +245,7 @@ class NominationsController extends Controller
                 }
 
                 $nomination->update([
+                    'member_id' => $validated['member_id'],
                     'special_instructions' => $validated['special_instructions'] ?? null,
                     'declaration_date' => databaseDate($validated['declaration_date']),
                     'confirmed_declaration' => boolval($validated['confirmed_declaration'] ?? null),
@@ -279,27 +282,32 @@ class NominationsController extends Controller
                             ->file("witnesses.$index.signature")
                             ->store('nomination-signatures/witnesses', 'public');
                         $uploadedPaths[] = $signature;                        
+                    } else {
+                        $signature = null;
                     }
 
                     $witness = $nomination->witnesses()
                         ->where('national_id', $witnessData['national_id'])
                         ->first();
-
-                    $nomination->witnesses()->updateOrCreate([
-                            'national_id' => $witnessData['national_id']
-                        ],
-                        [
+                    if ($witness) {
+                        $witness->update([
                             'member_id' => $validated['member_id'],
                             'full_name' => $witnessData['full_name'],
                             'national_id' => $witnessData['national_id'],                            
-                        ]
-                    );
+                        ]);                        
+                    } else {
+                       $witness = $nomination->witnesses()->create([
+                            'member_id' => $validated['member_id'],
+                            'full_name' => $witnessData['full_name'],
+                            'national_id' => $witnessData['national_id'],                            
+                        ]);
+                    }
                     
                     if (isset($signature) && $witness) {
                         $witness->update(['signature' => $signature]);
                     } elseif (empty($witness->signature)) {
                         throw ValidationException::withMessages(['signature' => 'witness '. strval($index+1) .' signature is required']);
-                    }
+                    }                    
                 }
             });
 
@@ -328,38 +336,47 @@ class NominationsController extends Controller
 
     public function approve(Nomination $nomination)
     {
-        if ($nomination->status === 'approved') {
-            throw ValidationException::withMessages([
-                'application' => 'This nomination has already been approved.',
-            ]);
+        try {
+            if ($nomination->status === 'approved') {
+                throw ValidationException::withMessages([
+                    'application' => 'This nomination has already been approved.',
+                ]);
+            }
+
+            DB::transaction(
+                fn() => $nomination->update([
+                    'status' => 'approved',
+                    'approved_by' => auth()->id(),
+                    'approved_at' => now(),
+                ])
+            );
+
+            return redirect()
+                ->route('nominations.show', $nomination)
+                ->with('success', 'The nomination has been approved successfully.');
+
+        } catch (Exception $e) {
+            return errorHandler("Error approving nomination. Try again later", $e);
         }
-
-        DB::transaction(
-            fn() => $nomination->update([
-                'status' => 'approved',
-                'approved_by' => auth()->id(),
-                'approved_at' => now(),
-            ])
-        );
-
-        return redirect()
-            ->route('nominations.show', $nomination)
-            ->with('success', 'The nomination has been approved successfully.');
     }
 
     public function reject(Nomination $nomination)
     {
-        DB::transaction(
-            fn() => $nomination->update([
-                'status' => 'rejected',
-                'rejected_by' => auth()->id(),
-                'rejected_at' => now(),
-                'rejection_reason' => $nomination->rejection_reason,
-            ])
-        );
+        try {
+            DB::transaction(
+                fn() => $nomination->update([
+                    'status' => 'rejected',
+                    'rejected_by' => auth()->id(),
+                    'rejected_at' => now(),
+                    'rejection_reason' => request('rejection_reason'),
+                ])
+            );
 
-        return redirect()
-            ->route('nominations.show', $nomination)
-            ->with('success', 'The nomination has been rejected successfully.');
+            return redirect()
+                ->route('nominations.show', $nomination)
+                ->with('success', 'The nomination has been rejected successfully.');
+        } catch (Exception $e) {
+            return errorHandler("Error saving rejection. Try again later", $e);
+        }
     }
 }

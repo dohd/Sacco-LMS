@@ -1,7 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\LoginController;
-use App\Http\Controllers\config\ConfigController;
+use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LoanApplications\LoanApplicationsController;
 use App\Http\Controllers\LoanDisbursements\LoanDisbursementsController;
@@ -56,8 +56,8 @@ Route::group(['middleware' => 'auth'], function() {
 
     Route::post('loan_applications/approve', [LoanApplicationsController::class, 'approve'])->name('loan_applications.approve');
     Route::post('loan_applications/workflow', [LoanApplicationsController::class, 'workflow'])->name('loan_applications.workflow');
-
     Route::resource('loan_applications', LoanApplicationsController::class);
+    
     Route::resource('loan_disbursements', LoanDisbursementsController::class);
     Route::resource('loan_repayments', LoanRepaymentsController::class);
 
