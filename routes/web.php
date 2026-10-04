@@ -15,6 +15,7 @@ use App\Http\Controllers\SavingsTransactions\SavingsTransactionsController;
 use App\Http\Controllers\SavingsWithdrawals\SavingsWithdrawalsController;
 use App\Http\Controllers\ShareAccounts\ShareAccountsController;
 use App\Http\Controllers\ShareProducts\ShareProductsController;
+use App\Http\Controllers\ShareTransactions\ShareTransactionsController;
 use App\Http\Controllers\Users\UsersController;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Route;
@@ -80,6 +81,10 @@ Route::group(['middleware' => 'auth'], function() {
 
     Route::post('share_accounts/close/{id}', [ShareAccountsController::class, 'close'])->name('share_accounts.close');
     Route::resource('share_accounts', ShareAccountsController::class); 
+
+    Route::post('share_transactions/confirm/{id}', [ShareTransactionsController::class, 'confirm'])->name('share_transactions.confirm');
+    Route::post('share_transactions/reverse/{id}', [ShareTransactionsController::class, 'reverse'])->name('share_transactions.reverse');
+    Route::resource('share_transactions', ShareTransactionsController::class);
 
     // User Profiles
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');

@@ -60,10 +60,10 @@
         <li><a href="{{ route('share_products.index') }}"><i class="bi bi-circle"></i><span>Share Products</span></a></li>
         <li><a href="{{ route('share_accounts.index') }}"><i class="bi bi-circle"></i><span>Share Accounts</span></a></li>
         {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Share Hold</span></a></li> --}}
-        <li><a href="#"><i class="bi bi-circle"></i><span>Share Transactions</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Dividend Runs</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Dividend Allocations</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Dividend Deductions</span></a></li>
+        <li><a href="{{ route('share_transactions.index') }}"><i class="bi bi-circle"></i><span>Share Transactions</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i>Dividend Runs<span class="text-danger">*</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i>Dividend Allocations<span class="text-danger">*</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i>Dividend Deductions<span class="text-danger">*</span></a></li>
       </ul>
     </li>     
 

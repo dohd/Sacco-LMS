@@ -243,7 +243,7 @@ class SavingsAccountsController extends Controller
     private function generateSavingsAccountNumber()
     {
         do {
-            $number = 'SAV-' . date('Y') . '-' . str_pad((SavingsAccount::max('id') ?? 0) + 1, 6, '0', STR_PAD_LEFT);
+            $number = 'SAV-ACC-' . date('Y') . '-' . str_pad((SavingsAccount::max('id') ?? 0) + 1, 6, '0', STR_PAD_LEFT);
         } while (SavingsAccount::where('account_number', $number)->exists());
 
         return $number;

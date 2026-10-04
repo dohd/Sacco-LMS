@@ -88,30 +88,7 @@
             </div>
 
             <div class="card-body">
-
-                <div class="row g-3">
-
-                    <div class="col-md-6">
-                        <label for="account_number" class="form-label">
-                            Account Number <span class="text-danger">*</span>
-                        </label>
-
-                        <input type="text"
-                               name="account_number"
-                               id="account_number"
-                               value="{{ old('account_number') }}"
-                               class="form-control @error('account_number') is-invalid @enderror"
-                               maxlength="255"
-                               required>
-
-                        @error('account_number')
-                            <div class="invalid-feedback">{{ $message }}</div>
-                        @enderror
-
-                        <div class="form-text">
-                            Must be unique.
-                        </div>
-                    </div>
+                <div class="row g-3">                    
 
                     <div class="col-md-6">
                         <label for="opened_date" class="form-label">

@@ -645,7 +645,7 @@ class SavingsTransactionsController extends Controller
     public function generateSavingsTransactionNumber()
     {
         do {
-            $number = 'SAV-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(6));
+            $number = 'SAV-TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(6));
         } while (SavingsTransaction::where('transaction_number', $number)->exists());
 
         return $number;

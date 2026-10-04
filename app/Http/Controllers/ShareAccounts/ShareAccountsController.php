@@ -7,6 +7,7 @@ use App\Models\Memberships\Member;
 use App\Models\Shares\ShareAccount;
 use App\Models\Shares\ShareProduct;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
@@ -57,7 +58,6 @@ class ShareAccountsController extends Controller
                 Rule::unique('share_accounts')->where(fn ($q) => $q->where('share_product_id', $request->share_product_id)),
             ],
             'share_product_id' => ['required', 'integer', 'exists:share_products,id'],
-            'account_number' => ['required', 'string', 'max:255', 'unique:share_accounts,account_number'],
             'opened_date' => ['required', 'date'],
             'status' => ['required', 'in:active,frozen,closed'],
         ]);
@@ -75,7 +75,7 @@ class ShareAccountsController extends Controller
                 return ShareAccount::create([
                     'member_id' => $validated['member_id'],
                     'share_product_id' => $validated['share_product_id'],
-                    'account_number' => $validated['account_number'],
+                    'account_number' => $this->generateShareAccountNumber(),
                     'total_units' => 0,
                     'share_balance' => 0,
                     'held_amount' => 0,
@@ -134,7 +134,6 @@ class ShareAccountsController extends Controller
     public function update(Request $request, ShareAccount $shareAccount)
     {
         $validated = $request->validate([
-            'account_number' => ['required', 'string', 'max:255', Rule::unique('share_accounts', 'account_number')->ignore($shareAccount->id)],
             'opened_date' => ['required', 'date'],
             'status' => ['required', 'in:active,frozen,closed'],
         ]);
@@ -148,7 +147,6 @@ class ShareAccountsController extends Controller
                 }
 
                 $shareAccount->update([
-                    'account_number' => $validated['account_number'],
                     'opened_date' => $validated['opened_date'],
                     'status' => $validated['status'],
                 ]);
@@ -216,5 +214,14 @@ class ShareAccountsController extends Controller
         } catch (\Exception $e) {
             return errorHandler('Error closing share account. Please try again.', $e);
         }
+    }
+
+    public function generateShareAccountNumber()
+    {
+        do {
+            $number = 'SHA-ACC-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(6));
+        } while (ShareAccount::where('account_number', $number)->exists());
+
+        return $number;
     }
 }

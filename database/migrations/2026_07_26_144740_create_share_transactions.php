@@ -16,7 +16,7 @@ class CreateShareTransactions extends Migration
         Schema::create('share_transactions', function (Blueprint $table) {
             $table->id();
 
-            $table->unsignedBigInteger('member_share_account_id');
+            $table->unsignedBigInteger('share_account_id');
 
             $table->string('transaction_number')->unique();
 
@@ -40,11 +40,11 @@ class CreateShareTransactions extends Migration
             /*
              * Snapshot of the share unit value when the transaction occurred.
              */
-            $table->decimal('unit_value', 15, 2);
-            $table->decimal('amount', 15, 2);
+            $table->decimal('unit_value', 15, 2)->default(0);
+            $table->decimal('amount', 15, 2)->default(0);
 
-            $table->unsignedInteger('running_units');
-            $table->decimal('running_balance', 15, 2);
+            $table->unsignedInteger('running_units')->default(0);
+            $table->decimal('running_balance', 15, 2)->default(0);
 
             $table->date('transaction_date');
             $table->date('value_date');
@@ -70,7 +70,7 @@ class CreateShareTransactions extends Migration
 
             $table->unsignedBigInteger('recorded_by');
 
-            $table->unsignedBigInteger('reversal_of_id');
+            $table->unsignedBigInteger('reversal_of_id')->nullable();
 
             $table->text('description')->nullable();
 
