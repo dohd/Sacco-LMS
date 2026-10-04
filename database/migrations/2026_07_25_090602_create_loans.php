@@ -58,9 +58,9 @@ class CreateLoans extends Migration
             /*
              * Repayment schedule dates.
              */
-            $table->date('disbursement_date');
-            $table->date('first_repayment_date');
-            $table->date('maturity_date');
+            $table->date('disbursement_date')->nullable();
+            $table->date('first_repayment_date')->nullable();
+            $table->date('maturity_date')->nullable();
 
             /*
              * Payment method inherited from the application
@@ -101,7 +101,7 @@ class CreateLoans extends Migration
             ])->nullable();
 
             $table->string('disbursement_reference')->nullable();
-            $table->unsignedBigInteger('disbursed_by');
+            $table->unsignedBigInteger('disbursed_by')->nullable();
 
             /*
              * Loan account status.
@@ -125,7 +125,7 @@ class CreateLoans extends Migration
              * Closure information is retained for audit purposes.
              */
             $table->date('closed_date')->nullable();
-            $table->unsignedBigInteger('closed_by');
+            $table->unsignedBigInteger('closed_by')->nullable();
 
             $table->text('closure_reason')->nullable();
             $table->text('remarks')->nullable();

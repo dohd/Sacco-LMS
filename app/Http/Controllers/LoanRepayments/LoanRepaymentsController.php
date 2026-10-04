@@ -37,7 +37,7 @@ class LoanRepaymentsController extends Controller
      */
     public function store(Request $request)
     {
-        //
+        return redirect()->route('loan_repayments.index');
     }
 
     /**

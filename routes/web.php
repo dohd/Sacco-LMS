@@ -59,7 +59,10 @@ Route::group(['middleware' => 'auth'], function() {
     Route::patch('loan_applications/{application}/verify-security', [LoanApplicationsController::class, 'verifySecurity'])->name('loan_applications.verify_security');
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
     
+    Route::get('loans/show/{id}', [LoanDisbursementsController::class, 'loanShow'])->name('loans.show');
+    Route::post('loan_disbursements/submit/{id}', [LoanDisbursementsController::class, 'submit'])->name('loan_disbursements.submit');
     Route::resource('loan_disbursements', LoanDisbursementsController::class);
+
     Route::resource('loan_repayments', LoanRepaymentsController::class);
 
     // Savings

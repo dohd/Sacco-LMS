@@ -45,6 +45,11 @@ class LoanApplication extends Model
     /**
      * Relationship
      * */
+    public function loan()
+    {
+        return $this->hasOne(Loan::class);
+    }
+
     public function loanProduct()
     {
         return $this->belongsTo(LoanProduct::class);

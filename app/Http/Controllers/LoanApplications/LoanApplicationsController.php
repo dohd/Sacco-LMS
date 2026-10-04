@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\LoanApplications;
 
 use App\Http\Controllers\Controller;
+use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanApplication;
 use App\Models\LoanApplications\LoanApproval;
 use App\Models\LoanApplications\LoanProduct;
@@ -380,7 +381,10 @@ class LoanApplicationsController extends Controller
 
         try {
             DB::transaction(function () use (&$application, $validated) {
-                $application = LoanApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
+
+                $application = LoanApplication::whereKey($application->id)
+                    ->lockForUpdate()
+                    ->firstOrFail();
 
                 $application->load([
                     'loanProduct',
@@ -389,9 +393,14 @@ class LoanApplicationsController extends Controller
                     'witnesses',
                 ]);
 
-                if (!in_array($application->status, ['submitted', 'under_review', 'deferred'])) {
+                if (!in_array($application->status, [
+                    'submitted',
+                    'under_review',
+                    'deferred'
+                ])) {
                     throw ValidationException::withMessages([
-                        'status' => 'This application cannot be approved from its current status.',
+                        'status' =>
+                            'This application cannot be approved from its current status.',
                     ]);
                 }
 
@@ -399,23 +408,34 @@ class LoanApplicationsController extends Controller
 
                 if (!$product) {
                     throw ValidationException::withMessages([
-                        'loan_product_id' => 'The loan product could not be found.',
+                        'loan_product_id' =>
+                            'The loan product could not be found.',
                     ]);
                 }
 
                 $approvedAmount = (float) $validated['approved_amount'];
                 $repaymentMonths = (int) $validated['repayment_period_months'];
 
-                $eligibility = array_merge($application->toArray(), $this->memberFinancials($application->member), [
-                    'amount_requested' => $approvedAmount,
-                    'repayment_period_months' => $repaymentMonths,
-                    'guarantors' => $application->guarantors->toArray(),
-                ]);
-                $this->validateEligibility($eligibility, $product, $application);
+                $eligibility = array_merge(
+                    $application->toArray(),
+                    $this->memberFinancials($application->member),
+                    [
+                        'amount_requested' => $approvedAmount,
+                        'repayment_period_months' => $repaymentMonths,
+                        'guarantors' => $application->guarantors->toArray(),
+                    ]
+                );
+
+                $this->validateEligibility(
+                    $eligibility,
+                    $product,
+                    $application
+                );
 
                 if ($approvedAmount > $application->amount_requested) {
                     throw ValidationException::withMessages([
-                        'approved_amount' => 'Approved amount cannot exceed the requested amount.',
+                        'approved_amount' =>
+                            'Approved amount cannot exceed the requested amount.',
                     ]);
                 }
 
@@ -425,7 +445,8 @@ class LoanApplicationsController extends Controller
 
                 if ($unverifiedSecurities->isNotEmpty()) {
                     throw ValidationException::withMessages([
-                        'securities' => 'All securities being used for this loan must be verified before approval.',
+                        'securities' =>
+                            'All securities being used for this loan must be verified before approval.',
                     ]);
                 }
 
@@ -433,8 +454,11 @@ class LoanApplicationsController extends Controller
                     $approvedAmount,
                     $repaymentMonths,
                     $product
-                );                
+                );
 
+                /*
+                 * 1. Approve application.
+                 */
                 $application->update([
                     'amount_approved' => $approvedAmount,
                     'approved_repayment_months' => $repaymentMonths,
@@ -451,6 +475,9 @@ class LoanApplicationsController extends Controller
                     'rejection_note' => null,
                 ]);
 
+                /*
+                 * 2. Pledge verified securities.
+                 */
                 $application->securities()
                     ->where('is_verified', true)
                     ->whereIn('status', ['pending', 'verified'])
@@ -459,7 +486,10 @@ class LoanApplicationsController extends Controller
                         'pledged_date' => now()->toDateString(),
                     ]);
 
-                LoanApproval::create([
+                /*
+                 * 3. Create approval audit record.
+                 */
+                $approval = LoanApproval::create([
                     'loan_application_id' => $application->id,
                     'member_id' => $application->member_id,
                     'approved_amount' => $approvedAmount,
@@ -469,25 +499,97 @@ class LoanApplicationsController extends Controller
                     'decision' => 'approved',
                     'reason' => $validated['approval_note'] ?? null,
                     'approved_by' => Auth::id(),
-                ]);    
+                ]);
+
+                /*
+                 * 4. Create the loan account.
+                 */
+                Loan::create([
+                    'loan_application_id' => $application->id,
+                    'member_id' => $application->member_id,
+                    'loan_approval_id' => $approval->id,
+
+                    'loan_number' => $this->generateLoanNumber(),
+
+                    'approved_amount' => $approvedAmount,
+                    'amount_disbursed' => 0,
+
+                    'repayment_period_months' => $repaymentMonths,
+                    'interest_rate' => $product->interest_rate,
+                    'monthly_installment' => $monthlyInstallment,
+
+                    'interest_method' => $product->interest_method,
+
+                    /*
+                     * These are populated when the first
+                     * disbursement is processed.
+                     */
+                    'disbursement_date' => null,
+                    'first_repayment_date' => null,
+                    'maturity_date' => null,
+
+                    /*
+                     * Get this from the application if your
+                     * application already stores the payment mode.
+                     */
+                    'payment_mode' => $application->payment_mode,
+
+                    /*
+                     * No money has been released yet.
+                     */
+                    'principal_balance' => 0,
+                    'interest_balance' => 0,
+                    'penalty_balance' => 0,
+                    'total_outstanding_balance' => 0,
+
+                    'principal_paid' => 0,
+                    'interest_paid' => 0,
+                    'penalties_paid' => 0,
+                    'total_paid' => 0,
+
+                    'disbursement_method' => null,
+                    'disbursement_reference' => null,
+                    'disbursed_by' => null,
+
+                    'status' => 'active',
+
+                    'arrears_amount' => 0,
+                    'days_in_arrears' => 0,
+
+                    'closed_date' => null,
+                    'closed_by' => null,
+                    'closure_reason' => null,
+
+                    'remarks' => null,
+                ]);
             });
 
             return redirect()
                 ->route('loan_applications.show', $application->id)
-                ->with('success', 'Loan application approved successfully.');
+                ->with(
+                    'success',
+                    'Loan application approved and loan account created successfully.'
+                );
 
         } catch (ValidationException $e) {
             throw $e;
-        } catch (Exception $e) {
-            return errorHandler("Error approving loan application. Try again later", $e);
-        }
-    }    
 
-    private function requireStatus(LoanApplication $application, array $statuses): void
-    {
-        if (!in_array($application->status, $statuses, true)) {
-            throw ValidationException::withMessages(['status' => 'This action is not allowed in the current application status.']);
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error approving loan application. Try again later',
+                $e
+            );
         }
+    }
+
+    private function generateLoanNumber()
+    {
+        do {
+            $number = 'LN-' . now()->format('YmdHis') . '-' .
+                strtoupper(Str::random(8));
+        } while (Loan::where('loan_number', $number)->exists());
+
+        return $number;
     }
 
     private function syncChildren(LoanApplication $application, string $relation, string $fileField, array $rows, Request $request, array &$uploaded, array &$obsolete): void

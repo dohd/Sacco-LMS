@@ -19,6 +19,7 @@ class LoanProductsController extends Controller
     public function index()
     {
         $loanProducts = LoanProduct::latest()->get();
+
         return view('loan_products.index', compact('loanProducts'));
     }
 
@@ -32,6 +33,7 @@ class LoanProductsController extends Controller
         request()->session()->forget(['_old_input', 'errors']);
 
         $accounts = collect();
+
         return view('loan_products.create', compact('accounts'));
     }
 
@@ -48,12 +50,12 @@ class LoanProductsController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:loan_products,name'],
             'description' => ['nullable', 'string'],
 
-            'loan_principal_account_id' => ['nullable', 'integer'],
-            'interest_receivable_account_id' => ['nullable', 'integer'],
-            'interest_income_account_id' => ['nullable', 'integer'],
-            'penalty_receivable_account_id' => ['nullable', 'integer'],
-            'penalty_income_account_id' => ['nullable', 'integer'],
-            'processing_fee_income_account_id' => ['nullable', 'integer'],
+            'loan_principal_account_id' => ['required', 'integer'],
+            'interest_receivable_account_id' => ['required', 'integer'],
+            'interest_income_account_id' => ['required', 'integer'],
+            'penalty_receivable_account_id' => ['required', 'integer'],
+            'penalty_income_account_id' => ['required', 'integer'],
+            'processing_fee_income_account_id' => ['required', 'integer'],
 
             'minimum_amount' => ['required', 'numeric', 'min:0'],
             'maximum_amount' => ['nullable', 'numeric', 'gt:0'],
@@ -198,7 +200,7 @@ class LoanProductsController extends Controller
                     'insurance_fee_percentage' => $validated['insurance_fee_percentage'] ?? 0,
                     'grace_period_days' => $validated['grace_period_days'] ?? 0,
 
-                    'is_active' => $request->boolean('is_active'),
+                    'is_active' => $request->boolean('is_active', true),
                     'effective_from' => $validated['effective_from'] ?? null,
                     'effective_to' => $validated['effective_to'] ?? null,
                 ]);
@@ -238,7 +240,7 @@ class LoanProductsController extends Controller
 
         // Flash the modified request to the old input session store
         request()->flash();
-
+        
         $accounts = collect();
         return view('loan_products.edit', compact('loanProduct', 'accounts'));
     }
@@ -263,12 +265,12 @@ class LoanProductsController extends Controller
             ],
             'description' => ['nullable', 'string'],
 
-            'loan_principal_account_id' => ['nullable', 'integer'],
-            'interest_receivable_account_id' => ['nullable', 'integer'],
-            'interest_income_account_id' => ['nullable', 'integer'],
-            'penalty_receivable_account_id' => ['nullable', 'integer'],
-            'penalty_income_account_id' => ['nullable', 'integer'],
-            'processing_fee_income_account_id' => ['nullable', 'integer'],
+            'loan_principal_account_id' => ['required', 'integer'],
+            'interest_receivable_account_id' => ['required', 'integer'],
+            'interest_income_account_id' => ['required', 'integer'],
+            'penalty_receivable_account_id' => ['required', 'integer'],
+            'penalty_income_account_id' => ['required', 'integer'],
+            'processing_fee_income_account_id' => ['required', 'integer'],
 
             'minimum_amount' => ['required', 'numeric', 'min:0'],
             'maximum_amount' => ['nullable', 'numeric', 'gt:0'],
@@ -413,7 +415,7 @@ class LoanProductsController extends Controller
                     'insurance_fee_percentage' => $validated['insurance_fee_percentage'] ?? 0,
                     'grace_period_days' => $validated['grace_period_days'] ?? 0,
 
-                    'is_active' => $request->boolean('is_active'),
+                    'is_active' => $request->boolean('is_active', $loanProduct->is_active),
                     'effective_from' => $validated['effective_from'] ?? null,
                     'effective_to' => $validated['effective_to'] ?? null,
                 ]);

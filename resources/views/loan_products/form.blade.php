@@ -57,7 +57,7 @@
                         <input type="date"
                                class="form-control"
                                name="effective_from"
-                               value="{{ old('effective_from')? dateFormat(old('effective_from'), 'Y-m-d') : null }}">
+                               value="{{ old('effective_from', isset($loanProduct->effective_from) ? $loanProduct->effective_from->format('Y-m-d') : '') }}">
                     </div>
                     <div class="col-md-3 mb-3">
                         <label class="form-label">
@@ -66,7 +66,7 @@
                         <input type="date"
                                class="form-control"
                                name="effective_to"
-                               value="{{ old('effective_to')? dateFormat(old('effective_to'), 'Y-m-d') : null }}">
+                               value="{{ old('effective_to', isset($loanProduct->effective_to) ? $loanProduct->effective_to->format('Y-m-d') : '') }}">
                     </div>
                 </div>
             </div>
@@ -368,6 +368,7 @@
                             Requires Guarantors
                         </label>
                         <div class="form-check form-switch mt-2">
+                            <input type="hidden" name="requires_guarantors" value="0">
                             <input type="checkbox"
                                    class="form-check-input"
                                    id="requires_guarantors"
@@ -506,6 +507,7 @@
                             Allows Top-up
                         </label>
                         <div class="form-check form-switch mt-2">
+                            <input type="hidden" name="allows_top_up" value="0">
                             <input type="checkbox"
                                    class="form-check-input"
                                    id="allows_top_up"
@@ -523,6 +525,7 @@
                             Allows Refinancing
                         </label>
                         <div class="form-check form-switch mt-2">
+                            <input type="hidden" name="allows_refinancing" value="0">
                             <input type="checkbox"
                                    class="form-check-input"
                                    id="allows_refinancing"
@@ -560,9 +563,15 @@
                         <label class="form-label">
                             Advanced Eligibility Rules (JSON)
                         </label>
+                        @php
+                            $eligibilityRules = old('eligibility_rules', $loanProduct->eligibility_rules ?? '');
+                            if (is_array($eligibilityRules)) {
+                                $eligibilityRules = json_encode($eligibilityRules, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+                            }
+                        @endphp
                         <textarea name="eligibility_rules"
                                   rows="10"
-                                  class="form-control font-monospace">{{ old('eligibility_rules', isset($loanProduct->eligibility_rules) ? json_encode($loanProduct->eligibility_rules, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES) : '') }}</textarea>
+                                  class="form-control font-monospace">{{ $eligibilityRules }}</textarea>
                         <small class="text-muted">
                             Example:
                             {
@@ -665,14 +674,7 @@
                                 class="btn btn-primary">
                             <i class="fas fa-save me-1"></i>
                             Save Product
-                        </button>
-                        <button type="submit"
-                                name="action"
-                                value="save_close"
-                                class="btn btn-success">
-                            <i class="fas fa-check-circle me-1"></i>
-                            Save & Close
-                        </button>
+                        </button>                        
                     </div>
                 </div>
             </div>
