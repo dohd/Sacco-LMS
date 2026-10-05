@@ -2,13 +2,14 @@
 
 namespace App\Models\LoanApplications;
 
+use App\Models\ModelTrait;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class LoanDisbursement extends Model
 {
-    use HasFactory;
+    use HasFactory, ModelTrait;
 
     protected $guarded = ['id'];
 

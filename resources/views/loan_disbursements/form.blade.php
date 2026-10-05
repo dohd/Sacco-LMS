@@ -1,3 +1,4 @@
+@php $disbursement = optional(@$loanDisbursement) @endphp
 <!-- Basic Details -->
 <div class="card shadow-sm mb-4">
     <div class="card-header bg-primary text-white">
@@ -296,18 +297,16 @@
         </div>
     </div>
 
-    <div class="card-footer d-flex justify-content-between">
-        <a href="{{ route('loan_disbursements.index') }}" class="btn btn-light">
-            Cancel
-        </a>
-
+    <div class="card-footer d-flex justify-content-end">
+        <div class="">
+            <a href="{{ route('loan_disbursements.index') }}" class="btn btn-light">
+                Cancel
+            </a>
+            &nbsp;&nbsp;&nbsp;&nbsp;            
+        </div>
         <div>
-            <button type="submit" name="action" value="draft" class="btn btn-secondary">
-                Save Draft
-            </button>
-
             <button type="submit" name="action" value="submit" class="btn btn-primary">
-                Submit for Approval
+                Save Disbursement Request
             </button>
         </div>
     </div>

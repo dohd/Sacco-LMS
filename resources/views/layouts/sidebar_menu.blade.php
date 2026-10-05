@@ -75,8 +75,8 @@
       </a>
     </li>
     <li class="nav-item">
-      <a class="nav-link collapsed" href="{{ route('settings.create') }}">
-        <i class="bi bi-gear-wide-connected"></i><span>General</span>
+      <a class="nav-link collapsed" href="#">
+        <i class="bi bi-gear-wide-connected"></i>General<span class="text-danger">*</span>
       </a>
     </li>
   </ul>

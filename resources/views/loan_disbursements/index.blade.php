@@ -1,5 +1,4 @@
 @extends('layouts.core')
-
 @section('title', 'Loan Disbursements')
     
 @section('content')
@@ -17,19 +16,21 @@
                             <th>MEMBER</th>
                             <th>GROSS AMOUNT</th>
                             <th>DEDUCTIONS AMOUNT</th>
-                            <th>GROSS AMOUNT</th>
+                            <th>NET AMOUNT</th>
                             <th>STATUS</th>                            
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($loanDisbursements as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $loanDisbursements->count() == 1? '80px': '' }}">{{ $row->disbursement_number }}</td>
+                                    <td>{{ dateFormat($row->disbursement_date) }}</td>
+                                    <td>{{ @$row->loanApplication->application_number }}</td>
+                                    <td>{{ @$row->loanApplication->member->full_name }}</td>
+                                    <td>{{ numberFormat($row->gross_amount) }}</td>
+                                    <td>{{ numberFormat($row->deductions_amount) }}</td>
+                                    <td>{{ numberFormat($row->net_amount) }}</td>
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

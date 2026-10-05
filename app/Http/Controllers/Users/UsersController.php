@@ -4,7 +4,7 @@ namespace App\Http\Controllers\Users;
 
 use App\Http\Controllers\Controller;
 use App\Models\Roles\Role;
-use App\Models\Users\User;
+use App\Models\User;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -21,6 +21,7 @@ class UsersController extends Controller
     public function index()
     {
         $users = User::where('id', '!=', auth()->user()->id)->whereNotNull('created_by')->get();
+        
         return view('users.index', compact('users'));
     }
 

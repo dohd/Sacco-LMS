@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanApplication;
 use App\Models\LoanApplications\LoanDisbursement;
+use Auth;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\DB;
@@ -20,7 +22,9 @@ class LoanDisbursementsController extends Controller
      */
     public function index()
     {
-        return view('loan_disbursements.index');
+        $loanDisbursements = LoanDisbursement::latest()->get();
+
+        return view('loan_disbursements.index', compact('loanDisbursements'));
     }
 
     /**
@@ -424,9 +428,74 @@ class LoanDisbursementsController extends Controller
 
     public function submit($id)
     {
-        return redirect()
-                ->route('loan_disbursements.show', $id)
-                ->with('success', 'Loan disbursement submitted successfully.');
+        try {
+            DB::transaction(fn() => LoanDisbursement::whereKey($id)->update(['status' => 'pending_approval']));
+
+            return back()->with('success', 'Loan disbursement submitted for approval successfully.');
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error submitting loan disbursement for approval. Please try again.',
+                $e
+            );
+        }
+    }
+
+    public function approve($id)
+    {
+        try {
+            DB::transaction(fn() => LoanDisbursement::whereKey($id)->update(['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]));
+
+            return back()->with('success', 'Loan disbursement approved successfully.');
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error approving loan disbursement. Please try again.',
+                $e
+            );
+        }
+    }
+
+    public function process($id)
+    {
+        try {
+            DB::transaction(function() use($id) {
+                $loanDisbursement = LoanDisbursement::whereKey($id)->first();
+                $status = in_array($loanDisbursement->disbursement_method, ['bank_transfer', 'mobile_money'])? 'processing' : 'processed';
+                $loanDisbursement->update([
+                    'status' => $status, 
+                    'processed_by' => Auth::id(), 
+                    'processed_at' => now(),
+                ]);
+            });
+
+            return back()->with('success', 'Loan disbursement processed successfully.');
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error processing loan disbursement. Please try again.',
+                $e
+            );
+        }
+    }
+
+    public function reverse($id)
+    {
+        try {
+            DB::transaction(function() use($id) {
+                $loanDisbursement = LoanDisbursement::whereKey($id)->first();
+                $loanDisbursement->update([
+                    'status' => 'reversed', 
+                    'reversed_by' => Auth::id(), 
+                    'reversed_at' => now(),
+                    'reversal_reason' => request('reversal_reason'),
+                ]);
+            });
+
+            return back()->with('success', 'Loan disbursement reversed successfully.');
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error reversing loan disbursement. Please try again.',
+                $e
+            );
+        }
     }
 
     public function loanShow($id)

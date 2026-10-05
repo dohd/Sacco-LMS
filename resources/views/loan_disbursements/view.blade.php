@@ -76,17 +76,6 @@
                         </button>
                     </form>
                 @endif
-
-                @if(in_array($status, ['approved', 'processing', 'processed']))
-                    <button type="button"
-                            class="btn btn-outline-danger"
-                            data-bs-toggle="modal"
-                            data-bs-target="#cancelModal">
-                        <i class="fa fa-ban me-1"></i>
-                        Cancel / Reverse
-                    </button>
-                @endif
-
             </div>
         </div>
 
@@ -709,12 +698,12 @@
                             </div>
 
                             <div class="fw-semibold">
-                                {{ optional($loanDisbursement->approvedBy)->name ?? 'Not yet approved' }}
+                                {{ optional($loanDisbursement->approvedBy)->full_name ?? 'Not yet approved' }}
                             </div>
 
                             @if($loanDisbursement->approved_at)
                                 <small class="text-muted">
-                                    {{ $loanDisbursement->approved_at->format('d M Y H:i') }}
+                                    {{ dateFormat($loanDisbursement->approved_at, 'd M Y H:i') }}
                                 </small>
                             @endif
                         </div>
@@ -727,12 +716,12 @@
                             </div>
 
                             <div class="fw-semibold">
-                                {{ optional($loanDisbursement->processedBy)->name ?? 'Not yet processed' }}
+                                {{ optional($loanDisbursement->processedBy)->full_name ?? 'Not yet processed' }}
                             </div>
 
                             @if($loanDisbursement->processed_at)
                                 <small class="text-muted">
-                                    {{ $loanDisbursement->processed_at->format('d M Y H:i') }}
+                                    {{ dateFormat($loanDisbursement->processed_at, 'd M Y H:i') }}
                                 </small>
                             @endif
                         </div>

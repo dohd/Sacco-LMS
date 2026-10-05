@@ -60,7 +60,11 @@ Route::group(['middleware' => 'auth'], function() {
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
     
     Route::get('loans/show/{id}', [LoanDisbursementsController::class, 'loanShow'])->name('loans.show');
-    Route::post('loan_disbursements/submit/{id}', [LoanDisbursementsController::class, 'submit'])->name('loan_disbursements.submit');
+
+    Route::post('loan_disbursements/reverse/{id}', [LoanDisbursementsController::class, 'reverse'])->name('loan_disbursements.reverse');
+    Route::post('loan_disbursements/process/{id}', [LoanDisbursementsController::class, 'process'])->name('loan_disbursements.process');
+    Route::post('loan_disbursements/approve/{id}', [LoanDisbursementsController::class, 'approve'])->name('loan_disbursements.approve');
+    Route::post('loan_disbursements/submit_for_approval/{id}', [LoanDisbursementsController::class, 'submit'])->name('loan_disbursements.submit');
     Route::resource('loan_disbursements', LoanDisbursementsController::class);
 
     Route::resource('loan_repayments', LoanRepaymentsController::class);
