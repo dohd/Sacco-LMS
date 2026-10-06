@@ -7,6 +7,8 @@ use App\Http\Controllers\LoanApplications\LoanApplicationsController;
 use App\Http\Controllers\LoanDisbursements\LoanDisbursementsController;
 use App\Http\Controllers\LoanProducts\LoanProductsController;
 use App\Http\Controllers\LoanRepayments\LoanRepaymentsController;
+use App\Http\Controllers\LoanRepaymentSchedules\LoanRepaymentSchedulesController;
+use App\Http\Controllers\Loans\LoansController;
 use App\Http\Controllers\Memberships\MembershipsController;
 use App\Http\Controllers\Nominations\NominationsController;
 use App\Http\Controllers\SavingsAccounts\SavingsAccountsController;
@@ -59,13 +61,15 @@ Route::group(['middleware' => 'auth'], function() {
     Route::patch('loan_applications/{application}/verify-security', [LoanApplicationsController::class, 'verifySecurity'])->name('loan_applications.verify_security');
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
     
-    Route::get('loans/show/{id}', [LoanDisbursementsController::class, 'loanShow'])->name('loans.show');
+    Route::get('loans/{id}', [LoansController::class, 'show'])->name('loans.show');
 
     Route::post('loan_disbursements/reverse/{id}', [LoanDisbursementsController::class, 'reverse'])->name('loan_disbursements.reverse');
     Route::post('loan_disbursements/process/{id}', [LoanDisbursementsController::class, 'process'])->name('loan_disbursements.process');
     Route::post('loan_disbursements/approve/{id}', [LoanDisbursementsController::class, 'approve'])->name('loan_disbursements.approve');
     Route::post('loan_disbursements/submit_for_approval/{id}', [LoanDisbursementsController::class, 'submit'])->name('loan_disbursements.submit');
     Route::resource('loan_disbursements', LoanDisbursementsController::class);
+
+    Route::resource('loan_repayment_schedules', LoanRepaymentSchedulesController::class);
 
     Route::resource('loan_repayments', LoanRepaymentsController::class);
 
