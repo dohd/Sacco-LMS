@@ -42,16 +42,16 @@
       </ul>
     </li>   
 
-    {{-- <li class="nav-item">
+    <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#accounting" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-journal-bookmark"></i><span>Accounting</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="accounting" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="#"><i class="bi bi-circle"></i><span>Charts Of Accounts</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
+        {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Charts Of Accounts</span></a></li> --}}
+        {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li> --}}
+        <li><a href="{{ route('accounting_periods.index') }}"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
       </ul>
-    </li>  --}}
+    </li> 
 
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#shares" data-bs-toggle="collapse" href="#">      

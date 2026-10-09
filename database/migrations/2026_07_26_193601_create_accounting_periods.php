@@ -29,7 +29,7 @@ class CreateAccountingPeriods extends Migration
                 'locked',
             ])->default('open');
 
-            $table->unsignedBigInteger('closed_by');
+            $table->unsignedBigInteger('closed_by')->nullable();
 
             $table->timestamp('closed_at')->nullable();
 

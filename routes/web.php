@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\AccountingPeriods\AccountingPeriodsController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\HomeController;
@@ -87,7 +88,12 @@ Route::group(['middleware' => 'auth'], function() {
     Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
     Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
     Route::post('savings_withdrawals/approve/{id}', [SavingsWithdrawalsController::class, 'approve'])->name('savings_withdrawals.approve');    
-    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class);  
+    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class); 
+
+    // Accounting
+    Route::post('accounting_periods/lock/{id}', [AccountingPeriodsController::class, 'lock'])->name('accounting_periods.lock');
+    Route::post('accounting_periods/close/{id}', [AccountingPeriodsController::class, 'close'])->name('accounting_periods.close');
+    Route::resource('accounting_periods', AccountingPeriodsController::class); 
 
     // Shares
     Route::post('share_products/toggle_status/{id}', [ShareProductsController::class, 'toggleStatus'])->name('share_products.toggle_status'); 
