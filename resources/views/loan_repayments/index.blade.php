@@ -13,26 +13,27 @@
                           <tr>
                             <th>REPAYMENT NUMBER#</th>
                             <th>PAYMENT DATE</th> 
-                            <th>LOAN APP NUMBER#</th>
+                            <th>LOAN APPL. NUMBER#</th>
                             <th>MEMBER</th>
                             <th>AMOUNT PAID</th>
-                            <th>PRINCIPAL</th>
-                            <th>INTEREST</th>
-                            <th>PENALTY</th>
-                            <th>FEE</th>
+                            <th>PRINCIPAL AMOUNT</th>                            
                             <th>PAYER NAME</th>
                             <th>STATUS</th>                            
+                            <th>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($loanRepayments as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $loanRepayments->count()? '80px': '' }}">{{ $row->repayment_number }}</td>
+                                    <td>{{ $row->payment_date }}</td>
+                                    <td>{{ @$row->loan->loanApplication->application_number }}</td>
+                                    <td>{{ @$row->member->full_name }}</td>
+                                    <td>{{ numberFormat($row->amount_paid) }}</td>
+                                    <td>{{ numberFormat($row->principal_amount) }}</td>                                    
+                                    <td>{{ $row->payer_name }}</td>
+                                    <td>{{ ucfirst($row->status) }}</td>                                    
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

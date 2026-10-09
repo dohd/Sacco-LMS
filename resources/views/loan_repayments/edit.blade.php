@@ -1,21 +1,15 @@
 @extends('layouts.core')
+@section('title', 'Edit | Loan Repayments')
 
-@section('title', 'Edit | User Profile Management')
-    
 @section('content')
-    @include('users.header')
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">User Profile Details</h5>
-            <div class="card-content p-2">
-                {{ Form::model($user_profile, ['route' => ['users.update', $user_profile], 'method' => 'PATCH', 'class' => 'form']) }}
-                    @include('users.form')
-                    <div class="text-center">
-                        <a href="{{ route('users.index') }}" class="btn btn-secondary">Cancel</a>
-                        {{ Form::submit('Submit', ['class' => 'btn btn-primary']) }}
-                    </div>
-                {{ Form::close() }}
-            </div>
-        </div>
+    @include('loan_repayments.partial.header')
+    <div class="container-fluid">
+        {{ Form::model($loanRepayment, ['route' => ['loan_repayments.update', $loanRepayment], 'method' => 'PATCH', 'enctype' => 'multipart/form-data', 'id' => 'loanRepaymentForm']) }}
+            @include('loan_repayments.form')
+        {{ Form::close() }}
     </div>
 @stop
+
+@section('script')
+@include('loan_repayments.form_js')
+@endsection

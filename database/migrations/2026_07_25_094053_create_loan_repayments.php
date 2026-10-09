@@ -54,7 +54,7 @@ class CreateLoanRepayments extends Migration
                 + fees_amount
                 + unallocated_amount
              */
-            $table->decimal('amount_paid', 15, 2);
+            $table->decimal('amount_paid', 15, 2)->default(0);
 
             /*
              * Allocation of the repayment amount.
@@ -121,7 +121,7 @@ class CreateLoanRepayments extends Migration
              */
             $table->timestamp('reversed_at')->nullable();
 
-            $table->unsignedBigInteger('reversed_by');
+            $table->unsignedBigInteger('reversed_by')->nullable();
 
             $table->text('reversal_reason')->nullable();
 

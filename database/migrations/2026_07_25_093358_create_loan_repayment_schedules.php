@@ -31,12 +31,12 @@ class CreateLoanRepaymentSchedules extends Migration
             /*
              * Principal balance before this instalment is applied.
              */
-            $table->decimal('opening_principal_balance', 15, 2);
+            $table->decimal('opening_principal_balance', 15, 2)->default(0);
 
             /*
              * Scheduled repayment components.
              */
-            $table->decimal('principal_due', 15, 2);
+            $table->decimal('principal_due', 15, 2)->default(0);
             $table->decimal('interest_due', 15, 2)->default(0);
             $table->decimal('fees_due', 15, 2)->default(0);
             $table->decimal('penalty_due', 15, 2)->default(0);
@@ -44,13 +44,13 @@ class CreateLoanRepaymentSchedules extends Migration
             /*
              * Total scheduled amount payable for the instalment.
              */
-            $table->decimal('total_due', 15, 2);
+            $table->decimal('total_due', 15, 2)->default(0);
 
             /*
              * Expected principal balance after the scheduled
              * principal payment is applied.
              */
-            $table->decimal('closing_principal_balance', 15, 2);
+            $table->decimal('closing_principal_balance', 15, 2)->default(0);
 
             /*
              * Actual amounts allocated to this schedule entry.
@@ -64,7 +64,8 @@ class CreateLoanRepaymentSchedules extends Migration
             /*
              * Remaining amount for this instalment.
              */
-            $table->decimal('outstanding_amount', 15, 2);
+            $table->decimal('outstanding_amount', 15, 2)->default(0);
+            $table->decimal('fees_balance', 15, 2)->default(0);
 
             $table->date('fully_paid_date')->nullable();
 

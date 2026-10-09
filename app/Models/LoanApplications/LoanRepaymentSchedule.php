@@ -37,4 +37,9 @@ class LoanRepaymentSchedule extends Model
     {
         return $this->belongsTo(Loan::class);
     }
+
+    public function repaymentAllocations()
+    {
+        return $this->hasMany(LoanRepaymentAllocation::class);
+    }
 }

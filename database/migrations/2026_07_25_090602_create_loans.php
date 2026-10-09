@@ -37,15 +37,15 @@ class CreateLoans extends Migration
             /*
              * Approved and disbursed loan values.
              */
-            $table->decimal('approved_amount', 15, 2);
-            $table->decimal('amount_disbursed', 15, 2);
+            $table->decimal('approved_amount', 15, 2)->default(0);
+            $table->decimal('amount_disbursed', 15, 2)->default(0);
 
             /*
              * Snapshot of the approved loan terms.
              */
             $table->unsignedInteger('repayment_period_months');
-            $table->decimal('interest_rate', 8, 4);
-            $table->decimal('monthly_installment', 15, 2);
+            $table->decimal('interest_rate', 8, 4)->default(0);
+            $table->decimal('monthly_installment', 15, 2)->default(0);
 
             /*
              * Interest calculation method.
@@ -76,7 +76,7 @@ class CreateLoans extends Migration
             /*
              * Running loan balances.
              */
-            $table->decimal('principal_balance', 15, 2);
+            $table->decimal('principal_balance', 15, 2)->default(0);
             $table->decimal('interest_balance', 15, 2)->default(0);
             $table->decimal('penalty_balance', 15, 2)->default(0);
             $table->decimal('total_outstanding_balance', 15, 2);
@@ -88,6 +88,9 @@ class CreateLoans extends Migration
             $table->decimal('interest_paid', 15, 2)->default(0);
             $table->decimal('penalties_paid', 15, 2)->default(0);
             $table->decimal('total_paid', 15, 2)->default(0);
+            $table->decimal('fees_due', 15, 2)->default(0);
+            $table->decimal('fees_paid', 15, 2)->default(0);
+            $table->decimal('fees_balance', 15, 2)->default(0);
 
             /*
              * Disbursement tracking information.

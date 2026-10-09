@@ -71,6 +71,8 @@ Route::group(['middleware' => 'auth'], function() {
 
     Route::resource('loan_repayment_schedules', LoanRepaymentSchedulesController::class);
 
+    Route::post('loan_repayments/reverse/{id}', [LoanRepaymentsController::class, 'reverse'])->name('loan_repayments.reverse');
+    Route::post('loan_repayments/confirm/{id}', [LoanRepaymentsController::class, 'confirm'])->name('loan_repayments.confirm');
     Route::resource('loan_repayments', LoanRepaymentsController::class);
 
     // Savings
