@@ -5,8 +5,10 @@ namespace App\Http\Controllers\Users;
 use App\Http\Controllers\Controller;
 use App\Models\Roles\Role;
 use App\Models\User;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -20,7 +22,8 @@ class UsersController extends Controller
      */
     public function index()
     {
-        $users = User::where('id', '!=', auth()->user()->id)->whereNotNull('created_by')->get();
+        $users = User::where('id', '!=', auth()->user()->id)->get();
+        $users = User::all();
         
         return view('users.index', compact('users'));
     }
@@ -32,7 +35,8 @@ class UsersController extends Controller
      */
     public function create()
     {
-        $roles = Role::get();
+        $roles = Role::where('is_active', true)->orderBy('name')->get();
+
         return view('users.create', compact('roles'));
     }
 
@@ -44,27 +48,41 @@ class UsersController extends Controller
      */
     public function store(Request $request)
     {
-        $request->validate([
-            'fname' => 'required',
-            'lname' => 'required',
-            'email' => ['required', Rule::unique('users')->ignore(auth()->user()->id)],
-            'phone' => 'required',
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => ['required', 'email', 'max:255', 'unique:users,email'],
+            'phone' => ['nullable', 'string', 'max:255', 'unique:users,phone'],
+            'employee_number' => ['nullable', 'string', 'max:255', 'unique:users,employee_number'],
+            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'is_active' => ['nullable', 'boolean'],
+            'roles' => ['required', 'array', 'min:1'],
+            'roles.*' => ['integer', 'exists:roles,id'],
         ]);
 
-        try {           
-            DB::beginTransaction();
+        try {
+            DB::transaction(function () use ($validated, &$user) {
 
-            $input = array_replace($request->except('_token'), [
-                'password' => $request->phone,
-            ]);
-            $user = User::create($input);
-            // $role = Role::find($input['role_id']);
-            // $user->assignRole($role->name);
+                $user = User::create([
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'phone' => $validated['phone'] ?? null,
+                    'employee_number' => $validated['employee_number'] ?? null,
+                    'password' => Hash::make($validated['password']),
+                    'is_active' => $validated['is_active'] ?? false,
+                ]);
 
-            DB::commit();
-            return redirect(route('users.index'))->with(['success' => 'User created successfully']);
-        } catch (\Throwable $th) {
-            return errorHandler('Error creating user!', $th);
+                $user->roles()->sync($validated['roles']);
+            });
+
+            return redirect()
+                ->route('users.show', $user->id)
+                ->with('success', 'User created successfully.');
+
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error creating user. Please try again.',
+                $e
+            );
         }
     }
 
@@ -76,6 +94,7 @@ class UsersController extends Controller
      */
     public function show(User $user)
     {
+        $user->load('roles');
         return view('users.view', compact('user'));
     }
 
@@ -87,7 +106,10 @@ class UsersController extends Controller
      */
     public function edit(User $user)
     {
-        $roles = Role::get();
+        $roles = Role::where('is_active', true)->orderBy('name')->get();
+
+        $user->load('roles');
+
         return view('users.edit', compact('user', 'roles'));
     }
 
@@ -100,34 +122,61 @@ class UsersController extends Controller
      */
     public function update(Request $request, User $user)
     {
-        if ($request->status != null) {
-            try {
-                $user->update(['is_active' => $request->input('status')]);
-                return redirect()->back()->with('success', 'Status updated successfully');
-            } catch (\Throwable $th) {
-                return errorHandler('Error updating status!', $th);
-            }
-        } else {
-            $request->validate([
-                'fname' => 'required',
-                'lname' => 'required',
-                'email' => ['required', Rule::unique('users')->ignore($user->id)],
-                'phone' => 'required',
-            ]);
-    
-            try {
-                DB::beginTransaction();
-                
-                $input = $request->only(['fname', 'lname', 'email', 'phone']);
-                // $role = Role::find($input['role_id']);
-                // $user->syncRoles([$role->name]);
-                $user->update($input);
-                
-                DB::commit();
-                return redirect(route('users.index'))->with(['success' => 'User updated successfully']);
-            } catch (\Throwable $th) {
-                return errorHandler('Error updating User!', $th);
-            }
+        $validated = $request->validate([
+            'name' => ['required', 'string', 'max:255'],
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'phone' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('users', 'phone')->ignore($user->id),
+            ],
+            'employee_number' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('users', 'employee_number')->ignore($user->id),
+            ],
+            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'is_active' => ['nullable', 'boolean'],
+            'roles' => ['required', 'array', 'min:1'],
+            'roles.*' => ['integer', 'exists:roles,id'],
+        ]);
+
+        try {
+            DB::transaction(function () use ($validated, $user) {
+
+                $data = [
+                    'name' => $validated['name'],
+                    'email' => $validated['email'],
+                    'phone' => $validated['phone'] ?? null,
+                    'employee_number' => $validated['employee_number'] ?? null,
+                    'is_active' => $validated['is_active'] ?? false,
+                ];
+
+                if (!empty($validated['password'])) {
+                    $data['password'] = Hash::make($validated['password']);
+                }
+
+                $user->update($data);
+
+                $user->roles()->sync($validated['roles']);
+            });
+
+            return redirect()
+                ->route('users.show', $user->id)
+                ->with('success', 'User updated successfully.');
+
+        } catch (Exception $e) {
+            return errorHandler(
+                'Error updating user. Please try again.',
+                $e
+            );
         }
     }
 
@@ -147,6 +196,16 @@ class UsersController extends Controller
             return redirect(route('users.index'))->with(['success' => 'User deleted successfully']);
         } catch (\Throwable $th) { 
             return errorHandler('Error deleting User!', $th);
+        }
+    }
+
+    public function deactivate($id)
+    {
+        try {     
+
+            return back()->with(['success' => 'User deactivated successfully']);
+        } catch (\Throwable $th) { 
+            return errorHandler('Error deactivating user. Trya again later', $th);
         }
     }
 

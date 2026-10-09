@@ -2,8 +2,6 @@
 
 namespace App\Models;
 
-use App\Models\Users\UserAttribute;
-use App\Models\Users\UserRelationship;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -14,25 +12,9 @@ use Spatie\Permission\Traits\HasRoles;
 
 class User extends Authenticatable
 {
-    use HasRoles, HasPermissions, HasApiTokens, HasFactory, Notifiable, ModelTrait, UserAttribute, UserRelationship;
+    use HasRoles, HasPermissions, HasApiTokens, HasFactory, Notifiable, ModelTrait;
 
-    /**
-     * The attributes that are mass assignable.
-     *
-     * @var array<int, string>
-     */
-    protected $fillable = [
-        'fname',
-        'lname',
-        'email',
-        'role_id',
-        'profile_pic',
-        'phone',
-        'password',
-        'is_active',
-        'created_by',
-        'ins'
-    ];
+    protected $guarded = ['id'];
 
     /**
      * The attributes that should be hidden for serialization.
@@ -64,20 +46,39 @@ class User extends Authenticatable
     }
 
     /**
-     * Model boot
+     * Action Button Attribute to show in grid
+     * @return string
      */
-    protected static function boot()
+    public function getActionButtonsAttribute()
     {
-        parent::boot();
-
-        static::creating(function ($instance) {
-            $instance->created_by = auth()->user()->id;
-            $instance->ins = auth()->user()->ins;
-            return $instance;
-        });
-
-        static::addGlobalScope('ins', function ($builder) {
-            // $builder->where('ins', auth()->user()->ins);
-        });
+        return $this->getButtonWrapperAttribute(
+            $this->getViewButtonAttribute('users.show', null),
+            $this->getEditButtonAttribute('users.edit', null),
+            null
+        );
     }
+
+    /**
+     * Is active status
+     * @return string
+     */
+    public function getIsActiveStatusAttribute()
+    {
+        return $this->is_active? 'Active' : 'Inactive';
+    }
+
+    /**
+     * Is active status budge
+     * @return string
+     */
+    public function getIsActiveStatusBudgeAttribute()
+    {
+        return '<span class="badge bg-'. ($this->is_active? 'success' : 'secondary') .' modal-btn" style="cursor:pointer;" role="button" data-bs-toggle="modal" data-bs-target="#status_modal" data-url="'. route('users.update', $this) .'">'
+        . $this->is_active_status . '<i class="bi bi-caret-down-fill"></i></span>';
+    }
+
+    /**
+     * Relationships
+     * */
+
 }

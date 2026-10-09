@@ -1,9 +1,8 @@
 @extends('layouts.core')
-
 @section('title', 'User Management')
     
 @section('content')
-    @include('users.header')
+    @include('users.partial.header')
     <div class="card">
         <div class="card-body">
             <div class="card-content p-2">
@@ -11,23 +10,27 @@
                     <table class="table table-borderless datatable">
                         <thead>
                           <tr>
-                            <th>#No</th>
-                            <th>Name</th>
-                            <th>Phone</th>
-                            <th>Email</th>
-                            <th>Status</th>
-                            <th>Action</th>
+                            <th>NAME</th>
+                            <th>PHONE</th>
+                            <th>EMAIL</th>
+                            <th>EMPLOYEE NO.</th>
+                            <th>ROLE</th>
+                            <th>STATUS</th>
+                            <th>LAST LOGIN</th>
+                            <th>ACTION</th>
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ($users as $i => $user)
+                            @foreach ($users as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($users) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $users->count() == 1? '80px': '' }}">{{ $row->name }}</td>
+                                    <td>{{ $row->phone }}</td>
+                                    <td>{{ $row->email }}</td>
+                                    <td>{{ $row->employee_number }}</td>
+                                    <td>{{ optional($row->roles()->first())->name }}</td>
+                                    <td>{!! $row->is_active_status_budge !!}</td>
+                                    <td>{{ $row->last_login_at? dateFormat($row->last_login_at, 'd-M-Y H:i') : '' }}</td>
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

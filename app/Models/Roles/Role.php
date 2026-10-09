@@ -3,40 +3,11 @@
 namespace App\Models\Roles;
 
 use App\Models\ModelTrait;
-use App\Models\Roles\Traits\RoleAttribute;
-use App\Models\Roles\Traits\RoleRelationship;
 use Illuminate\Database\Eloquent\Model;
 
 class Role extends Model
 {
-    use ModelTrait, RoleAttribute, RoleRelationship;    
-
-    /**
-     * The database table used by the model.
-     * @var string
-     */
-    protected $table = 'roles';
-
-    /**
-     * Mass Assignable fields of model
-     * @var array
-     */
-    protected $fillable = [];
-
-    /**
-     * Default values for model fields
-     * @var array
-     */
-    protected $attributes = [];
-
-    /**
-     * Dates
-     * @var array
-     */
-    protected $dates = [
-        'created_at',
-        'updated_at'
-    ];
+    use ModelTrait;
 
     /**
      * $guarded = ['id']; fields of model
@@ -45,26 +16,15 @@ class Role extends Model
     protected $guarded = ['id'];
 
     /**
-     * Constructor of Model
-     * @param array $attributes
+     * Action Button Attribute to show in grid
+     * @return string
      */
-    public function __construct(array $attributes = [])
+    public function getActionButtonsAttribute()
     {
-        parent::__construct($attributes);
-    }
-
-    protected static function boot()
-    {
-        parent::boot();
-
-        static::creating(function ($instance) {
-            $instance->user_id = auth()->user()->id;
-            $instance->ins = auth()->user()->ins;
-            return $instance;
-        });
-
-        static::addGlobalScope('ins', function ($builder) {
-            $builder->where('ins', auth()->user()->ins);
-        });
+        return $this->getButtonWrapperAttribute(
+            null,
+            $this->getEditButtonAttribute('roles.edit', null),
+            $this->getDeleteButtonAttribute('roles.destroy', null),
+        );
     }
 }
