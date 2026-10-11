@@ -41,6 +41,8 @@ return [
 
     'debug' => (bool) env('APP_DEBUG', false),
 
+    'super_user_id' => env('APP_SUPER_USER_ID', null),
+
     /*
     |--------------------------------------------------------------------------
     | Application URL

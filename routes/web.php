@@ -107,7 +107,9 @@ Route::group(['middleware' => 'auth'], function() {
     Route::resource('share_transactions', ShareTransactionsController::class);
 
     // User
+    Route::post('users/activate/{id}', [UsersController::class, 'activate'])->name('users.activate');
     Route::post('users/deactivate/{id}', [UsersController::class, 'deactivate'])->name('users.deactivate');
+
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');
     Route::post('users/update_active_profile/{user}', [UsersController::class, 'update_active_profile'])->name('users.update_active_profile');
     Route::get('users/active_profile', [UsersController::class, 'active_profile'])->name('users.active_profile');

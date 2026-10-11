@@ -39,7 +39,7 @@
             </div>
         </div>
     </div>
-    @include('users.partial.status_modal')
+    {{-- @include('users.partial.status_modal') --}}
 @stop
 
 @section('script')

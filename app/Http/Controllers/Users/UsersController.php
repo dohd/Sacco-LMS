@@ -8,7 +8,6 @@ use App\Models\User;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
-use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Validator;
 use Illuminate\Validation\Rule;
@@ -22,8 +21,9 @@ class UsersController extends Controller
      */
     public function index()
     {
-        $users = User::where('id', '!=', auth()->user()->id)->get();
-        $users = User::all();
+        $users = User::where('id', '!=', auth()->id())
+            ->where('id', '!=', config('app.super_user_id'))
+            ->get();
         
         return view('users.index', compact('users'));
     }
@@ -67,7 +67,7 @@ class UsersController extends Controller
                     'email' => $validated['email'],
                     'phone' => $validated['phone'] ?? null,
                     'employee_number' => $validated['employee_number'] ?? null,
-                    'password' => Hash::make($validated['password']),
+                    'password' => $validated['password'],
                     'is_active' => $validated['is_active'] ?? false,
                 ]);
 
@@ -160,7 +160,7 @@ class UsersController extends Controller
                 ];
 
                 if (!empty($validated['password'])) {
-                    $data['password'] = Hash::make($validated['password']);
+                    $data['password'] = $validated['password'];
                 }
 
                 $user->update($data);
@@ -188,24 +188,30 @@ class UsersController extends Controller
      */
     public function destroy(User $user)
     {
-        try {     
-            // $role = Role::find($user->role_id);
-            // $user->removeRole($role->name);       
-            $user->delete();
-
-            return redirect(route('users.index'))->with(['success' => 'User deleted successfully']);
-        } catch (\Throwable $th) { 
-            return errorHandler('Error deleting User!', $th);
-        }
+        //
     }
 
     public function deactivate($id)
     {
         try {     
 
+            DB::transaction(fn() => User::find($id)->update(['is_active' => 0]));
+
             return back()->with(['success' => 'User deactivated successfully']);
-        } catch (\Throwable $th) { 
+        } catch (\Exception $th) { 
             return errorHandler('Error deactivating user. Trya again later', $th);
+        }
+    }
+
+    public function activate($id)
+    {
+        try {     
+
+            DB::transaction(fn() => User::find($id)->update(['is_active' => 1]));
+
+            return back()->with(['success' => 'User activated successfully']);
+        } catch (\Exception $th) { 
+            return errorHandler('Error activating user. Trya again later', $th);
         }
     }
 
@@ -217,8 +223,8 @@ class UsersController extends Controller
      */
     public function active_profile()
     {
-        $user = auth()->user();
-        $role = auth()->user()->roles()->first() ?: new Role;
+        $user = User::with('roles')->find(auth()->id());
+        $role = optional($user->roles->first());
         
         return view('users.active_profile', compact('user', 'role'));
     }
