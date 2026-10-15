@@ -86,7 +86,6 @@ Route::group(['middleware' => 'auth'], function() {
 
     Route::post('savings_withdrawals/reject/{id}', [SavingsWithdrawalsController::class, 'reject'])->name('savings_withdrawals.reject');
     Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
-    Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
     Route::post('savings_withdrawals/approve/{id}', [SavingsWithdrawalsController::class, 'approve'])->name('savings_withdrawals.approve');    
     Route::resource('savings_withdrawals', SavingsWithdrawalsController::class); 
 

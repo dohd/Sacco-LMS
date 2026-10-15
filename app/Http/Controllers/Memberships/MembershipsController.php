@@ -5,6 +5,8 @@ namespace App\Http\Controllers\Memberships;
 use App\Http\Controllers\Controller;
 use App\Models\Memberships\Member;
 use App\Models\Memberships\MemberApplication;
+use App\Models\Roles\Role;
+use App\Models\User;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Arr;
@@ -414,7 +416,18 @@ class MembershipsController extends Controller
                 'is_active' => true,
             ]);
 
-            // create member login
+            // Reuse an existing login without overwriting its credentials or profile.
+            $user = User::firstOrCreate(['email' => $membership->email], [
+                'name' => "{$newMember->first_name} {$newMember->last_name}",
+                'phone' => $membership->phone,
+                'employee_number' => null,
+                'password' => $membership->phone,
+                'is_active' => 1,
+            ]);
+            $roleId = Role::where('key_name', 'member')->value('id');
+            $user->roles()->syncWithoutDetaching([$roleId]);
+
+            $newMember->update(['user_id' => $user->id]);
 
             return $newMember;
         });

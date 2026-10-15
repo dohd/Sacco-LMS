@@ -51,7 +51,7 @@ class SavingsTransactionsController extends Controller
     {
         $validated = $request->validate([
             'savings_account_id' => ['required', 'integer', 'exists:savings_accounts,id'],
-            'transaction_type' => ['required', 'in:deposit,withdrawal,interest,fee,transfer_in,transfer_out,adjustment'],
+            'transaction_type' => ['required', 'in:deposit,interest,fee,transfer_in,transfer_out,adjustment'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999999.99'],
             'transaction_date' => ['required', 'date'],
             'value_date' => ['required', 'date'],
@@ -168,6 +168,13 @@ class SavingsTransactionsController extends Controller
                     ]);
                 }
 
+                if ($transaction->transaction_type === 'withdrawal' ||
+                    \App\Models\Savings\SavingsWithdrawal::where('savings_transaction_id', $transaction->id)->exists()) {
+                    throw ValidationException::withMessages([
+                        'transaction' => 'Withdrawals must be confirmed through the withdrawal approval workflow.'
+                    ]);
+                }
+
                 $account = SavingsAccount::where('id', $transaction->savings_account_id)
                     ->lockForUpdate()
                     ->first();
@@ -226,7 +233,20 @@ class SavingsTransactionsController extends Controller
                 /*
                  * Check savings product maximum balance.
                  */
-                $product = SavingsProduct::find($account->savings_product_id);
+                $product = SavingsProduct::whereKey($account->savings_product_id)->lockForUpdate()->first();
+
+                if (!$product) {
+                    throw ValidationException::withMessages(['savings_account_id' => 'Savings product was not found.']);
+                }
+                if ($transaction->transaction_type === 'transfer_out') {
+                    app(\App\Services\SavingsWithdrawalPolicy::class)->validate($product, $transaction->created_at);
+                }
+                if ($transaction->direction === 'debit' &&
+                    $newAvailableBalance < round((float) $product->minimum_balance, 2)) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'The transaction would reduce available savings below the product minimum balance.'
+                    ]);
+                }
 
                 if (
                     $transaction->direction === 'credit' &&

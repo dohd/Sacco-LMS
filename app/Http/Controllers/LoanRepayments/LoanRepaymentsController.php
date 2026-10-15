@@ -323,7 +323,9 @@ class LoanRepaymentsController extends Controller
         //
     }
 
-    // confirm repayment
+    /**
+     * Confirm Repayment
+     * */
     public function confirm($id)
     {
         try {
@@ -335,8 +337,7 @@ class LoanRepaymentsController extends Controller
 
                 if ($repayment->status !== 'pending') {
                     throw ValidationException::withMessages([
-                        'repayment' =>
-                            'Only pending repayments can be confirmed.'
+                        'repayment' => 'Only pending repayments can be confirmed.'
                     ]);
                 }
 
@@ -346,15 +347,12 @@ class LoanRepaymentsController extends Controller
 
                 if (!in_array($loan->status, ['active', 'in_arrears'])) {
                     throw ValidationException::withMessages([
-                        'repayment' =>
-                            "Repayments cannot be posted to a {$loan->status} loan."
+                        'repayment' => "Repayments cannot be posted to a {$loan->status} loan."
                     ]);
                 }
 
-                $remaining = round(
-                    (float) $repayment->amount_paid,
-                    2
-                );
+                // Match the 4-decimal precision tracking used in the approval workflow engine
+                $remaining = round((float) $repayment->amount_paid, 4);
 
                 $principalAmount = 0;
                 $interestAmount = 0;
@@ -362,13 +360,10 @@ class LoanRepaymentsController extends Controller
                 $penaltyAmount = 0;
 
                 $allocations = [];
+                $scheduleStatuses = []; // Tracks schedule outcomes dynamically for absolute status updating
 
                 $schedules = LoanRepaymentSchedule::where('loan_id', $loan->id)
-                    ->whereIn('status', [
-                        'pending',
-                        'partially_paid',
-                        'overdue'
-                    ])
+                    ->whereIn('status', ['pending', 'partially_paid', 'overdue'])
                     ->where('outstanding_amount', '>', 0)
                     ->orderBy('due_date')
                     ->orderBy('installment_number')
@@ -378,131 +373,65 @@ class LoanRepaymentsController extends Controller
                 foreach ($schedules as $schedule) {
 
                     if ($remaining <= 0) {
-                        break;
-                    }
-
-                    $penaltyOutstanding = max(
-                        0,
-                        $schedule->penalty_due - $schedule->penalty_paid
-                    );
-
-                    $penaltyPaid = min(
-                        $remaining,
-                        $penaltyOutstanding
-                    );
-
-                    $remaining -= $penaltyPaid;
-                    $penaltyAmount += $penaltyPaid;
-
-
-                    $interestOutstanding = max(
-                        0,
-                        $schedule->interest_due - $schedule->interest_paid
-                    );
-
-                    $interestPaid = min(
-                        $remaining,
-                        $interestOutstanding
-                    );
-
-                    $remaining -= $interestPaid;
-                    $interestAmount += $interestPaid;
-
-
-                    $feesOutstanding = max(
-                        0,
-                        $schedule->fees_due - $schedule->fees_paid
-                    );
-
-                    $feesPaid = min(
-                        $remaining,
-                        $feesOutstanding
-                    );
-
-                    $remaining -= $feesPaid;
-                    $feesAmount += $feesPaid;
-
-
-                    $principalOutstanding = max(
-                        0,
-                        $schedule->principal_due - $schedule->principal_paid
-                    );
-
-                    $principalPaid = min(
-                        $remaining,
-                        $principalOutstanding
-                    );
-
-                    $remaining -= $principalPaid;
-                    $principalAmount += $principalPaid;
-
-
-                    $allocationTotal = round(
-                        $principalPaid +
-                        $interestPaid +
-                        $feesPaid +
-                        $penaltyPaid,
-                        2
-                    );
-
-                    if ($allocationTotal <= 0) {
+                        // Unmodified schedules retain their existing state profiles
+                        $scheduleStatuses[] = $schedule->status;
                         continue;
                     }
 
+                    // 1. Penalty Component Allocation
+                    $penaltyOutstanding = max(0, round($schedule->penalty_due - $schedule->penalty_paid, 4));
+                    $penaltyPaid = min($remaining, $penaltyOutstanding);
+                    $remaining = round($remaining - $penaltyPaid, 4);
+                    $penaltyAmount = round($penaltyAmount + $penaltyPaid, 4);
 
-                    $newPrincipalPaid = round(
-                        $schedule->principal_paid +
-                        $principalPaid,
-                        2
-                    );
+                    // 2. Interest Component Allocation
+                    $interestOutstanding = max(0, round($schedule->interest_due - $schedule->interest_paid, 4));
+                    $interestPaid = min($remaining, $interestOutstanding);
+                    $remaining = round($remaining - $interestPaid, 4);
+                    $interestAmount = round($interestAmount + $interestPaid, 4);
 
-                    $newInterestPaid = round(
-                        $schedule->interest_paid +
-                        $interestPaid,
-                        2
-                    );
+                    // 3. Capitalized Fees Component Allocation
+                    $feesOutstanding = max(0, round($schedule->fees_due - $schedule->fees_paid, 4));
+                    $feesPaid = min($remaining, $feesOutstanding);
+                    $remaining = round($remaining - $feesPaid, 4);
+                    $feesAmount = round($feesAmount + $feesPaid, 4);
 
-                    $newFeesPaid = round(
-                        $schedule->fees_paid +
-                        $feesPaid,
-                        2
-                    );
+                    // 4. Base Principal Component Allocation
+                    $principalOutstanding = max(0, round($schedule->principal_due - $schedule->principal_paid, 4));
+                    $principalPaid = min($remaining, $principalOutstanding);
+                    $remaining = round($remaining - $principalPaid, 4);
+                    $principalAmount = round($principalAmount + $principalPaid, 4);
 
-                    $newPenaltyPaid = round(
-                        $schedule->penalty_paid +
-                        $penaltyPaid,
-                        2
-                    );
+                    $allocationTotal = round($principalPaid + $interestPaid + $feesPaid + $penaltyPaid, 4);
 
-                    $totalPaid = round(
-                        $newPrincipalPaid +
-                        $newInterestPaid +
-                        $newFeesPaid +
-                        $newPenaltyPaid,
-                        2
-                    );
+                    if ($allocationTotal <= 0) {
+                        $scheduleStatuses[] = $schedule->status;
+                        continue;
+                    }
 
-                    $outstanding = max(
-                        0,
-                        round(
-                            $schedule->total_due - $totalPaid,
-                            2
-                        )
-                    );
+                    $newPrincipalPaid = round($schedule->principal_paid + $principalPaid, 4);
+                    $newInterestPaid = round($schedule->interest_paid + $interestPaid, 4);
+                    $newFeesPaid = round($schedule->fees_paid + $feesPaid, 4);
+                    $newPenaltyPaid = round($schedule->penalty_paid + $penaltyPaid, 4);
+
+                    $totalPaid = round($newPrincipalPaid + $newInterestPaid + $newFeesPaid + $newPenaltyPaid, 4);
+                    $outstanding = max(0, round($schedule->total_due - $totalPaid, 4));
 
                     if ($outstanding <= 0) {
                         $status = 'paid';
                         $fullyPaidDate = $repayment->payment_date;
-                    } elseif (
-                        Carbon::parse($schedule->due_date)
-                            ->lt(Carbon::parse($repayment->payment_date))
-                    ) {
+                    } elseif (Carbon::parse($schedule->due_date)->lt(Carbon::parse($repayment->payment_date))) {
                         $status = 'overdue';
                         $fullyPaidDate = null;
                     } else {
                         $status = 'partially_paid';
                         $fullyPaidDate = null;
                     }
+
+                    $scheduleStatuses[] = $status;
+
+                    // Compute the closing principal balance reduction to align with approval capitalization flow
+                    $newClosingPrincipal = max(0, round($schedule->opening_principal_balance - ($newPrincipalPaid + $newFeesPaid), 4));
 
                     $schedule->update([
                         'principal_paid' => $newPrincipalPaid,
@@ -511,6 +440,7 @@ class LoanRepaymentsController extends Controller
                         'penalty_paid' => $newPenaltyPaid,
                         'total_paid' => $totalPaid,
                         'outstanding_amount' => $outstanding,
+                        'closing_principal_balance' => $newClosingPrincipal,
                         'fully_paid_date' => $fullyPaidDate,
                         'status' => $status,
                     ]);
@@ -525,115 +455,44 @@ class LoanRepaymentsController extends Controller
                     ];
                 }
 
-                $unallocatedAmount = round($remaining, 2);
+                $unallocatedAmount = round($remaining, 4);
 
                 /*
-                 * Update loan balances.
+                 * Process structural adjustments against Loan balances.
+                 * NOTE: Because fees were capitalized into the principal asset baseline at approval,
+                 * both principalAmount and feesAmount are deducted from the principal_balance parameter.
                  */
-                $newPrincipalBalance = max(
-                    0,
-                    round(
-                        $loan->principal_balance - $principalAmount,
-                        2
-                    )
-                );
+                $newPrincipalBalance = max(0, round($loan->principal_balance - ($principalAmount + $feesAmount), 4));
+                $newInterestBalance = max(0, round($loan->interest_balance - $interestAmount, 4));
+                $newFeesBalance = max(0, round($loan->fees_balance - $feesAmount, 4));
+                $newPenaltyBalance = max(0, round($loan->penalty_balance - $penaltyAmount, 4));
 
-                $newInterestBalance = max(
-                    0,
-                    round(
-                        $loan->interest_balance - $interestAmount,
-                        2
-                    )
-                );
+                $newTotalOutstanding = round($newPrincipalBalance + $newInterestBalance + $newFeesBalance + $newPenaltyBalance, 4);
 
-                $newFeesBalance = max(
-                    0,
-                    round(
-                        $loan->fees_balance - $feesAmount,
-                        2
-                    )
-                );
+                $newLoanPrincipalPaid = round($loan->principal_paid + $principalAmount, 4);
+                $newLoanInterestPaid = round($loan->interest_paid + $interestAmount, 4);
+                $newLoanFeesPaid = round($loan->fees_paid + $feesAmount, 4);
+                $newLoanPenaltiesPaid = round($loan->penalties_paid + $penaltyAmount, 4);
 
-                $newPenaltyBalance = max(
-                    0,
-                    round(
-                        $loan->penalty_balance - $penaltyAmount,
-                        2
-                    )
-                );
+                $newTotalPaid = round($loan->total_paid + $principalAmount + $interestAmount + $feesAmount + $penaltyAmount, 4);
 
-                $newTotalOutstanding = round(
-                    $newPrincipalBalance +
-                    $newInterestBalance +
-                    $newFeesBalance +
-                    $newPenaltyBalance,
-                    2
-                );
-
-                $newPrincipalPaid = round(
-                    $loan->principal_paid + $principalAmount,
-                    2
-                );
-
-                $newInterestPaid = round(
-                    $loan->interest_paid + $interestAmount,
-                    2
-                );
-
-                $newFeesPaid = round(
-                    $loan->fees_paid + $feesAmount,
-                    2
-                );
-
-                $newPenaltiesPaid = round(
-                    $loan->penalties_paid + $penaltyAmount,
-                    2
-                );
-
-                $newTotalPaid = round(
-                    $loan->total_paid +
-                    $principalAmount +
-                    $interestAmount +
-                    $feesAmount +
-                    $penaltyAmount,
-                    2
-                );
-
-                $hasOverdue = LoanRepaymentSchedule::where('loan_id', $loan->id)
-                    ->where('status', 'overdue')
-                    ->where('outstanding_amount', '>', 0)
-                    ->exists();
-
-                $loanStatus = $newTotalOutstanding <= 0
-                    ? 'fully_paid'
-                    : ($hasOverdue ? 'in_arrears' : 'active');
+                // Deterministically deduce the target loan state matrix directly from active records
+                $hasOverdue = in_array('overdue', $scheduleStatuses);
+                $loanStatus = $newTotalOutstanding <= 0 ? 'fully_paid' : ($hasOverdue ? 'in_arrears' : 'active');
 
                 /*
-                 * Create allocation records.
+                 * Persist transaction allocation detail records
                  */
                 foreach ($allocations as $allocation) {
                     $repayment->allocations()->create([
-                        'loan_repayment_schedule_id' =>
-                            $allocation['loan_repayment_schedule_id'],
-
+                        'loan_repayment_schedule_id' => $allocation['loan_repayment_schedule_id'],
                         'loan_id' => $loan->id,
                         'member_id' => $loan->member_id,
-
-                        'principal_allocated' =>
-                            $allocation['principal_allocated'],
-
-                        'interest_allocated' =>
-                            $allocation['interest_allocated'],
-
-                        'fees_allocated' =>
-                            $allocation['fees_allocated'],
-
-                        'penalty_allocated' =>
-                            $allocation['penalty_allocated'],
-
-                        'total_allocated' =>
-                            $allocation['total_allocated'],
-
+                        'principal_allocated' => $allocation['principal_allocated'],
+                        'interest_allocated' => $allocation['interest_allocated'],
+                        'fees_allocated' => $allocation['fees_allocated'],
+                        'penalty_allocated' => $allocation['penalty_allocated'],
+                        'total_allocated' => $allocation['total_allocated'],
                         'allocated_by' => Auth::id(),
                         'allocated_at' => now(),
                         'status' => 'active',
@@ -641,54 +500,40 @@ class LoanRepaymentsController extends Controller
                 }
 
                 /*
-                 * Update repayment allocation totals.
+                 * Update the parent repayment execution entity ledger state
                  */
                 $repayment->update([
-                    'principal_amount' => $principalAmount,
-                    'interest_amount' => $interestAmount,
-                    'fees_amount' => $feesAmount,
-                    'penalty_amount' => $penaltyAmount,
-                    'unallocated_amount' => $unallocatedAmount,
+                    'principal_amount' => round($principalAmount, 2),
+                    'interest_amount' => round($interestAmount, 2),
+                    'fees_amount' => round($feesAmount, 2),
+                    'penalty_amount' => round($penaltyAmount, 2),
+                    'unallocated_amount' => round($unallocatedAmount, 2),
                     'status' => 'confirmed',
                 ]);
 
                 /*
-                 * Update loan.
+                 * Sync core parameters on the active Loan entity model
                  */
                 $loan->update([
-                    'principal_balance' => $newPrincipalBalance,
-                    'interest_balance' => $newInterestBalance,
-                    'fees_balance' => $newFeesBalance,
-                    'penalty_balance' => $newPenaltyBalance,
-
-                    'total_outstanding_balance' =>
-                        $newTotalOutstanding,
-
-                    'principal_paid' => $newPrincipalPaid,
-                    'interest_paid' => $newInterestPaid,
-                    'fees_paid' => $newFeesPaid,
-                    'penalties_paid' => $newPenaltiesPaid,
-                    'total_paid' => $newTotalPaid,
-
+                    'principal_balance' => round($newPrincipalBalance, 2),
+                    'interest_balance' => round($newInterestBalance, 2),
+                    'fees_balance' => round($newFeesBalance, 2),
+                    'penalty_balance' => round($newPenaltyBalance, 2),
+                    'total_outstanding_balance' => round($newTotalOutstanding, 2),
+                    'principal_paid' => round($newLoanPrincipalPaid, 2),
+                    'interest_paid' => round($newLoanInterestPaid, 2),
+                    'fees_paid' => round($newLoanFeesPaid, 2),
+                    'penalties_paid' => round($newLoanPenaltiesPaid, 2),
+                    'total_paid' => round($newTotalPaid, 2),
                     'status' => $loanStatus,
                 ]);
             });
 
-            return back()->with(
-                'success',
-                'Loan repayment confirmed and allocated successfully.'
-            );
-
-        } catch (ValidationException $e) {
-            throw $e;
-
+            return back()->with('success', 'Loan repayment confirmed and allocated successfully.');
         } catch (Exception $e) {
-            return errorHandler(
-                'Error confirming loan repayment. Please try again.',
-                $e
-            );
+            return errorHandler('Error confirming loan repayment. Please try again.', $e);
         }
-    }    
+    }
 
     // reverse repayment
     public function reverse(Request $request, $id)

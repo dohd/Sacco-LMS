@@ -484,16 +484,30 @@ class SavingsWithdrawalsController extends Controller
                     ]);
                 }
 
+                $product = SavingsProduct::whereKey($account->savings_product_id)->lockForUpdate()->first();
+                if (!$product) {
+                    throw ValidationException::withMessages(['savings_account_id' => 'Savings product was not found.']);
+                }
+                app(\App\Services\SavingsWithdrawalPolicy::class)->validate($product, $withdrawal->created_at);
+                if ($newAvailableBalance < round((float) $product->minimum_balance, 2)) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'The withdrawal would reduce available savings below the product minimum balance.'
+                    ]);
+                }
+
                 /*
                  * Update the savings transaction.
                  *
                  * This is the point at which the withdrawal actually
                  * becomes part of the financial ledger.
                  */
+                $approvedAt = now();
                 $transaction->update([
                     'running_balance' => $newLedgerBalance,
                     'status' => 'confirmed',
-                    'value_date' => now()->toDateString(),
+                    'value_date' => $approvedAt->toDateString(),
+                    'confirmed_by' => Auth::id(),
+                    'confirmed_at' => $approvedAt,
                 ]);
 
                 /*
@@ -513,7 +527,7 @@ class SavingsWithdrawalsController extends Controller
                 $withdrawal->update([
                     'status' => 'approved',
                     'approved_by' => Auth::id(),
-                    'approved_at' => now(),
+                    'approved_at' => $approvedAt,
                 ]);
 
                 return $withdrawal;

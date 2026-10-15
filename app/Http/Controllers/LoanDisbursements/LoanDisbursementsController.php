@@ -100,8 +100,7 @@ class LoanDisbursementsController extends Controller
 
                 if ($application->status !== 'approved') {
                     throw ValidationException::withMessages([
-                        'loan_application_id' =>
-                            'Only approved loan applications can be disbursed.'
+                        'loan_application_id' => 'Only approved loan applications can be disbursed.'
                     ]);
                 }
 
@@ -111,15 +110,13 @@ class LoanDisbursementsController extends Controller
 
                 if ($deductions > $grossAmount) {
                     throw ValidationException::withMessages([
-                        'deductions_amount' =>
-                            'Deductions cannot exceed the gross disbursement amount.'
+                        'deductions_amount' => 'Deductions cannot exceed the gross disbursement amount.'
                     ]);
                 }
 
                 if ($netAmount <= 0) {
                     throw ValidationException::withMessages([
-                        'gross_amount' =>
-                            'Net disbursement amount must be greater than zero.'
+                        'gross_amount' => 'Net disbursement amount must be greater than zero.'
                     ]);
                 }
 
@@ -127,22 +124,19 @@ class LoanDisbursementsController extends Controller
 
                 if ($method === 'cheque' && empty($validated['cheque_number'])) {
                     throw ValidationException::withMessages([
-                        'cheque_number' =>
-                            'Cheque number is required for cheque disbursements.'
+                        'cheque_number' => 'Cheque number is required for cheque disbursements.'
                     ]);
                 }
 
                 if ($method === 'bank_transfer' && empty($validated['bank_name'])) {
                     throw ValidationException::withMessages([
-                        'bank_name' =>
-                            'Bank name is required for bank transfers.'
+                        'bank_name' => 'Bank name is required for bank transfers.'
                     ]);
                 }
 
                 if ($method === 'mobile_money' && empty($validated['payee_phone'])) {
                     throw ValidationException::withMessages([
-                        'payee_phone' =>
-                            'Payee phone number is required for mobile-money disbursements.'
+                        'payee_phone' => 'Payee phone number is required for mobile-money disbursements.'
                     ]);
                 }
 
@@ -285,8 +279,7 @@ class LoanDisbursementsController extends Controller
 
                 if ($application->status !== 'approved') {
                     throw ValidationException::withMessages([
-                        'loan_application_id' =>
-                            'Only approved loan applications can be disbursed.'
+                        'loan_application_id' => 'Only approved loan applications can be disbursed.'
                     ]);
                 }
 
@@ -302,15 +295,13 @@ class LoanDisbursementsController extends Controller
 
                 if ($loan->loan_application_id != $application->id) {
                     throw ValidationException::withMessages([
-                        'loan_id' =>
-                            'The selected loan account does not belong to this loan application.'
+                        'loan_id' => 'The selected loan account does not belong to this loan application.'
                     ]);
                 }
 
                 if ($loan->status !== 'active') {
                     throw ValidationException::withMessages([
-                        'loan_id' =>
-                            'Only active loan accounts can be disbursed.'
+                        'loan_id' => 'Only active loan accounts can be disbursed.'
                     ]);
                 }
 
@@ -322,8 +313,7 @@ class LoanDisbursementsController extends Controller
 
                 if ($deductions > $grossAmount) {
                     throw ValidationException::withMessages([
-                        'deductions_amount' =>
-                            'Deductions cannot exceed the gross amount.'
+                        'deductions_amount' => 'Deductions cannot exceed the gross amount.'
                     ]);
                 }
 
@@ -331,8 +321,7 @@ class LoanDisbursementsController extends Controller
 
                 if ($netAmount <= 0) {
                     throw ValidationException::withMessages([
-                        'gross_amount' =>
-                            'Net disbursement amount must be greater than zero.'
+                        'gross_amount' => 'Net disbursement amount must be greater than zero.'
                     ]);
                 }
 
@@ -340,22 +329,19 @@ class LoanDisbursementsController extends Controller
 
                 if ($method === 'cheque' && empty($validated['cheque_number'])) {
                     throw ValidationException::withMessages([
-                        'cheque_number' =>
-                            'Cheque number is required for cheque disbursements.'
+                        'cheque_number' => 'Cheque number is required for cheque disbursements.'
                     ]);
                 }
 
                 if ($method === 'bank_transfer' && empty($validated['bank_name'])) {
                     throw ValidationException::withMessages([
-                        'bank_name' =>
-                            'Bank name is required for bank transfers.'
+                        'bank_name' => 'Bank name is required for bank transfers.'
                     ]);
                 }
 
                 if ($method === 'mobile_money' && empty($validated['payee_phone'])) {
                     throw ValidationException::withMessages([
-                        'payee_phone' =>
-                            'Payee phone number is required for mobile-money disbursements.'
+                        'payee_phone' => 'Payee phone number is required for mobile-money disbursements.'
                     ]);
                 }
 
@@ -385,21 +371,15 @@ class LoanDisbursementsController extends Controller
                     'payee_phone' =>
                         $validated['payee_phone'] ?? null,
 
-                    'disbursement_date' =>
-                        $validated['disbursement_date'],
-                    'value_date' =>
-                        $validated['value_date'] ?? null,
-                    'collection_date' =>
-                        $validated['collection_date'] ?? null,
+                    'disbursement_date' => $validated['disbursement_date'],
+                    'value_date' => $validated['value_date'] ?? null,
+                    'collection_date' => $validated['collection_date'] ?? null,
 
-                    'postal_reference' =>
-                        $validated['postal_reference'] ?? null,
+                    'postal_reference' => $validated['postal_reference'] ?? null,
 
-                    'supporting_document' =>
-                        $validated['supporting_document'] ?? null,
+                    'supporting_document' => $validated['supporting_document'] ?? null,
 
-                    'remarks' =>
-                        $validated['remarks'] ?? null,
+                    'remarks' => $validated['remarks'] ?? null,
                 ]);
             });
 
@@ -429,7 +409,10 @@ class LoanDisbursementsController extends Controller
     public function submit($id)
     {
         try {
-            DB::transaction(fn() => LoanDisbursement::whereKey($id)->update(['status' => 'pending_approval']));
+            DB::transaction(fn() => LoanDisbursement::whereKey($id)
+                ->first()
+                ->update(['status' => 'pending_approval'])
+            );
 
             return back()->with('success', 'Loan disbursement submitted for approval successfully.');
         } catch (Exception $e) {
@@ -443,7 +426,10 @@ class LoanDisbursementsController extends Controller
     public function approve($id)
     {
         try {
-            DB::transaction(fn() => LoanDisbursement::whereKey($id)->update(['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()]));
+            DB::transaction(fn() => LoanDisbursement::whereKey($id)
+                ->first()
+                ->update(['status' => 'approved', 'approved_by' => Auth::id(), 'approved_at' => now()])
+            );
 
             return back()->with('success', 'Loan disbursement approved successfully.');
         } catch (Exception $e) {
@@ -459,12 +445,15 @@ class LoanDisbursementsController extends Controller
         try {
             DB::transaction(function() use($id) {
                 $loanDisbursement = LoanDisbursement::whereKey($id)->first();
+
                 $status = in_array($loanDisbursement->disbursement_method, ['bank_transfer', 'mobile_money'])? 'processing' : 'processed';
                 $loanDisbursement->update([
                     'status' => $status, 
                     'processed_by' => Auth::id(), 
                     'processed_at' => now(),
                 ]);
+
+                
             });
 
             return back()->with('success', 'Loan disbursement processed successfully.');

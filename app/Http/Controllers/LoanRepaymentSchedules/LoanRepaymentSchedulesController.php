@@ -100,10 +100,7 @@ class LoanRepaymentSchedulesController extends Controller
                     ]);
                 }
 
-                $totalDue = round(
-                    $principal + $interest + $fees + $penalty,
-                    2
-                );
+                $totalDue = round($principal + $interest + $fees + $penalty, 2);
 
                 $closing = round($opening - $principal, 2);
 

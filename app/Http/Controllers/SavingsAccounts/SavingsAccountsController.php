@@ -74,6 +74,12 @@ class SavingsAccountsController extends Controller
                     ]);
                 }
 
+                if ($product->product_type === 'fixed_deposit') {
+                    throw ValidationException::withMessages([
+                        'savings_product_id' => 'Fixed-deposit accounts are not available until maturity handling is implemented.'
+                    ]);
+                }
+
                 $existingAccount = SavingsAccount::where('member_id', $member->id)
                     ->where('savings_product_id', $product->id)
                     ->whereIn('status', ['active', 'frozen'])
@@ -159,6 +165,13 @@ class SavingsAccountsController extends Controller
                 if (!$product) {
                     throw ValidationException::withMessages([
                         'savings_product_id' => 'The selected savings product is not active.'
+                    ]);
+                }
+
+                if ($product->product_type === 'fixed_deposit' &&
+                    $savingsAccount->savings_product_id != $product->id) {
+                    throw ValidationException::withMessages([
+                        'savings_product_id' => 'Accounts cannot be switched to a fixed-deposit product.'
                     ]);
                 }
 

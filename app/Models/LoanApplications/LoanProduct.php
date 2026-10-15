@@ -21,6 +21,10 @@ class LoanProduct extends Model
         'eligibility_rules' => 'array',
         'effective_from' => 'date',
         'effective_to' => 'date',
+        'application_fees' => 'decimal:2',
+        'processing_fee_percentage' => 'decimal:2',
+        'insurance_fee_percentage' => 'decimal:2',
+        'interest_rate' => 'decimal:2',
     ];
 
     /**

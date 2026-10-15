@@ -3,10 +3,13 @@
 namespace App\Http\Controllers\LoanApplications;
 
 use App\Http\Controllers\Controller;
+use App\Http\Controllers\LoanDisbursements\LoanDisbursementsController;
 use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanApplication;
 use App\Models\LoanApplications\LoanApproval;
+use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanProduct;
+use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Memberships\Member;
 use Exception;
 use Illuminate\Http\Request;
@@ -380,105 +383,83 @@ class LoanApplicationsController extends Controller
         ]);
 
         try {
-            DB::transaction(function () use (&$application, $validated) {
+            DB::transaction(function () use ($application, $validated) {
 
-                $application = LoanApplication::whereKey($application->id)
+                // Lock and isolate the application record immediately
+                $lockedApp = LoanApplication::whereKey($application->id)
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                $application->load([
-                    'loanProduct',
-                    'guarantors',
-                    'securities',
-                    'witnesses',
-                ]);
+                $lockedApp->load(['loanProduct', 'guarantors', 'securities', 'witnesses']);
 
-                if (!in_array($application->status, [
-                    'submitted',
-                    'under_review',
-                    'deferred'
-                ])) {
+                if (!in_array($lockedApp->status, ['submitted', 'under_review', 'deferred'])) {
                     throw ValidationException::withMessages([
-                        'status' =>
-                            'This application cannot be approved from its current status.',
+                        'status' => 'This application cannot be approved from its current status.',
                     ]);
                 }
 
-                $product = $application->loanProduct;
-
+                $product = $lockedApp->loanProduct;
                 if (!$product) {
                     throw ValidationException::withMessages([
-                        'loan_product_id' =>
-                            'The loan product could not be found.',
+                        'loan_product_id' => 'The loan product could not be found.',
                     ]);
                 }
 
-                $approvedAmount = (float) $validated['approved_amount'];
+                $approvedAmount = round($validated['approved_amount'], 4);
                 $repaymentMonths = (int) $validated['repayment_period_months'];
 
-                $eligibility = array_merge(
-                    $application->toArray(),
-                    $this->memberFinancials($application->member),
-                    [
-                        'amount_requested' => $approvedAmount,
-                        'repayment_period_months' => $repaymentMonths,
-                        'guarantors' => $application->guarantors->toArray(),
-                    ]
-                );
-
-                $this->validateEligibility(
-                    $eligibility,
-                    $product,
-                    $application
-                );
-
-                if ($approvedAmount > $application->amount_requested) {
+                if ($approvedAmount > $lockedApp->amount_requested) {
                     throw ValidationException::withMessages([
-                        'approved_amount' =>
-                            'Approved amount cannot exceed the requested amount.',
+                        'approved_amount' => 'Approved amount cannot exceed the requested amount.',
                     ]);
                 }
 
-                $unverifiedSecurities = $application->securities
+                // Verify collateral securities
+                $unverifiedSecurities = $lockedApp->securities
                     ->where('status', '!=', 'rejected')
                     ->filter(fn($security) => !$security->is_verified);
 
                 if ($unverifiedSecurities->isNotEmpty()) {
                     throw ValidationException::withMessages([
-                        'securities' =>
-                            'All securities being used for this loan must be verified before approval.',
+                        'securities' => 'All securities being used for this loan must be verified before approval.',
                     ]);
                 }
 
-                $monthlyInstallment = $this->calculateMonthlyInstallment(
-                    $approvedAmount,
-                    $repaymentMonths,
-                    $product
+                // Assemble payload and validate structural eligibility rules
+                $eligibility = array_merge(
+                    $lockedApp->toArray(),
+                    $this->memberFinancials($lockedApp->member),
+                    [
+                        'amount_approved' => $approvedAmount,
+                        'repayment_period_months' => $repaymentMonths,
+                        'guarantors' => $lockedApp->guarantors->toArray(),
+                    ]
                 );
+                $this->validateEligibility($eligibility, $product, $lockedApp);
+
+                $monthlyInstallment = $this->calculateMonthlyInstallment($approvedAmount, $repaymentMonths, $product);
 
                 /*
-                 * 1. Approve application.
+                 * 1. Transition application status
                  */
-                $application->update([
+                $lockedApp->update([
                     'amount_approved' => $approvedAmount,
                     'approved_repayment_months' => $repaymentMonths,
                     'approved_monthly_installment' => $monthlyInstallment,
                     'approved_interest_rate' => $product->interest_rate,
                     'approved_interest_method' => $product->interest_method,
                     'approved_interest_frequency' => $product->interest_frequency,
-
                     'status' => 'approved',
                     'approved_by' => Auth::id(),
                     'approved_at' => now(),
-
                     'defer_note' => null,
                     'rejection_note' => null,
                 ]);
 
                 /*
-                 * 2. Pledge verified securities.
+                 * 2. Pledge collateral assets
                  */
-                $application->securities()
+                $lockedApp->securities()
                     ->where('is_verified', true)
                     ->whereIn('status', ['pending', 'verified'])
                     ->update([
@@ -487,11 +468,11 @@ class LoanApplicationsController extends Controller
                     ]);
 
                 /*
-                 * 3. Create approval audit record.
+                 * 3. Archive audit record
                  */
                 $approval = LoanApproval::create([
-                    'loan_application_id' => $application->id,
-                    'member_id' => $application->member_id,
+                    'loan_application_id' => $lockedApp->id,
+                    'member_id' => $lockedApp->member_id,
                     'approved_amount' => $approvedAmount,
                     'repayment_months' => $repaymentMonths,
                     'monthly_installment' => $monthlyInstallment,
@@ -502,84 +483,144 @@ class LoanApplicationsController extends Controller
                 ]);
 
                 /*
-                 * 4. Create the loan account.
+                 * 4. Capitalize upfront fees into the principal baseline
                  */
-                Loan::create([
-                    'loan_application_id' => $application->id,
-                    'member_id' => $application->member_id,
+                $applFees = $product->application_fees;
+                $percProcessingFees = round($product->processing_fee_percentage * $approvedAmount / 100, 4);
+                $percInsuranceFees = round($product->insurance_fee_percentage * $approvedAmount / 100, 4);
+                $feesDue = $applFees + $percProcessingFees + $percInsuranceFees;
+
+                // Fees are added to the approved amount to create the starting liability balance
+                $principalBal = $approvedAmount + $feesDue; 
+                $rawRate = $product->interest_rate / 100;
+                $interestEstimate = 0;
+
+                if ($product->interest_method == 'flat_rate') {
+                    if ($product->interest_frequency == 'annual') {
+                        $interestEstimate = round($principalBal * $rawRate * ($repaymentMonths / 12), 4);
+                    } elseif ($product->interest_frequency == 'monthly') {
+                        $interestEstimate = round($principalBal * $rawRate * $repaymentMonths, 4);
+                    } elseif ($product->interest_frequency == 'one_time') {
+                        $interestEstimate = round($principalBal * $rawRate, 4);
+                    }
+                } elseif ($product->interest_method == 'reducing_balance') {
+                    if ($product->interest_frequency == 'annual') {
+                        $monthlyRate = $rawRate / 12;
+                    } elseif ($product->interest_frequency == 'monthly') {
+                        $monthlyRate = $rawRate;
+                    } else {
+                        $monthlyRate = $rawRate / $repaymentMonths;
+                    }
+                    $interestEstimate = round((($repaymentMonths + 1) / 2) * $principalBal * $monthlyRate, 4);
+                }
+                
+                $totalBal = $principalBal + $interestEstimate;
+
+                $loan = Loan::create([
+                    'loan_application_id' => $lockedApp->id,
+                    'member_id' => $lockedApp->member_id,
                     'loan_approval_id' => $approval->id,
-
-                    'loan_number' => $this->generateLoanNumber(),
-
+                    'loan_number' => $this->generateLoanNumber(), 
                     'approved_amount' => $approvedAmount,
-                    'amount_disbursed' => 0,
-
+                    'amount_disbursed' => $approvedAmount, // Full requested funds go to borrower
                     'repayment_period_months' => $repaymentMonths,
                     'interest_rate' => $product->interest_rate,
                     'monthly_installment' => $monthlyInstallment,
-
                     'interest_method' => $product->interest_method,
-
-                    /*
-                     * These are populated when the first
-                     * disbursement is processed.
-                     */
-                    'disbursement_date' => null,
-                    'first_repayment_date' => null,
-                    'maturity_date' => null,
-
-                    /*
-                     * Get this from the application if your
-                     * application already stores the payment mode.
-                     */
-                    'payment_mode' => $application->payment_mode,
-
-                    /*
-                     * No money has been released yet.
-                     */
-                    'principal_balance' => 0,
-                    'interest_balance' => 0,
-                    'penalty_balance' => 0,
-                    'total_outstanding_balance' => 0,
-
-                    'principal_paid' => 0,
-                    'interest_paid' => 0,
-                    'penalties_paid' => 0,
-                    'total_paid' => 0,
-
-                    'disbursement_method' => null,
-                    'disbursement_reference' => null,
-                    'disbursed_by' => null,
-
+                    'payment_mode' => $lockedApp->payment_mode,
                     'status' => 'active',
+                    'fees_due' => $feesDue,
+                    'principal_balance' => $principalBal,
+                    'interest_balance' => $interestEstimate,
+                    'total_outstanding_balance' => $totalBal,
+                    'disbursement_method' => 'account_credit',
+                    'disbursement_date' => now(),
+                    'disbursed_by' => Auth::id(),
+                ]);
 
-                    'arrears_amount' => 0,
-                    'days_in_arrears' => 0,
+                /*
+                 * 4b. Generate Repayment Schedule Rows
+                 */
+                $remainingPrincipalTrack = $principalBal; // Initialized with capitalized fee compound
+                $monthlyPrincipalDue = round($approvedAmount / $repaymentMonths, 4);
+                $monthlyFeesDue = round($feesDue / $repaymentMonths, 4);
+                $monthlyInterestDue = round($interestEstimate / $repaymentMonths, 4);
 
-                    'closed_date' => null,
-                    'closed_by' => null,
-                    'closure_reason' => null,
+                $currentDueDate = now();
 
-                    'remarks' => null,
+                for ($i = 1; $i <= $repaymentMonths; $i++) {
+                    $opening = $remainingPrincipalTrack;
+                    
+                    if ($i === $repaymentMonths) {
+                        $principal = round($approvedAmount - ($monthlyPrincipalDue * ($repaymentMonths - 1)), 4);
+                        $fees = round($feesDue - ($monthlyFeesDue * ($repaymentMonths - 1)), 4);
+                        $interest = round($interestEstimate - ($monthlyInterestDue * ($repaymentMonths - 1)), 4);
+                        $closing = 0.0000;
+                    } else {
+                        $principal = $monthlyPrincipalDue;
+                        $fees = $monthlyFeesDue;
+                        $interest = $monthlyInterestDue;
+                        // Deduct both components to match the integrated opening principle track balance
+                        $closing = round($opening - ($principal + $fees), 4);
+                    }
+
+                    $penalty = 0.0000;
+                    $totalDue = round($principal + $interest + $fees + $penalty, 4);
+                    
+                    // Securely increments dates without day-of-month shifting overflows
+                    $currentDueDate = $currentDueDate->addMonthNoOverflow(); 
+
+                    LoanRepaymentSchedule::create([
+                        'loan_id' => $loan->id,
+                        'member_id' => $loan->member_id,
+                        'installment_number' => $i,
+                        'due_date' => $currentDueDate->toDateString(),
+                        'opening_principal_balance' => $opening,
+                        'principal_due' => $principal,
+                        'interest_due' => $interest,
+                        'fees_due' => $fees,
+                        'penalty_due' => $penalty,
+                        'total_due' => $totalDue,
+                        'closing_principal_balance' => $closing,
+                        'outstanding_amount' => $totalDue,
+                        'status' => 'pending',
+                        'remarks' => "Installment {$i} of {$repaymentMonths}",
+                    ]);
+
+                    $remainingPrincipalTrack = $closing;
+                }
+
+                /*
+                * 5. Log disbursement entry (No deductions subtracted from the payout)
+                */
+                LoanDisbursement::create([
+                    'disbursement_number' => $this->generateDisbursementNumber(),
+                    'loan_application_id' => $lockedApp->id,
+                    'loan_id' => $loan->id,
+                    'gross_amount' => $approvedAmount,
+                    'deductions_amount' => 0.0000, // Zero deductions because fees are rolled over
+                    'net_amount' => $approvedAmount,   // The borrower receives 100% of approved capital
+                    'disbursement_method' => 'account_credit',
+                    'disbursement_date' => now(),
+                    'status' => 'approved',
+                    'approved_by' => Auth::id(),
+                    'approved_at' => now(),
+                    'remarks' => 'System generated with capitalized fees',
                 ]);
             });
 
             return redirect()
                 ->route('loan_applications.show', $application->id)
-                ->with(
-                    'success',
-                    'Loan application approved and loan account created successfully.'
-                );
-
-        } catch (ValidationException $e) {
-            throw $e;
+                ->with('success', 'Loan application approved and loan account created successfully.');
 
         } catch (Exception $e) {
-            return errorHandler(
-                'Error approving loan application. Try again later',
-                $e
-            );
+            return errorHandler('Error approving loan application. Try again later', $e);
         }
+    }
+
+    private function generateDisbursementNumber()
+    {
+        return app(LoanDisbursementsController::class)->generateDisbursementNumber();
     }
 
     private function generateLoanNumber()

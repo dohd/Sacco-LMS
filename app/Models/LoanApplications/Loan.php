@@ -12,6 +12,12 @@ class Loan extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'approved_amount' => 'decimal:2',
+        'amount_disbursed' => 'decimal:2',
+        'fees_due' => 'decimal:2',
+    ];
+
     /**
      * Relationships
      * */

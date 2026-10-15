@@ -58,7 +58,7 @@ class CreateMembers extends Migration
 
             $table->string('national_id')->unique();
             $table->string('phone');
-            $table->string('email')->nullable();
+            $table->string('email')->unique();
 
             $table->text('current_address')->nullable();
             $table->text('residential_address')->nullable();
