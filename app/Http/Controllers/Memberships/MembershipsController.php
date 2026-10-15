@@ -376,6 +376,7 @@ class MembershipsController extends Controller
 
     public function approve(MemberApplication $membership)
     {
+        $this->requireSaccoPermission('approve-membership');
         if ($membership->status === 'approved' && $membership->member) {
             throw ValidationException::withMessages([
                 'application' => 'This application has already been approved.',
@@ -440,6 +441,7 @@ class MembershipsController extends Controller
 
     public function reject(MemberApplication $membership)
     {
+        $this->requireSaccoPermission('approve-membership');
         DB::transaction(fn() => $membership->update([
             'rejected_by' => auth()->id(),
             'rejected_at' => now(),
@@ -455,6 +457,7 @@ class MembershipsController extends Controller
 
     public function review(MemberApplication $membership)
     {
+        $this->requireSaccoPermission('approve-membership');
         DB::transaction(fn() => $membership->update([
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),

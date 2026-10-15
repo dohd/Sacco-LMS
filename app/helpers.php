@@ -158,6 +158,17 @@ if (!function_exists('errorHandler')) {
     }
 }
 
+if (!function_exists('userCan')) {
+    function userCan(string $permission): bool
+    {
+        try {
+            return auth()->check() && auth()->user()->can($permission);
+        } catch (\Throwable $exception) {
+            return false;
+        }
+    }
+}
+
 if (!function_exists('tidCode')) {
     function tidCode($prefix='', $num=0, $count=3)
     {

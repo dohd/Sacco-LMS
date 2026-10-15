@@ -230,6 +230,7 @@ class ShareTransactionsController extends Controller
      * */
     public function confirm($id)
     {
+        $this->requireSaccoPermission('confirm-share-transaction');
         $shareTransaction = ShareTransaction::findOrFail($id);
 
         try {
@@ -341,6 +342,7 @@ class ShareTransactionsController extends Controller
      * */
     public function reverse(Request $request, $id)
     {
+        $this->requireSaccoPermission('reverse-share-transaction');
         $validated = $request->validate([
             'description' => ['required', 'string', 'max:1000'],
         ]);

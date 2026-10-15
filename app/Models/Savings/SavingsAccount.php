@@ -20,8 +20,8 @@ class SavingsAccount extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('savings_accounts.show', null),
-            $this->getEditButtonAttribute('savings_accounts.edit', null),
+            $this->getViewButtonAttribute('savings_accounts.show', 'view-own-savings'),
+            $this->getEditButtonAttribute('savings_accounts.edit', 'manage-savings-accounts'),
             null,
         );
     }

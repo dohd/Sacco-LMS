@@ -20,8 +20,8 @@ class ShareAccount extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('share_accounts.show', null),
-            $this->getEditButtonAttribute('share_accounts.edit', null),
+            $this->getViewButtonAttribute('share_accounts.show', 'view-own-shares'),
+            $this->getEditButtonAttribute('share_accounts.edit', 'manage-share-accounts'),
             null,
         );
     }

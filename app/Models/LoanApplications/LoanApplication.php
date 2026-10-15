@@ -36,8 +36,8 @@ class LoanApplication extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('loan_applications.show', null),
-            in_array($this->status, ['draft', 'deferred']) ? $this->getEditButtonAttribute('loan_applications.edit', null) : null,
+            $this->getViewButtonAttribute('loan_applications.show', 'view-members'),
+            in_array($this->status, ['draft', 'deferred']) ? $this->getEditButtonAttribute('loan_applications.edit', 'edit-own-loan-application') : null,
             null,
         );
     }

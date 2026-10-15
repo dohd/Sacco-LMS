@@ -66,11 +66,14 @@ trait ModelTrait
      */
     public function userHasPermission($permission='')
     {
+        if (!auth()->check() || $permission === '') {
+            return auth()->check();
+        }
+
         try {
-            // $role = auth()->user()->roles()->first();
-            // return $role->hasPermissionTo($permission);
-            return true;
-        } catch (\Throwable $th) {
+            return auth()->user()->can($permission);
+        } catch (\Throwable $exception) {
+            // Some isolated module tests do not migrate Spatie's permission tables.
             return false;
         }
     }

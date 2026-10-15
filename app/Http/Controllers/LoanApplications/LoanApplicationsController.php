@@ -24,6 +24,17 @@ use Illuminate\Validation\ValidationException;
 class LoanApplicationsController extends Controller
 {
     /**
+     * Ensure an application is still in a state that permits the requested
+     * page or workflow action.
+     */
+    protected function requireStatus(LoanApplication $application, array $statuses): void
+    {
+        if (!in_array($application->status, $statuses, true)) {
+            abort(422, 'This loan application cannot be changed in its current status.');
+        }
+    }
+
+    /**
      * Display a listing of the resource.
      *
      * @return \Illuminate\Http\Response
@@ -318,6 +329,9 @@ class LoanApplicationsController extends Controller
 
     public function workflow(LoanApplication $application, Request $request)
     {
+        if (in_array($request->input('action'), ['review', 'defer', 'reject'])) {
+            $this->requireSaccoPermission('review-loan');
+        }
         $data = $request->validate([
             'action' => ['required', Rule::in(['submit', 'review', 'defer', 'reject'])],
             'note' => ['nullable', 'required_if:action,defer,reject', 'string'],
@@ -356,6 +370,7 @@ class LoanApplicationsController extends Controller
 
     public function verifySecurity(LoanApplication $application, Request $request)
     {
+        $this->requireSaccoPermission('verify-loan-security');
         $data = $request->validate([
             'security_id' => ['required', 'integer'],
             'accepted_value' => ['required', 'numeric', 'gt:0'],
@@ -376,6 +391,7 @@ class LoanApplicationsController extends Controller
     // Approve Loan
     public function approve(LoanApplication $application, Request $request)
     {
+        $this->requireSaccoPermission('approve-loan');
         $validated = $request->validate([
             'approved_amount' => ['required', 'numeric', 'gt:0'],
             'repayment_period_months' => ['required', 'integer', 'min:1'],

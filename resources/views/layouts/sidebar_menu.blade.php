@@ -7,16 +7,19 @@
       </a>
     </li>
 
+    @if(userCan('view-members'))
     <li class="nav-item">
-      <a class="nav-link collapsed" data-bs-target="#members" data-bs-toggle="collapse" href="#">      
-        <i class="bi bi-people"></i><span>Members</span><i class="bi bi-chevron-down ms-auto"></i>        
+      <a class="nav-link collapsed" data-bs-target="#members" data-bs-toggle="collapse" href="#">
+        <i class="bi bi-people"></i><span>Members</span><i class="bi bi-chevron-down ms-auto"></i>
       </a>
       <ul id="members" class="nav-content collapse" data-bs-parent="#sidebar-nav">
         <li><a href="{{ route('memberships.index') }}"><i class="bi bi-circle"></i><span>Member List</span></a></li>
         <li><a href="{{ route('nominations.index') }}"><i class="bi bi-circle"></i><span>Member Nominations</span></a></li>
       </ul>
-    </li>  
+    </li>
+    @endif
 
+    @if(userCan('view-members') || userCan('approve-loan') || userCan('view-own-loan'))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#loans" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-credit-card"></i><span>Loans</span><i class="bi bi-chevron-down ms-auto"></i>        
@@ -28,8 +31,10 @@
         <li><a href="{{ route('loan_repayment_schedules.index') }}"><i class="bi bi-circle"></i><span>Loan Repayment Schedules</span></a></li>
         <li><a href="{{ route('loan_repayments.index') }}"><i class="bi bi-circle"></i><span>Loan Repayments</span></a></li>
       </ul>
-    </li>   
+    </li>
+    @endif
 
+    @if(userCan('view-own-savings') || userCan('manage-savings-products') || userCan('confirm-savings-transaction'))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#savings" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-piggy-bank"></i><span>Savings</span><i class="bi bi-chevron-down ms-auto"></i>        
@@ -40,8 +45,10 @@
         <li><a href="{{ route('savings_transactions.index') }}"><i class="bi bi-circle"></i><span>Savings Transactions</span></a></li>
         <li><a href="{{ route('savings_withdrawals.index') }}"><i class="bi bi-circle"></i><span>Savings Withdrawals</span></a></li>
       </ul>
-    </li>   
+    </li>
+    @endif
 
+    @if(userCan('manage-settings'))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#accounting" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-journal-bookmark"></i><span>Accounting</span><i class="bi bi-chevron-down ms-auto"></i>        
@@ -51,8 +58,10 @@
         {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li> --}}
         <li><a href="{{ route('accounting_periods.index') }}"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
       </ul>
-    </li> 
+    </li>
+    @endif
 
+    @if(userCan('view-own-shares') || userCan('manage-share-products') || userCan('confirm-share-transaction'))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#shares" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-graph-up"></i><span>Shares & Dividends</span><i class="bi bi-chevron-down ms-auto"></i>        
@@ -62,22 +71,25 @@
         <li><a href="{{ route('share_accounts.index') }}"><i class="bi bi-circle"></i><span>Share Accounts</span></a></li>
         {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Share Hold</span></a></li> --}}
         <li><a href="{{ route('share_transactions.index') }}"><i class="bi bi-circle"></i><span>Share Transactions</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i>Dividend Runs<span class="text-danger">*</span></a></li>
+        {{-- <li><a href="#"><i class="bi bi-circle"></i>Dividend Runs<span class="text-danger">*</span></a></li>
         <li><a href="#"><i class="bi bi-circle"></i>Dividend Allocations<span class="text-danger">*</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i>Dividend Deductions<span class="text-danger">*</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i>Dividend Deductions<span class="text-danger">*</span></a></li> --}}
       </ul>
-    </li>     
+    </li>
+    @endif
 
     <li class="nav-heading">Settings</li>
     <!-- user management -->
+    @if(userCan('manage-users'))
     <li class="nav-item">
       <a class="nav-link collapsed" href="{{ route('users.index') }}">
         <i class="bi bi-people"></i><span>Users</span>
       </a>
     </li>
+    @endif
     <li class="nav-item">
       <a class="nav-link collapsed" href="#">
-        <i class="bi bi-gear-wide-connected"></i>General<span class="text-danger">*</span>
+        {{-- <i class="bi bi-gear-wide-connected"></i>General<span class="text-danger">*</span> --}}
       </a>
     </li>
   </ul>

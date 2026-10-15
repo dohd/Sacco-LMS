@@ -425,6 +425,7 @@ class LoanDisbursementsController extends Controller
 
     public function approve($id)
     {
+        $this->requireSaccoPermission('process-disbursement');
         try {
             DB::transaction(fn() => LoanDisbursement::whereKey($id)
                 ->first()
@@ -442,6 +443,7 @@ class LoanDisbursementsController extends Controller
 
     public function process($id)
     {
+        $this->requireSaccoPermission('process-disbursement');
         try {
             DB::transaction(function() use($id) {
                 $loanDisbursement = LoanDisbursement::whereKey($id)->first();
@@ -467,6 +469,7 @@ class LoanDisbursementsController extends Controller
 
     public function reverse($id)
     {
+        $this->requireSaccoPermission('reverse-disbursement');
         try {
             DB::transaction(function() use($id) {
                 $loanDisbursement = LoanDisbursement::whereKey($id)->first();

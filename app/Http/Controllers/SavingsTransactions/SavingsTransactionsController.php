@@ -150,6 +150,7 @@ class SavingsTransactionsController extends Controller
      * */
     public function confirm($id)
     {
+        $this->requireSaccoPermission('confirm-savings-transaction');
         try {
             $transaction = DB::transaction(function () use ($id) {
                 $transaction = SavingsTransaction::where('id', $id)
@@ -295,6 +296,7 @@ class SavingsTransactionsController extends Controller
      * */
     public function reverse(Request $request, $id)
     {
+        $this->requireSaccoPermission('reverse-savings-transaction');
         // 1. Create the validator instance manually
         $validator = Validator::make($request->all(), [
             // 'value_date' => ['required', 'date'],

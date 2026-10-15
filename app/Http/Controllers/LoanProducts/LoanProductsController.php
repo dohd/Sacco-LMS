@@ -30,8 +30,6 @@ class LoanProductsController extends Controller
      */
     public function create()
     {
-        request()->session()->forget(['_old_input', 'errors']);
-
         $accounts = collect();
 
         return view('loan_products.create', compact('accounts'));
@@ -234,13 +232,6 @@ class LoanProductsController extends Controller
      */
     public function edit(LoanProduct $loanProduct)
     {
-        // Inject the key-value pair into the request payload
-        $payload = $loanProduct->toArray();
-        request()->merge($payload);
-
-        // Flash the modified request to the old input session store
-        request()->flash();
-        
         $accounts = collect();
         return view('loan_products.edit', compact('loanProduct', 'accounts'));
     }

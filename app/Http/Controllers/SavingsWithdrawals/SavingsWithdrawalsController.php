@@ -384,6 +384,7 @@ class SavingsWithdrawalsController extends Controller
      * */
     public function approve($id)
     {
+        $this->requireSaccoPermission('approve-savings-withdrawal');
         try {
 
             $withdrawal = DB::transaction(function () use ($id) {
@@ -551,6 +552,7 @@ class SavingsWithdrawalsController extends Controller
      * */   
     public function pay(Request $request, $id)
     {
+        $this->requireSaccoPermission('pay-savings-withdrawal');
         $validated = $request->validate([
             'payment_reference' => ['required', 'string', 'max:255'],
         ]);
@@ -668,6 +670,7 @@ class SavingsWithdrawalsController extends Controller
      * */
     public function reject(Request $request, $id)
     {
+        $this->requireSaccoPermission('approve-savings-withdrawal');
         $validated = $request->validate([
             'decision_reason' => ['required', 'string', 'max:2000'],
         ]);

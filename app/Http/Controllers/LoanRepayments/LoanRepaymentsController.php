@@ -328,6 +328,7 @@ class LoanRepaymentsController extends Controller
      * */
     public function confirm($id)
     {
+        $this->requireSaccoPermission('confirm-repayment');
         try {
             DB::transaction(function () use ($id) {
 
@@ -538,6 +539,7 @@ class LoanRepaymentsController extends Controller
     // reverse repayment
     public function reverse(Request $request, $id)
     {
+        $this->requireSaccoPermission('reverse-repayment');
         $validated = $request->validate([
             'reversal_reason' => ['required', 'string', 'max:1000'],
         ]);
