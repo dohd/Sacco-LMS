@@ -2,6 +2,7 @@
 
 namespace Database\Seeders;
 
+use App\Models\User;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\DB;
 use Spatie\Permission\Models\Permission;
@@ -70,5 +71,15 @@ class SaccoPermissionSeeder extends Seeder
             $admin->update(['key_name' => 'sacco_admin', 'is_active' => true]);
         }
         $admin->givePermissionTo($permissions);
+
+        // Bootstrap the first account with direct permissions so an existing
+        // installation has an immediately usable administrator. This writes
+        // to model_has_permissions in addition to the role assignment.
+        $firstUser = User::query()->orderBy('id')->first();
+        if ($firstUser) {
+            $firstUser->givePermissionTo(Permission::where('guard_name', 'web')
+                ->whereIn('name', $permissions)
+                ->get());
+        }
     }
 }
