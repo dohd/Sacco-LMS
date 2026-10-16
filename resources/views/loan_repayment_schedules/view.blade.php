@@ -779,13 +779,7 @@
 
                         <div class="card-body">
 
-                            <a href="{{ route('loan_repayment_schedules.edit', $schedule->id) }}"
-                               class="btn btn-primary w-100">
-
-                                <i class="fa fa-edit me-1"></i>
-                                Edit Schedule
-
-                            </a>
+                            <span class="text-muted">Schedules are generated from approved loan terms.</span>
 
                         </div>
 

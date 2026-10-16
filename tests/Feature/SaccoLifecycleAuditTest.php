@@ -132,7 +132,14 @@ class SaccoLifecycleAuditTest extends TestCase
         $this->assertEquals(User::where('email', $member->email)->sole()->id, $member->user_id);
     }
 
-    public function test_registration_shares_approval_disbursement_and_repayment(): void
+    public function paymentMethods(): array
+    {
+        return ['internal payment' => ['account_credit', false], 'bank settlement' => ['bank_transfer', false],
+            'reversal before repayment' => ['account_credit', true]];
+    }
+
+    /** @dataProvider paymentMethods */
+    public function test_registration_shares_approval_disbursement_and_repayment(string $paymentMethod, bool $reverse): void
     {
         // 1. Exercise the existing public registration and real login endpoints.
         $password = 'Lifecycle-password-123';
@@ -166,7 +173,7 @@ class SaccoLifecycleAuditTest extends TestCase
 
         // 2. 500 units x KES 100, confirmed through the actual posting workflow.
         $this->success($this->post(route('share_accounts.store'), ['member_id' => $member->id,
-            'share_product_id' => $shares->id, 'opened_date' => today()->toDateString(), 'status' => 'active']));
+            'share_product_id' => $shares->id, 'opened_date' => today()->toDateString()]));
         $account = ShareAccount::sole();
         $this->success($this->post(route('share_transactions.store'), ['share_account_id' => $account->id,
             'transaction_type' => 'purchase', 'units' => 500, 'transaction_date' => today()->toDateString(),
@@ -179,6 +186,15 @@ class SaccoLifecycleAuditTest extends TestCase
         $this->assertEquals(500, $account->fresh()->total_units);
         $this->assertEquals(50000, $account->fresh()->share_balance);
         $this->assertEquals(50000, $account->fresh()->available_amount);
+        $this->patchJson(route('share_accounts.update', $account), ['status' => 'closed'])->assertStatus(422);
+        $this->postJson(route('share_transactions.store'), ['unit_value' => 1])->assertStatus(422);
+        $this->success($this->post(route('share_accounts.transition', $account), ['action' => 'freeze']));
+        $this->assertSame('frozen', $account->fresh()->status);
+        $this->postJson(route('share_accounts.transition', $account), ['action' => 'freeze'])->assertStatus(422);
+        $this->success($this->post(route('share_accounts.transition', $account), ['action' => 'unfreeze']));
+        $this->postJson(route('share_accounts.close', $account), ['closure_reason' => 'Has funds'])->assertStatus(422);
+        $this->assertSame('active', $account->fresh()->status);
+
 
         // 3. Approve KES 12,000 for 12 months at 12% annual flat interest.
         $this->success($this->post(route('loan_applications.store'), ['submission_action' => 'submit',
@@ -202,10 +218,44 @@ class SaccoLifecycleAuditTest extends TestCase
         $this->assertSame('approved', $disbursement->status);
         $this->assertEquals($application->id, $disbursement->loan_application_id);
         $this->assertNull($disbursement->processed_at);
+        $this->assertEquals(0, $loan->fresh()->amount_disbursed);
+        $this->postJson(route('loan_repayments.store'), ['loan_id' => $loan->id,
+            'member_id' => $member->id, 'payment_date' => today()->toDateString(),
+            'amount_paid' => 1120, 'payment_method' => 'cash'])->assertStatus(422);
+        $this->assertDatabaseCount('loan_repayments', 0);
+        $this->postJson(route('loan_disbursements.store'), [])->assertStatus(405);
+        $this->postJson(route('loan_disbursements.approve', $disbursement))->assertStatus(405);
+        $this->postJson(route('loan_disbursements.submit', $disbursement))->assertStatus(405);
+        $this->get(route('loan_disbursements.create'))->assertStatus(405);
+        $this->patchJson(route('loan_disbursements.update', $disbursement), ['gross_amount' => 1])
+            ->assertStatus(422)->assertJsonValidationErrors('gross_amount');
+        $this->get(route('loan_disbursements.edit', $disbursement))->assertOk()
+            ->assertDontSee('name="gross_amount"', false);
+        $scheduleId = DB::table('loan_repayment_schedules')->where('loan_id', $loan->id)->value('id');
+        $this->postJson(route('loan_repayment_schedules.store'), [])->assertStatus(405);
+        $this->patchJson(route('loan_repayment_schedules.update', $scheduleId), [])->assertStatus(405);
+        $this->deleteJson(route('loan_repayment_schedules.destroy', $scheduleId))->assertStatus(405);
+        $this->get(route('loan_repayment_schedules.edit', $scheduleId))->assertStatus(405);
+        $this->get(route('loan_repayment_schedules.show', $scheduleId))->assertOk();
+        $this->success($this->patch(route('loan_disbursements.update', $disbursement), [
+            'disbursement_method' => $paymentMethod, 'disbursement_date' => today()->toDateString(),
+            'transaction_reference' => 'QA-PAYMENT-1', 'bank_name' => 'Test Bank']));
+        $disbursement->refresh();
+
         $expectedStatus = in_array($disbursement->disbursement_method, ['bank_transfer', 'mobile_money'])
             ? 'processing' : 'processed';
         $this->success($this->post(route('loan_disbursements.process', $disbursement)));
         $this->assertSame($expectedStatus, $disbursement->fresh()->status);
+        if ($expectedStatus === 'processing') {
+            $this->assertEquals(0, $loan->fresh()->amount_disbursed);
+            $this->success($this->post(route('loan_disbursements.process', $disbursement)));
+            $this->assertSame('processed', $disbursement->fresh()->status);
+        }
+        $this->postJson(route('loan_disbursements.process', $disbursement))->assertStatus(422);
+        $this->patchJson(route('loan_disbursements.update', $disbursement), [
+            'disbursement_method' => 'cash', 'disbursement_date' => today()->toDateString()])->assertStatus(422);
+        $this->assertDatabaseCount('loan_disbursements', 1);
+
         $this->assertNotNull($disbursement->fresh()->processed_at);
         $this->assertEquals($this->officer->id, $disbursement->fresh()->processed_by);
         $this->assertEquals(12000, $disbursement->fresh()->net_amount);
@@ -215,6 +265,19 @@ class SaccoLifecycleAuditTest extends TestCase
         $this->money('13440.00', $loan->total_outstanding_balance, 'Disbursement total with flat interest');
         $this->expectValue(12, DB::table('loan_repayment_schedules')->where('loan_id', $loan->id)->count(), 'Generated installments');
         $beforeRepayment = (float) $loan->total_outstanding_balance;
+        if ($reverse) {
+            $this->success($this->post(route('loan_disbursements.reverse', $disbursement),
+                ['reversal_reason' => 'Payment cancelled before any repayments']));
+            $this->assertSame('reversed', $disbursement->fresh()->status);
+            $this->assertSame('closed', $loan->fresh()->status);
+            $this->assertEquals(0, $loan->fresh()->amount_disbursed);
+            $this->assertEquals(0, $loan->fresh()->total_outstanding_balance);
+            $this->assertEquals(0, DB::table('loan_repayment_schedules')->where('loan_id', $loan->id)->sum('outstanding_amount'));
+            $this->postJson(route('loan_disbursements.reverse', $disbursement), ['reversal_reason' => 'Duplicate'])->assertStatus(422);
+            $this->assertSame([], $this->findings);
+            return;
+        }
+
 
         // 5. First installment: KES 1,000 principal + KES 120 interest.
         $this->success($this->post(route('loan_repayments.store'), ['loan_id' => $loan->id,
@@ -222,6 +285,10 @@ class SaccoLifecycleAuditTest extends TestCase
             'amount_paid' => 1120, 'payment_method' => 'cash', 'receipt_number' => 'QA-RP-1']));
         $repayment = LoanRepayment::sole();
         $this->assertSame('pending', $repayment->status);
+        $this->postJson(route('loan_repayments.confirm', $repayment), ['principal_amount' => 1])
+            ->assertStatus(422)->assertJsonValidationErrors('principal_amount');
+        $this->assertSame('pending', $repayment->fresh()->status);
+
         $this->assertEquals($beforeRepayment, $loan->fresh()->total_outstanding_balance);
         $this->success($this->post(route('loan_repayments.confirm', $repayment)));
         $repayment->refresh();
@@ -236,6 +303,10 @@ class SaccoLifecycleAuditTest extends TestCase
         $this->money('1120.00', $loan->total_paid, 'Loan paid total');
         $this->money('1120.00', DB::table('loan_repayment_allocations')->where('loan_repayment_id', $repayment->id)->sum('total_allocated'), 'Allocation reconciliation');
         $this->expectValue('active', $loan->status, 'Partially repaid loan remains active');
+        $this->postJson(route('loan_disbursements.reverse', $disbursement), ['reversal_reason' => 'Invalid reversal after repayment'])
+            ->assertStatus(422);
+        $this->assertSame('processed', $disbursement->fresh()->status);
+
         $this->postJson(route('loan_repayments.confirm', $repayment))->assertStatus(422);
         $this->assertEquals($loan->total_outstanding_balance, $loan->fresh()->total_outstanding_balance);
         $this->assertEquals(50000, $account->fresh()->share_balance);

@@ -2,7 +2,18 @@
 @section('title', 'View | Share Accounts')
 
 @section('content')
-    @include('share_accounts.partial.header')    
+    @include('share_accounts.partial.header')
+    @if(userCan('manage-share-accounts'))
+        @foreach(['freeze' => 'Freeze', 'unfreeze' => 'Unfreeze'] as $action => $label)
+            @if(($action === 'freeze' && $shareAccount->status === 'active') || ($action === 'unfreeze' && $shareAccount->status === 'frozen'))
+                <form method="POST" action="{{ route('share_accounts.transition', $shareAccount) }}" class="d-inline">
+                    @csrf
+                    <button type="submit" name="action" value="{{ $action }}" class="btn btn-warning">{{ $label }}</button>
+                </form>
+            @endif
+        @endforeach
+    @endif
+
     <div class="container-fluid py-4">
         {{-- Header --}}
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
@@ -12,8 +23,8 @@
                     {{ @$shareAccount->member->membership_number }} - {{ @$shareAccount->member->full_name }}
                 </div>
             </div>
-            <div class="d-flex gap-2">                
-                @if($shareAccount->status !== 'closed')
+            <div class="d-flex gap-2">
+                @if($shareAccount->status !== 'closed' && userCan('manage-share-accounts'))
                     <a href="{{ route('share_accounts.edit', $shareAccount->id) }}" class="btn btn-primary">
                         <i class="fa fa-edit me-1"></i> Edit
                     </a>
@@ -284,7 +295,7 @@
     </div>
 
     {{-- Close Account Modal --}}
-    @if($shareAccount->status !== 'closed')
+    @if($shareAccount->status !== 'closed' && userCan('manage-share-accounts'))
         <div class="modal fade"
              id="closeAccountModal"
              tabindex="-1"
@@ -301,7 +312,7 @@
                                 data-bs-dismiss="modal">
                         </button>
                     </div>
-                    {{ Form::open(['route' => ['share_accounts.close', $shareAccount->id], 'method' => 'POST', 'id' => 'closeAccountForm']) }}                        
+                    {{ Form::open(['route' => ['share_accounts.close', $shareAccount->id], 'method' => 'POST', 'id' => 'closeAccountForm']) }}
                         <div class="modal-body">
                             <div class="alert alert-danger">
                                 <i class="fa fa-exclamation-triangle me-1"></i>

@@ -61,7 +61,7 @@ Route::group(['middleware' => 'auth'], function() {
     Route::patch('loan_applications/{application}/workflow', [LoanApplicationsController::class, 'workflow'])->name('loan_applications.workflow');
     Route::patch('loan_applications/{application}/verify-security', [LoanApplicationsController::class, 'verifySecurity'])->name('loan_applications.verify_security');
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
-    
+
     Route::get('loans/{id}', [LoansController::class, 'show'])->name('loans.show');
 
     Route::post('loan_disbursements/reverse/{id}', [LoanDisbursementsController::class, 'reverse'])->name('loan_disbursements.reverse');
@@ -78,6 +78,7 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Savings
     Route::resource('savings_products', SavingsProductsController::class);
+    Route::post('savings_accounts/{savingsAccount}/transition', [SavingsAccountsController::class, 'transition'])->name('savings_accounts.transition');
     Route::resource('savings_accounts', SavingsAccountsController::class);
 
     Route::post('savings_transactions/confirm/{id}', [SavingsTransactionsController::class, 'confirm'])->name('savings_transactions.confirm');
@@ -86,20 +87,21 @@ Route::group(['middleware' => 'auth'], function() {
 
     Route::post('savings_withdrawals/reject/{id}', [SavingsWithdrawalsController::class, 'reject'])->name('savings_withdrawals.reject');
     Route::post('savings_withdrawals/pay/{id}', [SavingsWithdrawalsController::class, 'pay'])->name('savings_withdrawals.pay');
-    Route::post('savings_withdrawals/approve/{id}', [SavingsWithdrawalsController::class, 'approve'])->name('savings_withdrawals.approve');    
-    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class); 
+    Route::post('savings_withdrawals/approve/{id}', [SavingsWithdrawalsController::class, 'approve'])->name('savings_withdrawals.approve');
+    Route::resource('savings_withdrawals', SavingsWithdrawalsController::class);
 
     // Accounting
     Route::post('accounting_periods/lock/{id}', [AccountingPeriodsController::class, 'lock'])->name('accounting_periods.lock');
     Route::post('accounting_periods/close/{id}', [AccountingPeriodsController::class, 'close'])->name('accounting_periods.close');
-    Route::resource('accounting_periods', AccountingPeriodsController::class); 
+    Route::resource('accounting_periods', AccountingPeriodsController::class);
 
     // Shares
-    Route::post('share_products/toggle_status/{id}', [ShareProductsController::class, 'toggleStatus'])->name('share_products.toggle_status'); 
+    Route::post('share_products/toggle_status/{id}', [ShareProductsController::class, 'toggleStatus'])->name('share_products.toggle_status');
     Route::resource('share_products', ShareProductsController::class);
 
     Route::post('share_accounts/close/{id}', [ShareAccountsController::class, 'close'])->name('share_accounts.close');
-    Route::resource('share_accounts', ShareAccountsController::class); 
+    Route::post('share_accounts/{id}/transition', [ShareAccountsController::class, 'transition'])->name('share_accounts.transition');
+    Route::resource('share_accounts', ShareAccountsController::class);
 
     Route::post('share_transactions/confirm/{id}', [ShareTransactionsController::class, 'confirm'])->name('share_transactions.confirm');
     Route::post('share_transactions/reverse/{id}', [ShareTransactionsController::class, 'reverse'])->name('share_transactions.reverse');
@@ -112,7 +114,7 @@ Route::group(['middleware' => 'auth'], function() {
     Route::post('users/delete_profile_pic/{user}', [UsersController::class, 'delete_profile_pic'])->name('users.delete_profile_pic');
     Route::post('users/update_active_profile/{user}', [UsersController::class, 'update_active_profile'])->name('users.update_active_profile');
     Route::get('users/active_profile', [UsersController::class, 'active_profile'])->name('users.active_profile');
-    Route::resource('users', UsersController::class);    
+    Route::resource('users', UsersController::class);
 
     // Configuration
     Route::get('settings', [ConfigController::class, 'create'])->name('settings.create');

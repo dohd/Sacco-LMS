@@ -1,6 +1,6 @@
 @extends('layouts.core')
 @section('title', 'Loan Applications | View')
-    
+
 @section('content')
 @include('loan_applications.partial.header')
 <div class="container-fluid">
@@ -1460,12 +1460,7 @@
 
                     @if($application->status === 'approved')
 
-                        <a href="{{ route('loan_disbursements.create', ['loan_application_id' => $application->id]) }}"
-                           class="btn btn-primary">
-
-                            Proceed to Disbursement
-
-                        </a>
+                        <a href="{{ route('loan_disbursements.index') }}" class="btn btn-primary">View disbursements</a>
 
                     @endif
 

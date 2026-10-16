@@ -47,6 +47,7 @@ class LoanApplicationWorkflowTest extends TestCase
         $this->assertSame(0, Artisan::call('migrate', ['--database' => 'loan_workflow_test', '--force' => true]), Artisan::output());
 
         $userId = DB::table('users')->insertGetId(['name' => 'Test Officer', 'email' => 'officer@example.test', 'password' => 'unused']);
+        $this->seed(\Database\Seeders\SaccoPermissionSeeder::class);
         $this->actingAs(User::findOrFail($userId));
         $this->member = $this->makeMember('APPLICANT', $userId);
         $this->guarantor = $this->makeMember('GUARANTOR', $userId);

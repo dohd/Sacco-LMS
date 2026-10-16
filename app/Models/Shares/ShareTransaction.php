@@ -20,7 +20,7 @@ class ShareTransaction extends Model
     {
         return $this->getButtonWrapperAttribute(
             $this->getViewButtonAttribute('share_transactions.show', null),
-            $this->getEditButtonAttribute('share_transactions.edit', null),
+            $this->status === 'pending' ? $this->getEditButtonAttribute('share_transactions.edit', 'confirm-share-transaction') : null,
             null,
         );
     }

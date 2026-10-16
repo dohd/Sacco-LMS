@@ -1,6 +1,6 @@
 @extends('layouts.core')
 @section('title', 'View | Savings Withdrawal Requests')
-    
+
 @section('content')
     @include('savings_withdrawals.partial.header')
     @php
@@ -11,12 +11,12 @@
         {{-- HEADER --}}
         {{-- ================================================================ --}}
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
-            <div>                
+            <div>
                 <div class="text-muted">
                     Request #{{ $withdrawal->request_number }}
                 </div>
             </div>
-            <div class="d-flex gap-2">                
+            <div class="d-flex gap-2">
                 @if($withdrawal->status === 'pending')
                     <a href="{{ route('savings_withdrawals.edit', $withdrawal->id) }}"
                        class="btn btn-primary btn-sm">
@@ -64,7 +64,7 @@
             </div>
             {{-- ACTIONS --}}
             <div class="mt-2 mt-md-0">
-                @if($withdrawal->status === 'pending')
+                @if($withdrawal->status === 'pending' && userCan('approve-savings-withdrawal'))
                     <button type="button"
                             class="btn btn-success btn-sm"
                             id="approveBtn">
@@ -77,7 +77,7 @@
                         <i class="fa fa-times me-1"></i>
                         Reject
                     </button>
-                @elseif($withdrawal->status === 'approved')
+                @elseif($withdrawal->status === 'approved' && userCan('pay-savings-withdrawal'))
                     <button type="button"
                             class="btn btn-success btn-sm"
                             id="payBtn">

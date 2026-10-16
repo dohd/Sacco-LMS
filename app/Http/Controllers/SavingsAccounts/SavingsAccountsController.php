@@ -14,6 +14,15 @@ use Illuminate\Validation\ValidationException;
 
 class SavingsAccountsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->requireSaccoPermission('manage-savings-accounts');
+            $this->rejectSystemFields($request, ['status']);
+            return $next($request);
+        })->except(['index', 'show']);
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -21,7 +30,12 @@ class SavingsAccountsController extends Controller
      */
     public function index()
     {
-        $savingsAccounts = SavingsAccount::latest()->get();
+        $query = SavingsAccount::latest();
+        if (!$this->hasSaccoPermission('manage-savings-accounts')) {
+            $this->requireSaccoPermission('view-own-savings');
+            $query->whereIn('member_id', Member::where('user_id', auth()->id())->select('id'));
+        }
+        $savingsAccounts = $query->get();
 
         return view('savings_accounts.index', compact('savingsAccounts'));
     }
@@ -111,7 +125,7 @@ class SavingsAccountsController extends Controller
                 ->with('success', 'Savings account opened successfully.');
         } catch (Exception $e) {
             return errorHandler("Error opening savings account. Please try again.", $e);
-        }            
+        }
     }
 
     /**
@@ -122,6 +136,11 @@ class SavingsAccountsController extends Controller
      */
     public function show(SavingsAccount $savingsAccount)
     {
+        if (!$this->hasSaccoPermission('manage-savings-accounts')) {
+            $this->requireSaccoPermission('view-own-savings');
+            abort_unless(Member::where('id', $savingsAccount->member_id)
+                ->where('user_id', auth()->id())->exists(), 403);
+        }
         return view('savings_accounts.view', compact('savingsAccount'));
     }
 
@@ -150,17 +169,19 @@ class SavingsAccountsController extends Controller
     {
         $validated = $request->validate([
             'savings_product_id' => ['required', 'integer', 'exists:savings_products,id'],
-            'status' => ['required', 'in:active,frozen,closed'],
+            'status' => ['sometimes', 'in:active,frozen,closed'],
             'closed_date' => ['nullable', 'date'],
             'closure_reason' => ['nullable', 'string'],
         ]);
 
         try {
             DB::transaction(function () use ($savingsAccount, $validated) {
+                $savingsAccount = SavingsAccount::whereKey($savingsAccount->id)->lockForUpdate()->firstOrFail();
+                $validated['status'] = $validated['status'] ?? $savingsAccount->status;
 
                 $product = SavingsProduct::where('id', $validated['savings_product_id'])
-                    ->where('is_active', true)
-                    ->first();
+                    ->when($validated['savings_product_id'] != $savingsAccount->savings_product_id,
+                        fn ($query) => $query->where('is_active', true))->first();
 
                 if (!$product) {
                     throw ValidationException::withMessages([
@@ -205,7 +226,7 @@ class SavingsAccountsController extends Controller
                     /*
                      * Do not allow an account with money to be closed.
                      */
-                    if ((float) $savingsAccount->ledger_balance > 0) {
+                    if ((float) $savingsAccount->ledger_balance != 0 || (float) $savingsAccount->held_balance != 0 || \App\Models\Savings\SavingsWithdrawal::where('savings_account_id', $savingsAccount->id)->whereIn('status', ['pending', 'approved'])->exists()) {
                         throw ValidationException::withMessages([
                             'status' => 'An account with an outstanding balance cannot be closed.'
                         ]);
@@ -239,7 +260,7 @@ class SavingsAccountsController extends Controller
                 ->with('success', 'Savings account updated successfully.');
         } catch (Exception $e) {
             return errorHandler("Error updating savings account. Please try again.", $e);
-        }            
+        }
     }
 
     /**
@@ -251,6 +272,24 @@ class SavingsAccountsController extends Controller
     public function destroy($id)
     {
         //
+    }
+
+    public function transition(Request $request, SavingsAccount $savingsAccount)
+    {
+        $validated = $request->validate(['action' => ['required', 'in:freeze,unfreeze,close'],
+            'closure_reason' => ['required_if:action,close', 'nullable', 'string', 'max:1000']]);
+        return DB::transaction(function () use ($request, $savingsAccount, $validated) {
+            $account = SavingsAccount::whereKey($savingsAccount->id)->lockForUpdate()->firstOrFail();
+            $action = $validated['action'];
+            $allowed = $action === 'freeze' ? ['active'] : ($action === 'unfreeze' ? ['frozen'] : ['active', 'frozen']);
+            if (!in_array($account->status, $allowed, true)) {
+                throw ValidationException::withMessages(['action' => 'Invalid account status transition.']);
+            }
+            $request->merge(['savings_product_id' => $account->savings_product_id,
+                'status' => ['freeze' => 'frozen', 'unfreeze' => 'active', 'close' => 'closed'][$action],
+                'closed_date' => today()->toDateString()]);
+            return $this->update($request, $account);
+        });
     }
 
     private function generateSavingsAccountNumber()

@@ -18,6 +18,14 @@ use Illuminate\Validation\ValidationException;
 
 class MembershipsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->rejectSystemFields($request, ['status']);
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -37,7 +45,7 @@ class MembershipsController extends Controller
     public function create()
     {
         request()->session()->forget(['_old_input', 'errors']);
-        
+
         return view('memberships.create');
     }
 
@@ -99,7 +107,7 @@ class MembershipsController extends Controller
             'next_of_kin_name' => [$required, 'string', 'max:255'],
             'next_of_kin_id' => [$required, 'string', 'max:100'],
             'next_of_kin_relationship' => [
-                $required, 
+                $required,
                 Rule::in(['spouse', 'parent', 'child', 'sibling', 'relative', 'guardian', 'other']),
             ],
 
@@ -280,7 +288,7 @@ class MembershipsController extends Controller
             'next_of_kin_name' => [$required, 'string', 'max:255'],
             'next_of_kin_id' => [$required, 'string', 'max:100'],
             'next_of_kin_relationship' => [
-                $required, 
+                $required,
                 Rule::in(['spouse', 'parent', 'child', 'sibling', 'relative', 'guardian', 'other']),
             ],
 
@@ -384,6 +392,10 @@ class MembershipsController extends Controller
         }
 
         DB::transaction(function () use ($membership) {
+            $membership = MemberApplication::whereKey($membership->id)->lockForUpdate()->firstOrFail();
+            if (!in_array($membership->status, ['pending', 'under_review'], true) || $membership->member()->exists()) {
+                throw ValidationException::withMessages(['application' => 'Only pending or reviewed applications without a member can be approved.']);
+            }
             $membership->update([
                 'status' => 'approved',
                 'approved_by' => auth()->id(),
@@ -461,8 +473,8 @@ class MembershipsController extends Controller
         DB::transaction(fn() => $membership->update([
             'reviewed_by' => auth()->id(),
             'reviewed_at' => now(),
-            'status' => 'under_review',            
-        ]));        
+            'status' => 'under_review',
+        ]));
 
         return redirect()
             ->route('memberships.show', $membership)

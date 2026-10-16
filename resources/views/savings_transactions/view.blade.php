@@ -1,7 +1,7 @@
 @extends('layouts.core')
 @section('title', 'View | Savings Transactions')
 
-@php 
+@php
     $tranx = $savingsTransaction;
 @endphp
 
@@ -17,20 +17,20 @@
                 </div>
             </div>
             <div class="d-flex gap-2 mt-2 mt-md-0">
-                @if($tranx->status === 'confirmed' && $tranx->transaction_type !== 'reversal')
+                @if($tranx->status === 'confirmed' && $tranx->transaction_type !== 'reversal' && userCan('reverse-savings-transaction'))
                     <button type="button" class="btn btn-danger btn-sm"  id="reverseTransactionBtn">
                         <i class="fa fa-undo"></i>
                         Reverse
                     </button>
                 @endif
-                @if($tranx->status === 'pending' && $tranx->transaction_type !== 'reversal')
+                @if($tranx->status === 'pending' && !in_array($tranx->transaction_type, ['reversal', 'withdrawal']) && userCan('confirm-savings-transaction'))
                     {{ Form::open(['route' => ['savings_transactions.confirm', $tranx->id], 'method' => 'POST']) }}
                         <button type="submit" class="btn btn-success btn-sm"  id="confirmTransactionBtn">
                             <i class="fa fa-undo"></i>
                             Confirm
                         </button>
                     {{ Form::close() }}
-                @endif                
+                @endif
             </div>
         </div>
         {{-- Transaction Status --}}
@@ -429,7 +429,7 @@
     </div>
 
     {{-- Reverse Confirmation --}}
-    @if($tranx->status === 'confirmed' && $tranx->transaction_type !== 'reversal')
+    @if($tranx->status === 'confirmed' && $tranx->transaction_type !== 'reversal' && userCan('reverse-savings-transaction'))
         <div class="modal fade"
              id="reverseTransactionModal"
              tabindex="-1"
@@ -565,9 +565,9 @@ $(document).ready(function () {
                     if (Array.isArray(validation_failures)) {
                         message = validation_failures.join(' | ');
                     } else if (typeof validation_failures === 'string') {
-                         message = validation_failures;  
+                         message = validation_failures;
                     } else if (typeof validation_failures === 'object') {
-                        message = validation_failures?.value_date.join(' | ');                         
+                        message = validation_failures?.value_date.join(' | ');
                     }
                 }
 

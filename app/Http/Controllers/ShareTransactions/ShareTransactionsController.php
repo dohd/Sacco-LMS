@@ -15,6 +15,24 @@ use Illuminate\Validation\ValidationException;
 
 class ShareTransactionsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $action = $request->route()->getActionMethod();
+            if (!in_array($action, ['index', 'show'], true)) {
+                $this->requireSaccoPermission($action === 'reverse' ? 'reverse-share-transaction' : 'confirm-share-transaction');
+            } elseif (!$this->hasSaccoPermission('confirm-share-transaction')) {
+                $this->requireSaccoPermission('view-own-shares');
+                $record = $request->route('share_transaction');
+                if ($record) {
+                    abort_unless($record->shareAccount && $this->ownsMember($record->shareAccount->member_id), 403);
+                }
+            }
+            $this->rejectSystemFields($request, ['status', 'unit_value', 'amount', 'running_units', 'running_balance', 'reversal_of_id']);
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -22,7 +40,11 @@ class ShareTransactionsController extends Controller
      */
     public function index()
     {
-        $shareTransactions = ShareTransaction::latest()->get();
+        $shareTransactions = ShareTransaction::when(!$this->hasSaccoPermission('confirm-share-transaction'), function ($query) {
+            $query->whereHas('shareAccount', function ($account) {
+                $account->whereIn('member_id', \App\Models\Memberships\Member::where('user_id', auth()->id())->select('id'));
+            });
+        })->latest()->get();
 
         return view('share_transactions.index', compact('shareTransactions'));
     }
@@ -109,7 +131,7 @@ class ShareTransactionsController extends Controller
 
                 if ($direction === 'credit' && !is_null($product->maximum_units) && $newUnits > $product->maximum_units) {
                     throw ValidationException::withMessages(['units' => 'The transaction would exceed the maximum units allowed for this share product.']);
-                }                
+                }
 
                 $transaction = ShareTransaction::create([
                     'share_account_id' => $account->id,
@@ -192,7 +214,7 @@ class ShareTransactionsController extends Controller
         ]);
 
         try {
-            
+
             DB::transaction(function() use($shareTransaction, $validated) {
                 $transaction  = ShareTransaction::whereKey($shareTransaction->id)
                     ->lockForUpdate()
@@ -204,7 +226,7 @@ class ShareTransactionsController extends Controller
                     ]);
                 }
 
-                $transaction->update($validated); 
+                $transaction->update($validated);
             });
 
             return redirect()->route('share_transactions.show', $shareTransaction->id)

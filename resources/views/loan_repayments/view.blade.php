@@ -5,10 +5,10 @@
     @include('loan_repayments.partial.header')
     <div class="container-fluid">
         {{-- Header --}}
-        <div class="d-flex justify-content-between align-items-center mb-4">            
+        <div class="d-flex justify-content-between align-items-center mb-4">
             <div class="d-flex gap-2">
-                
-                @if($loanRepayment->status === 'pending')
+
+                @if($loanRepayment->status === 'pending' && userCan('confirm-repayment'))
                     <a href="{{ route('loan_repayments.edit', $loanRepayment->id) }}"
                        class="btn btn-primary">
                         <i class="fa fa-edit"></i> Edit
@@ -24,7 +24,7 @@
                         </button>
                     </form>
                 @endif
-                @if($loanRepayment->status === 'confirmed')
+                @if($loanRepayment->status === 'confirmed' && userCan('reverse-repayment'))
                     <button type="button"
                             class="btn btn-danger"
                             data-bs-toggle="modal"
@@ -350,7 +350,7 @@
                             Recorded By
                         </div>
                         <div>
-                            {{ optional($loanRepayment->recordedBy)->name ?? '—' }}                            
+                            {{ optional($loanRepayment->recordedBy)->name ?? '—' }}
                         </div>
                     </div>
                     <div class="col-md-4">
@@ -426,7 +426,7 @@
     </div>
 
     {{-- Reverse Modal --}}
-    @if($loanRepayment->status === 'confirmed')
+    @if($loanRepayment->status === 'confirmed' && userCan('reverse-repayment'))
         <div class="modal fade"
              id="reverseModal"
              tabindex="-1"

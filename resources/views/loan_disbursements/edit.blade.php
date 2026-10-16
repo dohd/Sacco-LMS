@@ -7,9 +7,9 @@
         {{ Form::model($loanDisbursement, ['route' => ['loan_disbursements.update', $loanDisbursement], 'method' => 'PATCH', 'enctype' => 'multipart/form-data', 'id' => 'loanDisbursementForm']) }}
             @include('loan_disbursements.form')
         {{ Form::close() }}
-    </div>    
+    </div>
 @stop
 
 @section('script')
-@include('loan_disbursements.form_js')
+
 @endsection

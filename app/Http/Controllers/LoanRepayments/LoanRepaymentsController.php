@@ -19,6 +19,24 @@ use Illuminate\Validation\ValidationException;
 
 class LoanRepaymentsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $action = $request->route()->getActionMethod();
+            if (!in_array($action, ['index', 'show'], true)) {
+                $this->requireSaccoPermission($action === 'reverse' ? 'reverse-repayment' : 'confirm-repayment');
+            } elseif (!$this->hasSaccoPermission('confirm-repayment')) {
+                $this->requireSaccoPermission('view-own-repayment');
+                $record = $request->route('loan_repayment');
+                if ($record) {
+                    abort_unless($this->ownsMember($record->member_id), 403);
+                }
+            }
+            $this->rejectSystemFields($request, ['status']);
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -26,7 +44,9 @@ class LoanRepaymentsController extends Controller
      */
     public function index()
     {
-        $loanRepayments = LoanRepayment::latest()->get();
+        $loanRepayments = LoanRepayment::when(!$this->hasSaccoPermission('confirm-repayment'), function ($query) {
+            $query->whereIn('member_id', \App\Models\Memberships\Member::where('user_id', auth()->id())->select('id'));
+        })->latest()->get();
 
         return view('loan_repayments.index', compact('loanRepayments'));
     }
@@ -90,6 +110,10 @@ class LoanRepaymentsController extends Controller
                     throw ValidationException::withMessages([
                         'member_id' => 'The selected member does not belong to this loan.'
                     ]);
+                }
+
+                if ((float) $loan->amount_disbursed <= 0) {
+                    throw ValidationException::withMessages(['loan_id' => 'The loan must be disbursed before accepting repayments.']);
                 }
 
                 if (!in_array($loan->status, ['active', 'in_arrears'])) {
@@ -174,7 +198,7 @@ class LoanRepaymentsController extends Controller
      * @return \Illuminate\Http\Response
      */
     public function show(LoanRepayment $loanRepayment)
-    {        
+    {
         $loanRepayment->load([
             'loan',
             'member',
@@ -345,6 +369,10 @@ class LoanRepaymentsController extends Controller
                 $loan = Loan::whereKey($repayment->loan_id)
                     ->lockForUpdate()
                     ->firstOrFail();
+
+                if ((float) $loan->amount_disbursed <= 0) {
+                    throw ValidationException::withMessages(['loan_id' => 'The loan must be disbursed before accepting repayments.']);
+                }
 
                 if (!in_array($loan->status, ['active', 'in_arrears'])) {
                     throw ValidationException::withMessages([

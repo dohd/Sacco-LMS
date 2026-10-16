@@ -1,8 +1,27 @@
 @extends('layouts.core')
 @section('title', 'View | Savings Accounts')
-    
+
 @section('content')
     @include('savings_accounts.partial.header')
+    @if(userCan('manage-savings-accounts'))
+        @foreach(['freeze' => 'Freeze', 'unfreeze' => 'Unfreeze'] as $action => $label)
+            @if(($action === 'freeze' && $savingsAccount->status === 'active') || ($action === 'unfreeze' && $savingsAccount->status === 'frozen'))
+                <form method="POST" action="{{ route('savings_accounts.transition', $savingsAccount) }}" class="d-inline">
+                    @csrf
+                    <button type="submit" name="action" value="{{ $action }}" class="btn btn-warning">{{ $label }}</button>
+                </form>
+            @endif
+        @endforeach
+    @endif
+    @if(userCan('manage-savings-accounts') && $savingsAccount->status !== 'closed')
+        <form method="POST" action="{{ route('savings_accounts.transition', $savingsAccount) }}" class="my-2">
+            @csrf
+            <input type="hidden" name="action" value="close">
+            <input name="closure_reason" required placeholder="Closure reason">
+            <button class="btn btn-danger" type="submit">Close account</button>
+        </form>
+    @endif
+
     <div class="container-fluid">
         {{-- Page Header --}}
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-3">
@@ -434,7 +453,7 @@ $(document).ready(function () {
         window.location.href = "{{ route('savings_transactions.create', ['account_id' => $savingsAccount->id, 'type' => 'deposit']) }}";
     });
     $('#withdrawBtn').on('click', function () {
-        window.location.href = "{{ route('savings_transactions.create', ['account_id' => $savingsAccount->id, 'type' => 'withdrawal']) }}";
+        window.location.href = "{{ route('savings_withdrawals.create', ['account_id' => $savingsAccount->id]) }}";
     });
 });
 </script>

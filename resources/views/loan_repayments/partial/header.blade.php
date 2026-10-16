@@ -5,7 +5,9 @@
     </div>
     <div class="col-6">
       {{-- @can('create-user') --}}
+      @if(userCan('confirm-repayment'))
         <a href="{{ route('loan_repayments.create') }}" class="btn btn-primary float-end ms-1"><i class="bi bi-plus-circle"></i> Create</a>
+      @endif
       {{-- @endcan --}}
       <a href="{{ route('loan_repayments.index') }}" class="btn btn-secondary float-end"><i class="bi bi-card-list"></i> List</a>
     </div>

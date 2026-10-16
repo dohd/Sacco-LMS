@@ -20,7 +20,7 @@ class LoanDisbursement extends Model
     {
         return $this->getButtonWrapperAttribute(
             $this->getViewButtonAttribute('loan_disbursements.show', null),
-            $this->getEditButtonAttribute('loan_disbursements.edit', null),
+            $this->status === 'approved' ? $this->getEditButtonAttribute('loan_disbursements.edit', 'process-disbursement') : null,
             null,
         );
     }

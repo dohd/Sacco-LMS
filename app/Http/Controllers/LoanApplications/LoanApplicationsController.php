@@ -23,6 +23,14 @@ use Illuminate\Validation\ValidationException;
 
 class LoanApplicationsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->rejectSystemFields($request, ['status']);
+            return $next($request);
+        });
+    }
+
     /**
      * Ensure an application is still in a state that permits the requested
      * page or workflow action.
@@ -30,7 +38,9 @@ class LoanApplicationsController extends Controller
     protected function requireStatus(LoanApplication $application, array $statuses): void
     {
         if (!in_array($application->status, $statuses, true)) {
-            abort(422, 'This loan application cannot be changed in its current status.');
+            throw ValidationException::withMessages([
+                'application' => 'This loan application cannot be changed in its current status.',
+            ]);
         }
     }
 
@@ -269,7 +279,7 @@ class LoanApplicationsController extends Controller
                     ? 'Loan application saved as draft.'
                     : 'Loan application submitted successfully.'
             );
-    } 
+    }
 
     /**
      * Display the specified resource.
@@ -281,7 +291,7 @@ class LoanApplicationsController extends Controller
     {
         $application->load(['member', 'loanProduct', 'guarantors', 'securities', 'witnesses']);
         return view('loan_applications.view', compact('application'));
-    }   
+    }
 
     /**
      * Show the form for editing the specified resource.
@@ -507,7 +517,7 @@ class LoanApplicationsController extends Controller
                 $feesDue = $applFees + $percProcessingFees + $percInsuranceFees;
 
                 // Fees are added to the approved amount to create the starting liability balance
-                $principalBal = $approvedAmount + $feesDue; 
+                $principalBal = $approvedAmount + $feesDue;
                 $rawRate = $product->interest_rate / 100;
                 $interestEstimate = 0;
 
@@ -529,16 +539,16 @@ class LoanApplicationsController extends Controller
                     }
                     $interestEstimate = round((($repaymentMonths + 1) / 2) * $principalBal * $monthlyRate, 4);
                 }
-                
+
                 $totalBal = $principalBal + $interestEstimate;
 
                 $loan = Loan::create([
                     'loan_application_id' => $lockedApp->id,
                     'member_id' => $lockedApp->member_id,
                     'loan_approval_id' => $approval->id,
-                    'loan_number' => $this->generateLoanNumber(), 
+                    'loan_number' => $this->generateLoanNumber(),
                     'approved_amount' => $approvedAmount,
-                    'amount_disbursed' => $approvedAmount, // Full requested funds go to borrower
+                    'amount_disbursed' => 0, // Credited only after successful payment processing.
                     'repayment_period_months' => $repaymentMonths,
                     'interest_rate' => $product->interest_rate,
                     'monthly_installment' => $monthlyInstallment,
@@ -550,8 +560,8 @@ class LoanApplicationsController extends Controller
                     'interest_balance' => $interestEstimate,
                     'total_outstanding_balance' => $totalBal,
                     'disbursement_method' => 'account_credit',
-                    'disbursement_date' => now(),
-                    'disbursed_by' => Auth::id(),
+                    'disbursement_date' => null,
+                    'disbursed_by' => null,
                 ]);
 
                 /*
@@ -566,7 +576,7 @@ class LoanApplicationsController extends Controller
 
                 for ($i = 1; $i <= $repaymentMonths; $i++) {
                     $opening = $remainingPrincipalTrack;
-                    
+
                     if ($i === $repaymentMonths) {
                         $principal = round($approvedAmount - ($monthlyPrincipalDue * ($repaymentMonths - 1)), 4);
                         $fees = round($feesDue - ($monthlyFeesDue * ($repaymentMonths - 1)), 4);
@@ -582,9 +592,9 @@ class LoanApplicationsController extends Controller
 
                     $penalty = 0.0000;
                     $totalDue = round($principal + $interest + $fees + $penalty, 4);
-                    
+
                     // Securely increments dates without day-of-month shifting overflows
-                    $currentDueDate = $currentDueDate->addMonthNoOverflow(); 
+                    $currentDueDate = $currentDueDate->addMonthNoOverflow();
 
                     LoanRepaymentSchedule::create([
                         'loan_id' => $loan->id,

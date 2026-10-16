@@ -409,7 +409,7 @@ class SavingsPhaseTwoAuditTest extends TestCase
         $this->postJson(route('savings_accounts.store'), ['member_id' => $account->member_id,
             'savings_product_id' => $product->id, 'opened_date' => today()->toDateString()])->assertStatus(422);
         $this->patchJson(route('savings_accounts.update', $account), [
-            'savings_product_id' => $product->id, 'status' => 'active'])->assertStatus(422);
+            'savings_product_id' => $product->id])->assertStatus(422);
         $this->assertDatabaseCount('savings_accounts', 1);
         $this->deposit($account);
         $withdrawal = $this->requestWithdrawal($account);
@@ -423,8 +423,7 @@ class SavingsPhaseTwoAuditTest extends TestCase
     {
         $account = $this->openAccount();
         $this->deposit($account);
-        $this->success($this->patch(route('savings_accounts.update', $account), [
-            'savings_product_id' => $account->savings_product_id, 'status' => 'frozen']));
+        $this->success($this->post(route('savings_accounts.transition', $account), ['action' => 'freeze']));
         $this->assertSame('frozen', $account->fresh()->status);
         $this->postJson(route('savings_transactions.store'), [
             'savings_account_id' => $account->id, 'transaction_type' => 'deposit', 'amount' => 100,
@@ -435,11 +434,131 @@ class SavingsPhaseTwoAuditTest extends TestCase
         $this->balance($account, 10000);
     }
 
+    public function test_generated_fields_and_account_transitions_are_protected(): void
+    {
+        $account = $this->openAccount();
+        $this->patchJson(route('savings_accounts.update', $account), ['ledger_balance' => 999])
+            ->assertStatus(422)->assertJsonValidationErrors('ledger_balance');
+        $this->patchJson(route('savings_accounts.update', $account), ['status' => 'closed'])
+            ->assertStatus(422)->assertJsonValidationErrors('status');
+        $this->postJson(route('savings_transactions.store'), ['confirmed_by' => $this->officer->id])
+            ->assertStatus(422)->assertJsonValidationErrors('confirmed_by');
+        $this->success($this->post(route('savings_accounts.transition', $account), ['action' => 'freeze']));
+        $this->assertSame('frozen', $account->fresh()->status);
+        $this->postJson(route('savings_accounts.transition', $account), ['action' => 'freeze'])->assertStatus(422);
+        $this->success($this->post(route('savings_accounts.transition', $account), ['action' => 'unfreeze']));
+        $this->deposit($account);
+        $this->postJson(route('savings_accounts.transition', $account), ['action' => 'close', 'closure_reason' => 'Test'])
+            ->assertStatus(422);
+        $this->assertSame('active', $account->fresh()->status);
+        $this->assertEquals(10000, $account->fresh()->ledger_balance);
+    }
+
+    public function test_member_cannot_post_to_another_members_savings_or_choose_adjustments(): void
+    {
+        $account = $this->openAccount();
+        $user = $this->rbacMember();
+        foreach (['create-savings-transaction', 'request-savings-withdrawal'] as $name) {
+            $user->givePermissionTo(\Spatie\Permission\Models\Permission::findOrCreate($name, 'web'));
+        }
+        $this->actingAs($user);
+        $this->postJson(route('savings_transactions.store'), ['savings_account_id' => $account->id,
+            'transaction_type' => 'deposit'])->assertForbidden();
+        $this->postJson(route('savings_withdrawals.store'), ['savings_account_id' => $account->id])->assertForbidden();
+        Member::findOrFail($account->member_id)->update(['user_id' => $user->id]);
+        $this->postJson(route('savings_transactions.store'), ['savings_account_id' => $account->id,
+            'transaction_type' => 'adjustment'])->assertForbidden();
+        $this->assertDatabaseCount('savings_transactions', 0);
+    }
+
+    private function rbacMember(): User
+    {
+        $user = User::create(['name' => 'RBAC Member', 'email' => 'rbac-member@example.test',
+            'password' => 'Member-password-123']);
+        $user->assignRole('member');
+        $permission = \Spatie\Permission\Models\Permission::findOrCreate('view-own-savings', 'web');
+        $user->roles()->firstOrFail()->givePermissionTo($permission);
+        return $user;
+    }
+
+    public function test_rbac_member_cannot_access_user_management(): void
+    {
+        $this->actingAs($this->rbacMember());
+        $this->get(route('users.index'))->assertForbidden();
+        $this->get(route('users.create'))->assertForbidden();
+        $this->get(route('users.show', $this->officer))->assertForbidden();
+        $this->get(route('users.edit', $this->officer))->assertForbidden();
+        $this->postJson(route('users.store'), [])->assertForbidden();
+        $this->patchJson(route('users.update', $this->officer), [])->assertForbidden();
+        $this->deleteJson(route('users.destroy', $this->officer))->assertForbidden();
+        $this->postJson(route('users.activate', $this->officer->id))->assertForbidden();
+        $this->postJson(route('users.deactivate', $this->officer->id))->assertForbidden();
+        $this->postJson(route('users.update_active_profile', $this->officer), [])->assertForbidden();
+        $this->postJson(route('users.delete_profile_pic', $this->officer))->assertForbidden();
+    }
+
+    public function test_rbac_member_cannot_read_another_members_savings_account(): void
+    {
+        $account = $this->openAccount();
+        $this->actingAs($this->rbacMember());
+        $this->get(route('savings_accounts.show', $account))->assertForbidden();
+        $this->get(route('savings_accounts.index'))->assertOk()
+            ->assertViewHas('savingsAccounts', fn ($accounts) => $accounts->isEmpty());
+    }
+
+    public function test_rbac_member_can_read_own_savings_but_cannot_manage_accounts(): void
+    {
+        $account = $this->openAccount();
+        $user = $this->rbacMember();
+        Member::findOrFail($account->member_id)->update(['user_id' => $user->id]);
+        $this->actingAs($user);
+        $this->get(route('savings_accounts.show', $account))->assertOk();
+        $this->get(route('savings_accounts.index'))->assertOk()
+            ->assertViewHas('savingsAccounts', fn ($accounts) => $accounts->count() === 1
+                && $accounts->first()->id === $account->id);
+        $this->get(route('savings_accounts.create'))->assertForbidden();
+        $this->get(route('savings_accounts.edit', $account))->assertForbidden();
+        $this->postJson(route('savings_accounts.store'), [])->assertForbidden();
+        $this->patchJson(route('savings_accounts.update', $account), [])->assertForbidden();
+        $this->deleteJson(route('savings_accounts.destroy', $account))->assertForbidden();
+        $this->assertSame('active', $account->fresh()->status);
+    }
+
+    public function test_rbac_admin_can_access_user_management_and_savings(): void
+    {
+        $account = $this->openAccount();
+        $this->get(route('users.index'))->assertOk();
+        $this->get(route('users.create'))->assertOk();
+        $this->get(route('savings_accounts.index'))->assertOk();
+        $this->get(route('savings_accounts.show', $account))->assertOk();
+        $this->get(route('savings_accounts.edit', $account))->assertOk();
+    }
+
+    public function test_rbac_direct_permission_allows_withdrawal_approval(): void
+    {
+        $account = $this->openAccount();
+        $this->deposit($account);
+        $withdrawal = $this->requestWithdrawal($account);
+        $user = $this->rbacMember();
+        $permission = \Spatie\Permission\Models\Permission::findOrCreate('approve-savings-withdrawal', 'web');
+        $user->givePermissionTo($permission);
+        $this->assertDatabaseHas('model_has_permissions', ['permission_id' => $permission->id,
+            'model_type' => $user->getMorphClass(), 'model_id' => $user->id]);
+        $this->actingAs($user);
+        $this->success($this->postJson(route('savings_withdrawals.approve', $withdrawal)));
+        $this->assertSame('approved', $withdrawal->fresh()->status);
+    }
+
     public function test_member_cannot_approve_a_withdrawal(): void
     {
         $account = $this->openAccount();
         $this->deposit($account);
         $withdrawal = $this->requestWithdrawal($account);
+        $this->patchJson(route('savings_transactions.update', $withdrawal->savings_transaction_id), [
+            'transaction_type' => 'deposit', 'amount' => 500,
+            'transaction_date' => today()->toDateString(), 'value_date' => today()->toDateString()])
+            ->assertStatus(422);
+        $this->assertSame('withdrawal', SavingsTransaction::findOrFail($withdrawal->savings_transaction_id)->transaction_type);
         $memberUser = User::create(['name' => 'Member User', 'email' => 'member-rbac@example.test',
             'password' => 'Member-password-123']);
         $memberRole = DB::table('roles')->where('key_name', 'member')->orWhere('name', 'member')->first();

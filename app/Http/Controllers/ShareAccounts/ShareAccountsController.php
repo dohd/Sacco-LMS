@@ -15,6 +15,24 @@ use Illuminate\Validation\ValidationException;
 
 class ShareAccountsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $action = $request->route()->getActionMethod();
+            if (!in_array($action, ['index', 'show'], true)) {
+                $this->requireSaccoPermission('manage-share-accounts');
+            } elseif (!$this->hasSaccoPermission('manage-share-accounts')) {
+                $this->requireSaccoPermission('view-own-shares');
+                $record = $request->route('share_account');
+                if ($record) {
+                    abort_unless($this->ownsMember($record->member_id), 403);
+                }
+            }
+            $this->rejectSystemFields($request, ['status']);
+            return $next($request);
+        });
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -22,7 +40,9 @@ class ShareAccountsController extends Controller
      */
     public function index()
     {
-        $shareAccounts = ShareAccount::latest()->get();
+        $shareAccounts = ShareAccount::when(!$this->hasSaccoPermission('manage-share-accounts'), function ($query) {
+            $query->whereIn('member_id', \App\Models\Memberships\Member::where('user_id', auth()->id())->select('id'));
+        })->latest()->get();
 
         return view('share_accounts.index', compact('shareAccounts'));
     }
@@ -39,7 +59,7 @@ class ShareAccountsController extends Controller
         $members = Member::all();
         $shareProducts = ShareProduct::all();
 
-        return view('share_accounts.create', compact('members', 'shareProducts')); 
+        return view('share_accounts.create', compact('members', 'shareProducts'));
     }
 
     /**
@@ -59,7 +79,7 @@ class ShareAccountsController extends Controller
             ],
             'share_product_id' => ['required', 'integer', 'exists:share_products,id'],
             'opened_date' => ['required', 'date'],
-            'status' => ['required', 'in:active,frozen,closed'],
+
         ]);
 
         try {
@@ -81,7 +101,7 @@ class ShareAccountsController extends Controller
                     'held_amount' => 0,
                     'available_amount' => 0,
                     'opened_date' => $validated['opened_date'],
-                    'status' => $validated['status'],
+                    'status' => 'active',
                 ]);
             });
 
@@ -135,12 +155,12 @@ class ShareAccountsController extends Controller
     {
         $validated = $request->validate([
             'opened_date' => ['required', 'date'],
-            'status' => ['required', 'in:active,frozen,closed'],
+
         ]);
 
         try {
             DB::transaction(function () use ($shareAccount, $validated) {
-                if ($shareAccount->status === 'closed' && $validated['status'] !== 'closed') {
+                if ($shareAccount->status === 'closed') {
                     throw ValidationException::withMessages([
                         'status' => 'A closed share account cannot be reactivated.'
                     ]);
@@ -148,7 +168,6 @@ class ShareAccountsController extends Controller
 
                 $shareAccount->update([
                     'opened_date' => $validated['opened_date'],
-                    'status' => $validated['status'],
                 ]);
             });
 
@@ -214,6 +233,20 @@ class ShareAccountsController extends Controller
         } catch (\Exception $e) {
             return errorHandler('Error closing share account. Please try again.', $e);
         }
+    }
+
+    public function transition(Request $request, $id)
+    {
+        $validated = $request->validate(['action' => ['required', 'in:freeze,unfreeze']]);
+        DB::transaction(function () use ($id, $validated) {
+            $account = ShareAccount::whereKey($id)->lockForUpdate()->firstOrFail();
+            $expected = $validated['action'] === 'freeze' ? 'active' : 'frozen';
+            if ($account->status !== $expected) {
+                throw ValidationException::withMessages(['action' => 'Invalid account status transition.']);
+            }
+            $account->update(['status' => $expected === 'active' ? 'frozen' : 'active']);
+        });
+        return back()->with('success', 'Share account status updated.');
     }
 
     public function generateShareAccountNumber()

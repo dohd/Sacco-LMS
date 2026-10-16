@@ -20,7 +20,7 @@ class SavingsWithdrawal extends Model
     {
         return $this->getButtonWrapperAttribute(
             $this->getViewButtonAttribute('savings_withdrawals.show', null),
-            $this->getEditButtonAttribute('savings_withdrawals.edit', null),
+            $this->status === 'pending' ? $this->getEditButtonAttribute('savings_withdrawals.edit', 'request-savings-withdrawal') : null,
             null,
         );
     }

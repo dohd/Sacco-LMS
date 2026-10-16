@@ -21,7 +21,7 @@ class LoanRepayment extends Model
     {
         return $this->getButtonWrapperAttribute(
             $this->getViewButtonAttribute('loan_repayments.show', null),
-            $this->getEditButtonAttribute('loan_repayments.edit', null),
+            $this->status === 'pending' ? $this->getEditButtonAttribute('loan_repayments.edit', 'confirm-repayment') : null,
             null,
         );
     }
@@ -48,7 +48,7 @@ class LoanRepayment extends Model
     {
         return $this->belongsTo(User::class, 'recorded_by');
     }
-    
+
     public function reversedBy()
     {
         return $this->belongsTo(User::class, 'reversed_by');

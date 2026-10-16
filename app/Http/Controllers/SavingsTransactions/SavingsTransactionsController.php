@@ -17,6 +17,41 @@ use Illuminate\Validation\ValidationException;
 
 class SavingsTransactionsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->rejectSystemFields($request, ['status', 'savings_transaction_id', 'balance_before', 'balance_after']);
+            $action = $request->route()->getActionMethod();
+            $staff = $this->hasSaccoPermission('confirm-savings-transaction');
+            if (!$staff && in_array($action, ['create', 'store', 'edit', 'update', 'index', 'show'], true)) {
+                $this->requireSaccoPermission(in_array($action, ['index', 'show'], true) ? 'view-own-savings' : 'create-savings-transaction');
+                $record = $request->route('savings_transaction') ?? $request->route('id');
+                if ($record && !is_object($record)) {
+                    $record = SavingsTransaction::findOrFail($record);
+                }
+                if ($record) {
+                    $account = SavingsAccount::findOrFail($record->savings_account_id);
+                    abort_unless($this->ownsMember($account->member_id), 403);
+                }
+                if ($request->filled('savings_account_id')) {
+                    $account = SavingsAccount::findOrFail($request->input('savings_account_id'));
+                    abort_unless($this->ownsMember($account->member_id), 403);
+                }
+                if ($request->filled('transaction_type')) { abort_unless($request->input('transaction_type') === 'deposit', 403); }
+            }
+            return $next($request);
+        });
+    }
+
+    private function visibleAccounts()
+    {
+        $query = SavingsAccount::query();
+        if (!$this->hasSaccoPermission('confirm-savings-transaction')) {
+            $query->whereIn('member_id', \App\Models\Memberships\Member::where('user_id', auth()->id())->select('id'));
+        }
+        return $query;
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -24,7 +59,7 @@ class SavingsTransactionsController extends Controller
      */
     public function index()
     {
-        $savingsTranx = SavingsTransaction::latest()->get();
+        $savingsTranx = SavingsTransaction::whereIn('savings_account_id', $this->visibleAccounts()->select('id'))->latest()->get();
 
         return view('savings_transactions.index', compact('savingsTranx'));
     }
@@ -36,7 +71,7 @@ class SavingsTransactionsController extends Controller
      */
     public function create()
     {
-        $savingsAccounts = SavingsAccount::all();
+        $savingsAccounts = $this->visibleAccounts()->get();
 
         return view('savings_transactions.create', compact('savingsAccounts'));
     }
@@ -305,7 +340,7 @@ class SavingsTransactionsController extends Controller
 
         // 2. Check if validation failed using an if-statement
         if ($validator->fails()) {
-            
+
             // 3. Directly access the error object (MessageBag)
             $errors = $validator->errors();
 
@@ -440,8 +475,8 @@ class SavingsTransactionsController extends Controller
             Log::error($e->getMessage() . ' at ' . $e->getFile() . ':'. $e->getLine());
             // return errorHandler("Error reversing transaction. Please try again.", $e);
             return response()->json(['status' => 'error', 'message' => "Error reversing transaction. Please try again."], 500);
-        }            
-    }   
+        }
+    }
 
     /**
      * Display the specified resource.
@@ -462,7 +497,7 @@ class SavingsTransactionsController extends Controller
      */
     public function edit(SavingsTransaction $savingsTransaction)
     {
-        $savingsAccounts = SavingsAccount::all();
+        $savingsAccounts = $this->visibleAccounts()->get();
 
         return view('savings_transactions.edit', compact('savingsTransaction', 'savingsAccounts'));
     }
@@ -477,7 +512,7 @@ class SavingsTransactionsController extends Controller
     public function update(Request $request, SavingsTransaction $savingsTransaction)
     {
         $validated = $request->validate([
-            'transaction_type' => ['required', 'in:deposit,withdrawal,interest,fee,transfer_in,transfer_out,adjustment'],
+            'transaction_type' => ['required', 'in:deposit,interest,fee,transfer_in,transfer_out,adjustment'],
             'amount' => ['required', 'numeric', 'gt:0', 'max:9999999999999.99'],
             'transaction_date' => ['required', 'date'],
             'value_date' => ['required', 'date'],
@@ -505,6 +540,11 @@ class SavingsTransactionsController extends Controller
                 /*
                  * Confirmed transactions must never be edited.
                  */
+                if ($transaction->transaction_type === 'withdrawal' ||
+                    \App\Models\Savings\SavingsWithdrawal::where('savings_transaction_id', $transaction->id)->exists()) {
+                    throw ValidationException::withMessages(['transaction' => 'Edit withdrawals through the withdrawal request workflow.']);
+                }
+
                 if ($transaction->status !== 'pending') {
                     throw ValidationException::withMessages([
                         'transaction' => 'Only pending savings transactions can be edited. Confirmed transactions must be reversed.'

@@ -20,8 +20,8 @@
                        class="form-control"
                        value="{{ old('opened_date', @$savingsAccount->opened_date ?: now()->format('Y-m-d')) }}"
                        required>
-            </div> 
-            
+            </div>
+
             <div class="col-md-5 mb-3">
                 <label class="form-label">
                     Member
@@ -63,7 +63,7 @@
                         </option>
                     @endforeach
                 </select>
-            </div>                        
+            </div>
         </div>
 
         @isset($savingsAccount)
@@ -72,24 +72,11 @@
                     <label class="form-label">
                         Status
                     </label>
-                    <select name="status" class="form-select">
-                        <option value="active"
-                            {{ old('status', $account->status ?? 'active') == 'active' ? 'selected' : '' }}>
-                            Active
-                        </option>
-                        <option value="frozen"
-                            {{ old('status', $account->status ?? '') == 'frozen' ? 'selected' : '' }}>
-                            Frozen
-                        </option>
-                        <option value="closed"
-                            {{ old('status', $account->status ?? '') == 'closed' ? 'selected' : '' }}>
-                            Closed
-                        </option>
-                    </select>
+                    <p class="form-control-plaintext">Status changes use the actions on the account detail page.</p>
                 </div>
         	</div>
         @endisset
-        
+
     </div>
 </div>
 

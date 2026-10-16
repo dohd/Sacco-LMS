@@ -30,7 +30,7 @@
                             <option value="">Select member</option>
 
                             @foreach($members as $member)
-                                <option value="{{ $member->id }}" {{ old('member_id') == $member->id ? 'selected' : '' }}>                                                
+                                <option value="{{ $member->id }}" {{ old('member_id') == $member->id ? 'selected' : '' }}>
                                     {{ $member->membership_number }} - {{ $member->full_name }}
                                 </option>
                             @endforeach
@@ -88,7 +88,7 @@
             </div>
 
             <div class="card-body">
-                <div class="row g-3">                    
+                <div class="row g-3">
 
                     <div class="col-md-6">
                         <label for="opened_date" class="form-label">
@@ -226,19 +226,7 @@
                 <label for="status" class="form-label">
                     Status <span class="text-danger">*</span>
                 </label>
-                <select name="status"
-                        id="status"
-                        class="form-select @error('status') is-invalid @enderror"
-                        required>
-                    <option value="active"
-                        {{ old('status', 'active') === 'active' ? 'selected' : '' }}>
-                        Active
-                    </option>
-                    <option value="frozen"
-                        {{ old('status') === 'frozen' ? 'selected' : '' }}>
-                        Frozen
-                    </option>
-                </select>
+                <p class="form-control-plaintext">Status changes use the actions on the account detail page.</p>
                 @error('status')
                     <div class="invalid-feedback">{{ $message }}</div>
                 @enderror

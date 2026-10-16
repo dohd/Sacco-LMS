@@ -40,7 +40,7 @@
                                         data-status="{{ $account->status }}"
                                         {{ old('share_account_id') == $account->id ? 'selected' : '' }}
                                     >
-                                        {{ $account->account_number }} - {{ @$account->member->membership_number }} {{ @$account->member->full_name }}                                
+                                        {{ $account->account_number }} - {{ @$account->member->membership_number }} {{ @$account->member->full_name }}
                                 </option>
                             @endforeach
 
@@ -151,7 +151,7 @@
                             <span class="input-group-text">KES</span>
 
                             <input type="number"
-                               name="unit_value"
+
                                id="unit_value"
                                step="0.01"
                                min="0"
@@ -177,7 +177,7 @@
                             <span class="input-group-text">KES</span>
 
                             <input type="number"
-                                   name="amount"
+
                                    id="amount"
                                    step="0.01"
                                    min="0"
@@ -261,7 +261,7 @@
                                 id="payment_method"
                                 class="form-select @error('payment_method') is-invalid @enderror"
                             >
-                            <option value="">Select payment method</option>                            
+                            <option value="">Select payment method</option>
                             <option value="cash" {{ old('payment_method', 'cash') === 'cash' ? 'selected' : '' }}>Cash</option>
                             <option value="mobile_money {{ old('payment_method', 'mobile_money') === 'mobile_money' ? 'selected' : '' }}">Mobile Money</option>
                             <option value="bank_transfer" {{ old('payment_method', 'bank_transfer') === 'bank_transfer' ? 'selected' : '' }}>Bank Transfer</option>

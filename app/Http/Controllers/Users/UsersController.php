@@ -14,6 +14,14 @@ use Illuminate\Validation\Rule;
 
 class UsersController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->requireSaccoPermission('manage-users');
+            return $next($request);
+        })->except(['active_profile', 'update_active_profile', 'delete_profile_pic']);
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -24,7 +32,7 @@ class UsersController extends Controller
         $users = User::where('id', '!=', auth()->id())
             ->where('id', '!=', config('app.super_user_id'))
             ->get();
-        
+
         return view('users.index', compact('users'));
     }
 
@@ -193,24 +201,24 @@ class UsersController extends Controller
 
     public function deactivate($id)
     {
-        try {     
+        try {
 
             DB::transaction(fn() => User::find($id)->update(['is_active' => 0]));
 
             return back()->with(['success' => 'User deactivated successfully']);
-        } catch (\Exception $th) { 
+        } catch (\Exception $th) {
             return errorHandler('Error deactivating user. Trya again later', $th);
         }
     }
 
     public function activate($id)
     {
-        try {     
+        try {
 
             DB::transaction(fn() => User::find($id)->update(['is_active' => 1]));
 
             return back()->with(['success' => 'User activated successfully']);
-        } catch (\Exception $th) { 
+        } catch (\Exception $th) {
             return errorHandler('Error activating user. Trya again later', $th);
         }
     }
@@ -225,7 +233,7 @@ class UsersController extends Controller
     {
         $user = User::with('roles')->find(auth()->id());
         $role = optional($user->roles->first());
-        
+
         return view('users.active_profile', compact('user', 'role'));
     }
 
@@ -234,6 +242,7 @@ class UsersController extends Controller
      */
     public function update_active_profile(Request $request, User $user)
     {
+        abort_unless((int) $user->id === (int) auth()->id(), 403);
         if ($request->password) {
             $request->validate([
                 'current_password' => 'required',
@@ -243,11 +252,11 @@ class UsersController extends Controller
             $input = $request->except('_token');
             $is_valid = password_verify($input['current_password'], auth()->user()->password);
             if (!$is_valid) return errorHandler('Current password is invalid!');
-            
-            try {     
+
+            try {
                 $user->update(['password' => $input['password']]);
                 return redirect()->back()->with(['success' => 'Password updated successfully']);
-            } catch (\Throwable $th) { 
+            } catch (\Throwable $th) {
                 return errorHandler('Error updating Password!', $th);
             }
         }
@@ -266,10 +275,10 @@ class UsersController extends Controller
         $file = $request->file('profile_pic');
         if ($file) $input['profile_pic'] = $this->uploadFile($file);
 
-        try {     
+        try {
             $user->update($input);
             return redirect()->back()->with(['success' => 'User Profile updated successfully']);
-        } catch (\Throwable $th) { 
+        } catch (\Throwable $th) {
             return errorHandler('Error updating User Profile!', $th);
         }
     }
@@ -282,6 +291,7 @@ class UsersController extends Controller
      */
     public function delete_profile_pic(Request $request, User $user)
     {
+        abort_unless((int) $user->id === (int) auth()->id(), 403);
         try {
             $this->deleteFile($user->profile_pic);
             $user->update(['profile_pic' => null]);

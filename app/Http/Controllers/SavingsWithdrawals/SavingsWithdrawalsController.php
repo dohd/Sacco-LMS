@@ -17,6 +17,41 @@ use Illuminate\Validation\ValidationException;
 
 class SavingsWithdrawalsController extends Controller
 {
+    public function __construct()
+    {
+        $this->middleware(function ($request, $next) {
+            $this->rejectSystemFields($request, ['status', 'savings_transaction_id', 'balance_before', 'balance_after']);
+            $action = $request->route()->getActionMethod();
+            $staff = $this->hasSaccoPermission('approve-savings-withdrawal');
+            if (!$staff && in_array($action, ['create', 'store', 'edit', 'update', 'index', 'show'], true)) {
+                $this->requireSaccoPermission(in_array($action, ['index', 'show'], true) ? 'view-own-savings' : 'request-savings-withdrawal');
+                $record = $request->route('savings_withdrawal') ?? $request->route('id');
+                if ($record && !is_object($record)) {
+                    $record = SavingsWithdrawal::findOrFail($record);
+                }
+                if ($record) {
+                    $account = SavingsAccount::findOrFail($record->savings_account_id);
+                    abort_unless($this->ownsMember($account->member_id), 403);
+                }
+                if ($request->filled('savings_account_id')) {
+                    $account = SavingsAccount::findOrFail($request->input('savings_account_id'));
+                    abort_unless($this->ownsMember($account->member_id), 403);
+                }
+
+            }
+            return $next($request);
+        });
+    }
+
+    private function visibleAccounts()
+    {
+        $query = SavingsAccount::query();
+        if (!$this->hasSaccoPermission('approve-savings-withdrawal')) {
+            $query->whereIn('member_id', \App\Models\Memberships\Member::where('user_id', auth()->id())->select('id'));
+        }
+        return $query;
+    }
+
     /**
      * Display a listing of the resource.
      *
@@ -24,7 +59,7 @@ class SavingsWithdrawalsController extends Controller
      */
     public function index()
     {
-        $savingsWithdrawals = SavingsWithdrawal::all();
+        $savingsWithdrawals = SavingsWithdrawal::whereIn('savings_account_id', $this->visibleAccounts()->select('id'))->get();
 
         return view('savings_withdrawals.index', compact('savingsWithdrawals'));
     }
@@ -36,7 +71,7 @@ class SavingsWithdrawalsController extends Controller
      */
     public function create()
     {
-        $savingsAccounts = SavingsAccount::where('status', 'active')->get();
+        $savingsAccounts = $this->visibleAccounts()->where('status', 'active')->get();
 
         return view('savings_withdrawals.create', compact('savingsAccounts'));
     }
@@ -214,7 +249,7 @@ class SavingsWithdrawalsController extends Controller
         // Flash the modified request to the old input session store
         request()->flash();
 
-        $savingsAccounts = SavingsAccount::where('status', 'active')->get();
+        $savingsAccounts = $this->visibleAccounts()->where('status', 'active')->get();
 
         return view('savings_withdrawals.edit', compact('savingsWithdrawal', 'savingsAccounts'));
     }
@@ -545,11 +580,11 @@ class SavingsWithdrawalsController extends Controller
                 $e
             );
         }
-    } 
+    }
 
     /**
      * Withdrawl payment workflow
-     * */   
+     * */
     public function pay(Request $request, $id)
     {
         $this->requireSaccoPermission('pay-savings-withdrawal');

@@ -33,47 +33,13 @@
             </div>
 
             <div class="d-flex gap-2">
-                @if($status === 'draft')
-                    <a href="{{ route('loan_disbursements.edit', $loanDisbursement->id) }}"
-                       class="btn btn-primary">
-                        <i class="fa fa-edit me-1"></i>
-                        Edit
-                    </a>
+                @if($status === 'approved' && userCan('process-disbursement'))
+                    <a class="btn btn-primary" href="{{ route('loan_disbursements.edit', $loanDisbursement) }}">Payment details</a>
                 @endif
-
-                @if($status === 'draft')
-                    <form method="POST"
-                          action="{{ route('loan_disbursements.submit', $loanDisbursement->id) }}"
-                          class="submit-form">
+                @if(in_array($status, ['approved', 'processing']) && userCan('process-disbursement'))
+                    <form method="POST" action="{{ route('loan_disbursements.process', $loanDisbursement) }}">
                         @csrf
-
-                        <button type="submit" class="btn btn-warning">
-                            <i class="fa fa-paper-plane me-1"></i>
-                            Submit for Approval
-                        </button>
-                    </form>
-                @endif
-
-                @if($status === 'pending_approval')
-                    <button type="button"
-                            class="btn btn-success"
-                            data-bs-toggle="modal"
-                            data-bs-target="#approveModal">
-                        <i class="fa fa-check me-1"></i>
-                        Approve
-                    </button>
-                @endif
-
-                @if($status === 'approved')
-                    <form method="POST"
-                          action="{{ route('loan_disbursements.process', $loanDisbursement->id) }}"
-                          class="process-form">
-                        @csrf
-
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fa fa-money-bill-wave me-1"></i>
-                            Process Disbursement
-                        </button>
+                        <button class="btn btn-primary" type="submit">{{ $status === 'processing' ? 'Confirm settlement' : 'Process disbursement' }}</button>
                     </form>
                 @endif
             </div>

@@ -7,14 +7,14 @@
     <div class="container-fluid py-4">
         {{-- Header --}}
         <div class="d-flex flex-wrap justify-content-between align-items-center mb-4">
-            <div>                
+            <div>
                 <h4 class="fw-bold mb-1">{{ $shareTransaction->transaction_number }}</h4>
                 <div class="text-muted">
                     {{ optional($shareTransaction->shareAccount)->account_number ?? 'Share Account' }}
                 </div>
             </div>
-            <div class="d-flex gap-2">                
-                @if($shareTransaction->status === 'pending')
+            <div class="d-flex gap-2">
+                @if($shareTransaction->status === 'pending' && userCan('confirm-share-transaction'))
                     <a href="{{ route('share_transactions.edit', $shareTransaction->id) }}"
                        class="btn btn-primary">
                         <i class="fa fa-edit me-1"></i> Edit
@@ -22,13 +22,13 @@
                     <form method="POST"
                           action="{{ route('share_transactions.confirm', $shareTransaction->id) }}"
                           class="confirm-form">
-                        @csrf                        
+                        @csrf
                         <button type="submit" class="btn btn-success">
                             <i class="fa fa-check me-1"></i> Confirm
                         </button>
                     </form>
                 @endif
-                @if($shareTransaction->status === 'confirmed' && !$shareTransaction->reversal)
+                @if($shareTransaction->status === 'confirmed' && !$shareTransaction->reversal && userCan('reverse-share-transaction'))
                     <button type="button"
                             class="btn btn-outline-danger"
                             data-bs-toggle="modal"
@@ -330,7 +330,7 @@
                     </div>
                 </div>
                 {{-- Action --}}
-                @if($shareTransaction->status === 'confirmed' && !$shareTransaction->reversal)
+                @if($shareTransaction->status === 'confirmed' && !$shareTransaction->reversal && userCan('reverse-share-transaction'))
                     <div class="card border-0 shadow-sm">
                         <div class="card-body">
                             <div class="alert alert-warning border-0 small">
@@ -354,7 +354,7 @@
 
 
     {{-- Reversal Modal --}}
-    @if($shareTransaction->status === 'confirmed' && !$shareTransaction->reversal)
+    @if($shareTransaction->status === 'confirmed' && !$shareTransaction->reversal && userCan('reverse-share-transaction'))
 
     <div class="modal fade"
          id="reverseModal"

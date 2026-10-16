@@ -39,10 +39,11 @@
                 <select name="transaction_type" id="transaction_type" class="form-select" required>
                     <option value="">Select Type</option>
                     <option value="deposit" {{ old('transaction_type', @$transx->transaction_type ?? '') == 'deposit' ? 'selected' : '' }}>Deposit</option>
-                    <option value="withdrawal" {{ old('transaction_type', @$transx->transaction_type ?? '') == 'withdrawal' ? 'selected' : '' }}>Withdrawal</option>
+                    @if(userCan('confirm-savings-transaction'))
                     <option value="transfer_in" {{ old('transaction_type', @$transx->transaction_type ?? '') == 'transfer_in' ? 'selected' : '' }}>Transfer In</option>
                     <option value="transfer_out" {{ old('transaction_type', @$transx->transaction_type ?? '') == 'transfer_out' ? 'selected' : '' }}>Transfer Out</option>
                     <option value="adjustment" {{ old('transaction_type', @$transx->transaction_type ?? '') == 'adjustment' ? 'selected' : '' }}>Adjustment</option>
+                    @endif
                 </select>
             </div>
         </div>
