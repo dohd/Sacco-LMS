@@ -269,7 +269,7 @@
                                         <strong class="d-block mb-2">{{ $label }}</strong>
 
                                         @if($application->$field)
-                                            <a href="{{ Storage::url($application->$field) }}"
+                                            <a href="{{ route('documents.show', ['path' => $application->$field]) }}"
                                                target="_blank"
                                                class="btn btn-sm btn-outline-primary">
                                                 View Document

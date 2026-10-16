@@ -463,7 +463,7 @@
                                             <td>
                                                 @if($guarantor->signature)
 
-                                                    <a href="{{ Storage::url($guarantor->signature) }}"
+                                                    <a href="{{ route('documents.show', ['path' => $guarantor->signature]) }}"
                                                        target="_blank"
                                                        class="btn btn-sm btn-outline-primary">
 
@@ -700,7 +700,7 @@
 
                                     @if($security->supporting_document)
 
-                                        <a href="{{ Storage::url($security->supporting_document) }}"
+                                        <a href="{{ route('documents.show', ['path' => $security->supporting_document]) }}"
                                            target="_blank"
                                            class="btn btn-sm btn-outline-primary">
 
@@ -874,7 +874,7 @@
 
                                     @if($witness->signature)
 
-                                        <a href="{{ Storage::url($witness->signature) }}"
+                                        <a href="{{ route('documents.show', ['path' => $witness->signature]) }}"
                                            class="btn btn-sm btn-outline-primary"
                                            target="_blank">
 
@@ -941,7 +941,7 @@
 
                             @if($application->applicant_signature)
 
-                                <a href="{{ Storage::url($application->applicant_signature) }}"
+                                <a href="{{ route('documents.show', ['path' => $application->applicant_signature]) }}"
                                    class="btn btn-sm btn-outline-primary"
                                    target="_blank">
 

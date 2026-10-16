@@ -3,6 +3,7 @@
 use App\Http\Controllers\AccountingPeriods\AccountingPeriodsController;
 use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ConfigController;
+use App\Http\Controllers\Documents\DocumentsController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\LoanApplications\LoanApplicationsController;
 use App\Http\Controllers\LoanDisbursements\LoanDisbursementsController;
@@ -41,6 +42,9 @@ Route::get('logout', [LoginController::class, 'logout']);
 Route::group(['middleware' => 'auth'], function() {
     // Dashboard
     Route::get('dashboard', [HomeController::class, 'index'])->name('home');
+
+    // Private documents (authorised per record)
+    Route::get('documents', [DocumentsController::class, 'show'])->name('documents.show');
 
     // Memberships
     Route::patch('memberships/approve/{membership}', [MembershipsController::class, 'approve'])->name('memberships.approve');

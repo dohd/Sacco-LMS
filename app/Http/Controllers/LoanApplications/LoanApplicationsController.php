@@ -182,7 +182,7 @@ class LoanApplicationsController extends Controller
                 if ($request->hasFile('applicant_signature')) {
                     $obsoleteFiles[] = $signaturePath;
                     $signaturePath = $request->file('applicant_signature')
-                        ->store('loan_applications/applicant-signatures', 'public');
+                        ->store('loan_applications/applicant-signatures', 'private');
 
                     $uploadedFiles[] = $signaturePath;
                 }
@@ -261,7 +261,7 @@ class LoanApplicationsController extends Controller
 
         } catch (\Throwable $e) {
             foreach ($uploadedFiles as $path) {
-                Storage::disk('public')->delete($path);
+                Storage::disk('private')->delete($path);
             }
 
             if ($e instanceof ValidationException) {
@@ -270,7 +270,7 @@ class LoanApplicationsController extends Controller
             return errorHandler("The loan application could not be saved. Please try again.", $e);
         }
 
-        Storage::disk('public')->delete(array_filter($obsoleteFiles));
+        Storage::disk('private')->delete(array_filter($obsoleteFiles));
         return redirect()
             ->route('loan_applications.show', $application->id)
             ->with(
@@ -333,7 +333,7 @@ class LoanApplicationsController extends Controller
             $application->delete();
             return array_filter($files);
         });
-        Storage::disk('public')->delete($files);
+        Storage::disk('private')->delete($files);
         return redirect()->route('loan_applications.index')->with('success', 'Draft deleted successfully.');
     }
 
@@ -692,7 +692,7 @@ class LoanApplicationsController extends Controller
                 $child->$fileField = null;
             }
             if ($request->hasFile("$relation.$index.$fileField")) {
-                $child->$fileField = $request->file("$relation.$index.$fileField")->store("loan_applications/$relation", 'public');
+                $child->$fileField = $request->file("$relation.$index.$fileField")->store("loan_applications/$relation", 'private');
                 $uploaded[] = $child->$fileField;
             }
             if ($oldFile && $oldFile !== $child->$fileField) {

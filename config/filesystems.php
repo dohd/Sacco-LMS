@@ -42,6 +42,14 @@ return [
             'visibility' => 'public',
         ],
 
+        // Sensitive uploads (IDs, signatures, supporting documents). Not web-accessible;
+        // served only through the authenticated documents.show route.
+        'private' => [
+            'driver' => 'local',
+            'root' => storage_path('app/private'),
+            'visibility' => 'private',
+        ],
+
         's3' => [
             'driver' => 's3',
             'key' => env('AWS_ACCESS_KEY_ID'),

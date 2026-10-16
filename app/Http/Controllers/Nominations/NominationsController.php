@@ -93,7 +93,7 @@ class NominationsController extends Controller
 
                 $memberSignature = $request
                     ->file('member_signature')
-                    ->store('nomination-signatures/members', 'public');
+                    ->store('nomination-signatures/members', 'private');
                 $uploadedPaths[] = $memberSignature;   
 
                 $nomination = Nomination::create([
@@ -126,7 +126,7 @@ class NominationsController extends Controller
                 foreach ($validated['witnesses'] as $index => $witnessData) {
                     $signature = $request
                         ->file("witnesses.$index.signature")
-                        ->store('nomination-signatures/witnesses', 'public');
+                        ->store('nomination-signatures/witnesses', 'private');
                     $uploadedPaths[] = $signature;
 
                     $nomination->witnesses()->create([
@@ -143,7 +143,7 @@ class NominationsController extends Controller
                 ->with('success', 'The nomination was submitted successfully.');
         } catch (\Exception $e) {
             if ($uploadedPaths !== []) {
-                Storage::disk('public')->delete($uploadedPaths);
+                Storage::disk('private')->delete($uploadedPaths);
             }
 
             return errorHandler("The nomination could not be saved. Please try again.", $e);
@@ -234,7 +234,7 @@ class NominationsController extends Controller
                 if (request('member_signature')) {
                     $memberSignature = $request
                         ->file('member_signature')
-                        ->store('nomination-signatures/members', 'public');
+                        ->store('nomination-signatures/members', 'private');
                     $uploadedPaths[] = $memberSignature;                    
                 }
 
@@ -280,7 +280,7 @@ class NominationsController extends Controller
                     if (request("witnesses.$index.signature")) {
                         $signature = $request
                             ->file("witnesses.$index.signature")
-                            ->store('nomination-signatures/witnesses', 'public');
+                            ->store('nomination-signatures/witnesses', 'private');
                         $uploadedPaths[] = $signature;                        
                     } else {
                         $signature = null;
@@ -316,7 +316,7 @@ class NominationsController extends Controller
                 ->with('success', 'The nomination was updated successfully.');
         } catch (\Exception $e) {
             if ($uploadedPaths !== []) {
-                Storage::disk('public')->delete($uploadedPaths);
+                Storage::disk('private')->delete($uploadedPaths);
             }
 
             return errorHandler("The nomination could not be updated. Please try again.", $e);

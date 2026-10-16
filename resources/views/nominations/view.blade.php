@@ -244,7 +244,7 @@
                                             <small class="text-muted d-block mb-1">Signature</small>
 
                                             @if($witness->signature)
-                                                <a href="{{ Storage::url($witness->signature) }}"
+                                                <a href="{{ route('documents.show', ['path' => $witness->signature]) }}"
                                                    target="_blank"
                                                    class="btn btn-sm btn-outline-primary">
                                                     View Signature
@@ -307,7 +307,7 @@
                             <small class="text-muted d-block">Member Signature</small>
 
                             @if($nomination->member_signature)
-                                <a href="{{ Storage::url($nomination->member_signature) }}"
+                                <a href="{{ route('documents.show', ['path' => $nomination->member_signature]) }}"
                                    target="_blank"
                                    class="btn btn-sm btn-outline-primary mt-1">
                                     View Signature

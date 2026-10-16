@@ -149,7 +149,7 @@ class MembershipsController extends Controller
                 if (!$request->hasFile($field))  continue;
 
                 $directory = "memberships/{$applicationNumber}/{$field}";
-                $path = $request->file($field)->store($directory, 'public');
+                $path = $request->file($field)->store($directory, 'private');
 
                 $payload[$field] = $path;
                 $uploadedPaths[] = $path;
@@ -188,7 +188,7 @@ class MembershipsController extends Controller
                 ->with('success', "Application {$application->application_number} was submitted successfully.");
         } catch (\Exception $e) {
             if ($uploadedPaths !== []) {
-                Storage::disk('public')->delete($uploadedPaths);
+                Storage::disk('private')->delete($uploadedPaths);
             }
 
             $message = $isDraft
@@ -331,7 +331,7 @@ class MembershipsController extends Controller
                 if (!$request->hasFile($field))  continue;
 
                 $directory = "memberships/{$applicationNumber}/{$field}";
-                $path = $request->file($field)->store($directory, 'public');
+                $path = $request->file($field)->store($directory, 'private');
 
                 $payload[$field] = $path;
                 $uploadedPaths[] = $path;
@@ -360,7 +360,7 @@ class MembershipsController extends Controller
 
         } catch (\Exception $e) {
             if ($uploadedPaths !== []) {
-                Storage::disk('public')->delete($uploadedPaths);
+                Storage::disk('private')->delete($uploadedPaths);
             }
 
             $message = $isDraft

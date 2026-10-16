@@ -40,10 +40,10 @@ class LoanApplicationWorkflowTest extends TestCase
             'database.connections.loan_workflow_test' => $connection,
             'database.default' => 'loan_workflow_test',
             'session.driver' => 'array', 'cache.default' => 'array',
-            'filesystems.disks.public.root' => $this->uploadRoot,
+            'filesystems.disks.private.root' => $this->uploadRoot,
         ]);
         DB::setDefaultConnection('loan_workflow_test');
-        Storage::forgetDisk('public');
+        Storage::forgetDisk('private');
         $this->assertSame(0, Artisan::call('migrate', ['--database' => 'loan_workflow_test', '--force' => true]), Artisan::output());
 
         $userId = DB::table('users')->insertGetId(['name' => 'Test Officer', 'email' => 'officer@example.test', 'password' => 'unused']);
@@ -65,7 +65,7 @@ class LoanApplicationWorkflowTest extends TestCase
     protected function tearDown(): void
     {
         if ($this->database && $this->originalConnection) {
-            Storage::disk('public')->deleteDirectory('loan_applications');
+            Storage::disk('private')->deleteDirectory('loan_applications'); Storage::disk('private')->deleteDirectory('loose');
             if (is_dir($this->uploadRoot)) {
                 rmdir($this->uploadRoot);
             }
@@ -140,7 +140,8 @@ class LoanApplicationWorkflowTest extends TestCase
         $this->patch(route('loan_applications.update', $application), $payload)->assertSessionHasNoErrors();
         $this->assertSame($signature, $application->fresh()->applicant_signature);
         $this->assertSame($guarantor->signature, $guarantor->fresh()->signature);
-        Storage::disk('public')->assertExists($signature);
+        Storage::disk('private')->assertExists($signature);
+        Storage::disk('public')->assertMissing($signature);
         $this->get(route('loan_applications.edit', $application))->assertOk()->assertSee('School fees');
 
         $this->patch(route('loan_applications.workflow', $application), ['action' => 'submit'])->assertSessionHasNoErrors();
@@ -197,7 +198,48 @@ class LoanApplicationWorkflowTest extends TestCase
         $this->assertSame(0, LoanApplication::count());
         $this->assertSame(0, DB::table('loan_guarantors')->count());
         $this->assertSame(0, DB::table('loan_witnesses')->count());
+        Storage::disk('private')->assertMissing($path);
+    }
+
+    public function test_uploaded_documents_are_private_and_served_only_to_authorised_users(): void
+    {
+        $payload = $this->payload('draft');
+        $payload['applicant_signature'] = UploadedFile::fake()->image('signature.jpg');
+        $this->post(route('loan_applications.store'), $payload)->assertSessionHasNoErrors();
+        $path = LoanApplication::firstOrFail()->applicant_signature;
+
+        Storage::disk('private')->assertExists($path);
         Storage::disk('public')->assertMissing($path);
+        $this->get(route('loan_applications.show', LoanApplication::firstOrFail()))
+            ->assertOk()->assertSee(route('documents.show', ['path' => $path]), false);
+
+        // Authenticated, but neither staff nor the owning member (the first user is seeded as admin).
+        $admin = auth()->user();
+        $this->get(route('documents.show', ['path' => $path]))->assertOk();
+        $user = User::findOrFail(DB::table('users')->insertGetId(['name' => 'Plain User', 'email' => 'plain@example.test', 'password' => 'unused']));
+        $this->actingAs($user);
+        $this->get(route('documents.show', ['path' => $path]))->assertForbidden();
+
+        // The owning member can open their own document.
+        $this->member->update(['user_id' => $user->id]);
+        $this->get(route('documents.show', ['path' => $path]))->assertOk()
+            ->assertHeader('X-Content-Type-Options', 'nosniff');
+        $this->member->update(['user_id' => null]);
+        $this->get(route('documents.show', ['path' => $path]))->assertForbidden();
+
+        // Staff with view-members can open any document.
+        $user->givePermissionTo('view-members');
+        app(\Spatie\Permission\PermissionRegistrar::class)->forgetCachedPermissions();
+        $this->get(route('documents.show', ['path' => $path]))->assertOk();
+
+        // Unknown, unreferenced and traversal paths never resolve to a file.
+        Storage::disk('private')->put('loose/orphan.txt', 'x');
+        foreach (['', 'loose/orphan.txt', '../.env', 'loan_applications/../../.env', '/etc/passwd', 'C:\windows\win.ini'] as $bad) {
+            $this->get(route('documents.show', ['path' => $bad]))->assertNotFound();
+        }
+
+        $this->app['auth']->forgetGuards();
+        $this->get(route('documents.show', ['path' => $path]))->assertRedirect(route('login'));
     }
 
     public function test_invalid_input_cannot_create_records_or_reuse_another_applications_children(): void
