@@ -35,7 +35,7 @@ class CreateMemberApplications extends Migration
             $table->string('place_of_birth');
             $table->string('national_id')->unique();
             $table->string('phone');
-            $table->string('email')->nullable()->index();
+            $table->string('email')->unique();
             $table->text('current_address')->nullable();
             $table->text('residential_address');
 

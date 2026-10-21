@@ -81,7 +81,7 @@ class MembershipsController extends Controller
                 Rule::unique('member_applications', 'national_id'),
             ],
             'phone' => [$required, 'string', 'max:30'],
-            'email' => ['nullable', 'email:rfc', 'max:255'],
+            'email' => [$required, 'email:rfc', 'max:255'],
             'current_address' => ['nullable', 'string'],
             'residential_address' => [$required, 'string'],
 
@@ -262,7 +262,7 @@ class MembershipsController extends Controller
                 Rule::unique('member_applications', 'national_id')->ignore($membership),
             ],
             'phone' => [$required, 'string', 'max:30'],
-            'email' => ['nullable', 'email:rfc', 'max:255'],
+            'email' => [$required, 'email:rfc', 'max:255'],
             'current_address' => ['nullable', 'string'],
             'residential_address' => [$required, 'string'],
 
@@ -416,7 +416,7 @@ class MembershipsController extends Controller
 
                 'national_id' => $membership->national_id,
                 'phone' => $membership->phone,
-                'email' => $membership->email ?? null,
+                'email' => $membership->email,
 
                 'current_address' => $membership->current_address,
                 'residential_address' => $membership->residential_address,
