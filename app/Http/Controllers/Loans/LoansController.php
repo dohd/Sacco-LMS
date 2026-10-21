@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\Loans;
 
 use App\Http\Controllers\Controller;
+use App\Models\LoanApplications\Loan;
 use Illuminate\Http\Request;
 
 class LoansController extends Controller
@@ -14,7 +15,9 @@ class LoansController extends Controller
      */
     public function index()
     {
-        //
+        $loans = Loan::latest()->get();
+
+        return view('loans.index', compact('loans'));
     }
 
     /**
@@ -44,9 +47,17 @@ class LoansController extends Controller
      * @param  int  $id
      * @return \Illuminate\Http\Response
      */
-    public function show($id)
+    public function show(Loan $loan)
     {
-        //
+        $loan->load([
+            'member',
+            'loanApplication',
+            'loanApproval',
+            'disbursements',
+            'repaymentSchedules',
+        ]);
+        
+        return view('loans.view', compact('loan'));
     }
 
     /**

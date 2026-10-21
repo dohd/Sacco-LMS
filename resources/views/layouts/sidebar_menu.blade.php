@@ -27,6 +27,7 @@
       <ul id="loans" class="nav-content collapse" data-bs-parent="#sidebar-nav">
         <li><a href="{{ route('loan_products.index') }}"><i class="bi bi-circle"></i><span>Loan Products</span></a></li>
         <li><a href="{{ route('loan_applications.index') }}"><i class="bi bi-circle"></i><span>Loan Applications</span></a></li>
+        <li><a href="{{ route('loans.index') }}"><i class="bi bi-circle"></i><span>Approved Loans</span></a></li>
         <li><a href="{{ route('loan_disbursements.index') }}"><i class="bi bi-circle"></i><span>Loan Disbursements</span></a></li>
         <li><a href="{{ route('loan_repayment_schedules.index') }}"><i class="bi bi-circle"></i><span>Loan Repayment Schedules</span></a></li>
         <li><a href="{{ route('loan_repayments.index') }}"><i class="bi bi-circle"></i><span>Loan Repayments</span></a></li>

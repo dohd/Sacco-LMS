@@ -3,12 +3,13 @@
 namespace App\Models\LoanApplications;
 
 use App\Models\Memberships\Member;
+use App\Models\ModelTrait;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
 class Loan extends Model
 {
-    use HasFactory;
+    use HasFactory, ModelTrait;
 
     protected $guarded = ['id'];
 
@@ -17,6 +18,18 @@ class Loan extends Model
         'amount_disbursed' => 'decimal:2',
         'fees_due' => 'decimal:2',
     ];
+
+    /**
+     * Getters
+     * */
+    public function getActionButtonsAttribute()
+    {
+        return $this->getButtonWrapperAttribute(
+            $this->getViewButtonAttribute('loans.show', null),
+            null,
+            null,
+        );
+    }
 
     /**
      * Relationships
@@ -30,4 +43,19 @@ class Loan extends Model
     {
         return $this->belongsTo(Member::class);
     }
+
+    public function loanApproval()
+    {
+        return $this->belongsTo(LoanApproval::class);
+    }
+
+    public function disbursements()
+    {
+        return $this->hasMany(LoanDisbursement::class);
+    }
+
+    public function repaymentSchedules()
+    {
+        return $this->hasMany(LoanRepaymentSchedule::class);
+    }    
 }
