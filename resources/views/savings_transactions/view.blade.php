@@ -251,7 +251,7 @@
                                     Member Number
                                 </div>
                                 <div class="col-sm-7">
-                                    {{ $tranx->savingsAccount->member->member_number ?? '—' }}
+                                    {{ $tranx->savingsAccount->member->membership_number ?? '—' }}
                                 </div>
                             </div>
                             <div class="row mb-3">

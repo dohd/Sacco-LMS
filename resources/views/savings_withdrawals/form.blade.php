@@ -20,16 +20,18 @@
                         <select name="savings_account_id"
                                 id="savings_account_id"
                                 class="form-select @error('savings_account_id') is-invalid @enderror"
-                                required>
+                                required
+                            >
                             <option value="">Select Savings Account</option>
                             @foreach($savingsAccounts as $account)
                                 <option value="{{ $account->id }}"
-                                        data-balance="{{ $account->available_balance }}"
-                                        data-product="{{ $account->savingsProduct->name ?? '' }}"
-                                        {{ old('savings_account_id') == $account->id ? 'selected' : '' }}>
+                                    data-balance="{{ $account->available_balance }}"
+                                    data-product="{{ $account->savingsProduct->name ?? '' }}"
+                                    {{ old('savings_account_id') == $account->id ? 'selected' : '' }}
+                                >
                                     {{ $account->account_number }}
                                     -
-                                    {{ $account->member->member_number ?? '' }}
+                                    {{ $account->member->membership_number ?? '' }}
                                     -
                                     {{ $account->member->first_name ?? '' }}
                                     {{ $account->member->last_name ?? '' }}

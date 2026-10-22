@@ -166,7 +166,7 @@
                                 Member Number
                             </div>
                             <div class="col-sm-7">
-                                {{ $savingsAccount->member->member_number ?? '—' }}
+                                {{ $savingsAccount->member->membership_number ?? '—' }}
                             </div>
                         </div>
                         <div class="row mb-2">
