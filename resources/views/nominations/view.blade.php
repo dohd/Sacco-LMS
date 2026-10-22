@@ -434,11 +434,14 @@
                     </a>
 
                     @if($nomination->status === 'pending')
+                        @if (userCan('edit-nominations'))
                         <a href="{{ route('nominations.edit', $nomination->id) }}"
                            class="btn btn-outline-primary">
                             Edit Nomination
                         </a>
+                        @endif
 
+                        @if (userCan('approve-nominations'))
                         <button type="button"
                                 class="btn btn-success"
                                 data-bs-toggle="modal"
@@ -446,13 +449,13 @@
                                 {{ !$allocationValid || !$nomination->confirmed_declaration ? 'disabled' : '' }}>
                             Approve Nomination
                         </button>
-
                         <button type="button"
                                 class="btn btn-danger"
                                 data-bs-toggle="modal"
                                 data-bs-target="#rejectNominationModal">
                             Reject Nomination
                         </button>
+                        @endif
                     @endif
                 </div>
             </div>

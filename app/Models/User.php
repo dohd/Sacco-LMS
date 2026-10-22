@@ -2,6 +2,7 @@
 
 namespace App\Models;
 
+use App\Models\Memberships\Member;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
@@ -46,6 +47,15 @@ class User extends Authenticatable
     }
 
     /**
+     * Check if the user has a specific role using the 'code' column.
+     */
+    public function hasRoleCode(string $roleCode): bool
+    {
+        // Looks up the 'code' column in the cached roles collection
+        return $this->roles->contains('key_name', $roleCode);
+    }
+
+    /**
      * Action Button Attribute to show in grid
      * @return string
      */
@@ -80,5 +90,8 @@ class User extends Authenticatable
     /**
      * Relationships
      * */
-
+    public function member()
+    {
+        return $this->hasOne(Member::class);
+    }
 }

@@ -4,9 +4,9 @@
       <h1>Loan Products</h1>
     </div>
     <div class="col-6">
-      {{-- @can('create-user') --}}
+      @if(userCan('manage-loan-products'))
         <a href="{{ route('loan_products.create') }}" class="btn btn-primary float-end ms-1"><i class="bi bi-plus-circle"></i> Create</a>
-      {{-- @endcan --}}
+      @endif
       <a href="{{ route('loan_products.index') }}" class="btn btn-secondary float-end"><i class="bi bi-card-list"></i> List</a>
     </div>
   </div>

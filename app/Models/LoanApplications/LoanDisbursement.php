@@ -4,6 +4,7 @@ namespace App\Models\LoanApplications;
 
 use App\Models\ModelTrait;
 use App\Models\User;
+use Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -23,6 +24,20 @@ class LoanDisbursement extends Model
             $this->status === 'approved' ? $this->getEditButtonAttribute('loan_disbursements.edit', 'process-disbursement') : null,
             null,
         );
+    }
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        // fetch only member records
+        static::addGlobalScope('loan_id', function($query) {
+            if (Auth::user() && Auth::user()->hasRoleCode('member')) {
+                $member = optional(Auth()->user()->member);
+                $query->whereHas('loan', fn($subq) => $subq->where('member_id', $member->id));
+            }
+        });
     }
 
     /**

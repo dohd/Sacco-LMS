@@ -5,6 +5,7 @@ namespace App\Models\Nominations;
 use App\Models\Memberships\Member;
 use App\Models\ModelTrait;
 use App\Models\User;
+use Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -15,13 +16,27 @@ class Nomination extends Model
     protected $guarded = ['id'];
 
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        // fetch only member records
+        static::addGlobalScope('member_id', function($query) {
+            if (Auth::user() && Auth::user()->hasRoleCode('member')) {
+                $member = optional(Auth()->user()->member);
+                $query->where('member_id', $member->id);
+            }
+        });
+    }
+
+    /**
      * Getters
      * */
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('nominations.show', null),
-            $this->getEditButtonAttribute('nominations.edit', null),
+            $this->getViewButtonAttribute('nominations.show', 'view-nominations'),
+            $this->getEditButtonAttribute('nominations.edit', 'edit-nominations'),
             null,
         );
     }

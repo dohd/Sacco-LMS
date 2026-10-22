@@ -4,6 +4,7 @@ namespace App\Models\LoanApplications;
 
 use App\Models\Memberships\Member;
 use App\Models\ModelTrait;
+use Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -20,12 +21,26 @@ class Loan extends Model
     ];
 
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        // fetch only member records
+        static::addGlobalScope('member_id', function($query) {
+            if (Auth::user() && Auth::user()->hasRoleCode('member')) {
+                $member = optional(Auth()->user()->member);
+                $query->where('member_id', $member->id);
+            }
+        });
+    }
+
+    /**
      * Getters
      * */
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('loans.show', null),
+            $this->getViewButtonAttribute('loans.show', 'view-own-loan'),
             null,
             null,
         );

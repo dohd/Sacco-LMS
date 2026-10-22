@@ -4,6 +4,7 @@ namespace App\Models\Shares;
 
 use App\Models\ModelTrait;
 use App\Models\User;
+use Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -14,12 +15,26 @@ class ShareTransaction extends Model
     protected $guarded = ['id'];
 
     /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        // fetch only member records
+        static::addGlobalScope('member_id', function($query) {
+            if (Auth::user() && Auth::user()->hasRoleCode('member')) {
+                $member = optional(Auth()->user()->member);
+                $query->whereHas('shareAccount', fn($subq) => $subq->where('member_id', $member->id));
+            }
+        });
+    }
+
+    /**
      * Getters
      * */
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('share_transactions.show', null),
+            $this->getViewButtonAttribute('share_transactions.show', 'manage-share-transaction'),
             $this->status === 'pending' ? $this->getEditButtonAttribute('share_transactions.edit', 'confirm-share-transaction') : null,
             null,
         );

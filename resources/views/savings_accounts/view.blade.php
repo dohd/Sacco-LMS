@@ -42,10 +42,7 @@
                             id="withdrawBtn">
                         <i class="fa fa-minus"></i> Withdraw
                     </button>
-                @endif
-                <a href="{{ route('savings_accounts.index') }}" class="btn btn-secondary btn-sm">
-                    <i class="fa fa-arrow-left"></i> Back
-                </a>
+                @endif                
             </div>
         </div>
 

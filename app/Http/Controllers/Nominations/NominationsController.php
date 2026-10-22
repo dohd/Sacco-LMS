@@ -337,6 +337,14 @@ class NominationsController extends Controller
     public function approve(Nomination $nomination)
     {
         try {
+            if (!auth()->check()) {
+                abort(401);
+            }
+
+            if (!userCan('approve-nominations')) {
+                abort(403, 'You do not have permissions to approve this resource!');
+            }
+
             if ($nomination->status === 'approved') {
                 throw ValidationException::withMessages([
                     'application' => 'This nomination has already been approved.',

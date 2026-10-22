@@ -4,6 +4,7 @@ namespace App\Models\LoanApplications;
 
 use App\Models\Memberships\Member;
 use App\Models\ModelTrait;
+use Auth;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 
@@ -12,6 +13,20 @@ class LoanRepaymentSchedule extends Model
     use HasFactory, ModelTrait;
 
     protected $guarded = ['id'];
+
+    /**
+     * The "booted" method of the model.
+     */
+    protected static function booted(): void
+    {
+        // fetch only member records
+        static::addGlobalScope('member_id', function($query) {
+            if (Auth::user() && Auth::user()->hasRoleCode('member')) {
+                $member = optional(Auth()->user()->member);
+                $query->where('member_id', $member->id);
+            }
+        });
+    }
 
     /**
      * Getters

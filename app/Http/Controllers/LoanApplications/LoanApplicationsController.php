@@ -51,7 +51,9 @@ class LoanApplicationsController extends Controller
      */
     public function index()
     {
-        $loanApplications = LoanApplication::with(['member', 'loanProduct'])->latest()->get();
+        $loanApplications = LoanApplication::with(['member', 'loanProduct'])
+            ->latest()
+            ->get();
 
         return view('loan_applications.index', compact('loanApplications'));
     }

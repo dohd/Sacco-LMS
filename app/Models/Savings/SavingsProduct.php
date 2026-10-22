@@ -33,7 +33,7 @@ class SavingsProduct extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('savings_products.show', null),
+            $this->getViewButtonAttribute('savings_products.show', 'manage-savings-products'),
             $this->getEditButtonAttribute('savings_products.edit', null),
             null,
         );

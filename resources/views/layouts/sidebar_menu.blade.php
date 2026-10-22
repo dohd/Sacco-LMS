@@ -7,7 +7,7 @@
       </a>
     </li>
 
-    @if(userCan('view-members'))
+    @if(userCan(['view-members', 'view-nominations']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#members" data-bs-toggle="collapse" href="#">
         <i class="bi bi-people"></i><span>Members</span><i class="bi bi-chevron-down ms-auto"></i>
@@ -19,32 +19,50 @@
     </li>
     @endif
 
-    @if(userCan('view-members') || userCan('approve-loan') || userCan('view-own-loan'))
+    @if(userCan(['view-members', 'approve-loan', 'view-own-loan']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#loans" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-credit-card"></i><span>Loans</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="loans" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="{{ route('loan_products.index') }}"><i class="bi bi-circle"></i><span>Loan Products</span></a></li>
-        <li><a href="{{ route('loan_applications.index') }}"><i class="bi bi-circle"></i><span>Loan Applications</span></a></li>
-        <li><a href="{{ route('loans.index') }}"><i class="bi bi-circle"></i><span>Approved Loans</span></a></li>
-        <li><a href="{{ route('loan_disbursements.index') }}"><i class="bi bi-circle"></i><span>Loan Disbursements</span></a></li>
-        <li><a href="{{ route('loan_repayment_schedules.index') }}"><i class="bi bi-circle"></i><span>Loan Repayment Schedules</span></a></li>
-        <li><a href="{{ route('loan_repayments.index') }}"><i class="bi bi-circle"></i><span>Loan Repayments</span></a></li>
+        @if (auth()->user()->member)
+          <li><a href="{{ route('loan_applications.index') }}"><i class="bi bi-circle"></i><span>Loan Applications</span></a></li>
+          <li><a href="{{ route('loans.index') }}"><i class="bi bi-circle"></i><span>Loan Accounts</span></a></li>
+          <hr>
+          <li><a href="{{ route('loan_products.index') }}"><i class="bi bi-circle"></i><span>Loan Products</span></a></li>
+          <li><a href="{{ route('loan_disbursements.index') }}"><i class="bi bi-circle"></i><span>Loan Disbursements</span></a></li>
+          <li><a href="{{ route('loan_repayment_schedules.index') }}"><i class="bi bi-circle"></i><span>Loan Repayment Schedules</span></a></li>
+          <li><a href="{{ route('loan_repayments.index') }}"><i class="bi bi-circle"></i><span>Loan Repayments</span></a></li>
+        @else
+          <li><a href="{{ route('loan_products.index') }}"><i class="bi bi-circle"></i><span>Loan Products</span></a></li>
+          <li><a href="{{ route('loan_applications.index') }}"><i class="bi bi-circle"></i><span>Loan Applications</span></a></li>
+          <li><a href="{{ route('loans.index') }}"><i class="bi bi-circle"></i><span>Approved Loans</span></a></li>
+          <li><a href="{{ route('loan_disbursements.index') }}"><i class="bi bi-circle"></i><span>Loan Disbursements</span></a></li>
+          <li><a href="{{ route('loan_repayment_schedules.index') }}"><i class="bi bi-circle"></i><span>Loan Repayment Schedules</span></a></li>
+          <li><a href="{{ route('loan_repayments.index') }}"><i class="bi bi-circle"></i><span>Loan Repayments</span></a></li>
+        @endif
       </ul>
-    </li>
+    </li>      
     @endif
 
-    @if(userCan('view-own-savings') || userCan('manage-savings-products') || userCan('confirm-savings-transaction'))
+    @if(userCan(['view-own-savings', 'manage-savings-products', 'confirm-savings-transaction']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#savings" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-piggy-bank"></i><span>Savings</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="savings" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="{{ route('savings_products.index') }}"><i class="bi bi-circle"></i><span>Savings Products</span></a></li>
-        <li><a href="{{ route('savings_accounts.index') }}"><i class="bi bi-circle"></i><span>Savings Accounts</span></a></li>
-        <li><a href="{{ route('savings_transactions.index') }}"><i class="bi bi-circle"></i><span>Savings Transactions</span></a></li>
-        <li><a href="{{ route('savings_withdrawals.index') }}"><i class="bi bi-circle"></i><span>Savings Withdrawals</span></a></li>
+        @if (auth()->user()->member)
+          <li><a href="{{ route('savings_transactions.index') }}"><i class="bi bi-circle"></i><span>Savings Transactions</span></a></li>
+          <li><a href="{{ route('savings_withdrawals.index') }}"><i class="bi bi-circle"></i><span>Savings Withdrawals</span></a></li>
+          <hr>
+          <li><a href="{{ route('savings_products.index') }}"><i class="bi bi-circle"></i><span>Savings Products</span></a></li>
+          <li><a href="{{ route('savings_accounts.index') }}"><i class="bi bi-circle"></i><span>Savings Accounts</span></a></li>
+        @else
+          <li><a href="{{ route('savings_products.index') }}"><i class="bi bi-circle"></i><span>Savings Products</span></a></li>
+          <li><a href="{{ route('savings_accounts.index') }}"><i class="bi bi-circle"></i><span>Savings Accounts</span></a></li>
+          <li><a href="{{ route('savings_transactions.index') }}"><i class="bi bi-circle"></i><span>Savings Transactions</span></a></li>
+          <li><a href="{{ route('savings_withdrawals.index') }}"><i class="bi bi-circle"></i><span>Savings Withdrawals</span></a></li>
+        @endif
       </ul>
     </li>
     @endif
@@ -62,7 +80,7 @@
     </li>
     @endif
 
-    @if(userCan('view-own-shares') || userCan('manage-share-products') || userCan('confirm-share-transaction'))
+    @if(userCan(['view-own-shares', 'manage-share-products', 'confirm-share-transaction']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#shares" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-graph-up"></i><span>Shares & Dividends</span><i class="bi bi-chevron-down ms-auto"></i>        

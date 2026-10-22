@@ -1,5 +1,7 @@
 <?php
 
+use Illuminate\Support\Facades\Gate;
+
 if (!function_exists('successFlashMessage')) {
     function successFlashMessage() {
         return '<div class="alert alert-success alert-dismissible fade show" role="alert">
@@ -159,10 +161,13 @@ if (!function_exists('errorHandler')) {
 }
 
 if (!function_exists('userCan')) {
-    function userCan(string $permission): bool
+    function userCan($permission): bool
     {
         try {
-            return auth()->check() && auth()->user()->can($permission);
+            if (!auth()->check()) return false;
+            
+            return auth()->user()->canAny((array) $permission);   
+
         } catch (\Throwable $exception) {
             return false;
         }

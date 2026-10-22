@@ -3,10 +3,10 @@
     <div class="col-6">
       <h1>Share Products</h1>
     </div>
-    <div class="col-6">
-      {{-- @can('create-user') --}}
+    <div class="col-6">      
+      @if(userCan('manage-share-products'))
         <a href="{{ route('share_products.create') }}" class="btn btn-primary float-end ms-1"><i class="bi bi-plus-circle"></i> Create</a>
-      {{-- @endcan --}}
+      @endif
       <a href="{{ route('share_products.index') }}" class="btn btn-secondary float-end"><i class="bi bi-card-list"></i> List</a>
     </div>
   </div>

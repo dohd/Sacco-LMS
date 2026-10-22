@@ -19,8 +19,8 @@ class ShareProduct extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('share_products.show', null),
-            $this->getEditButtonAttribute('share_products.edit', null),
+            $this->getViewButtonAttribute('share_products.show', ['view-share-products', 'manage-share-products']),
+            $this->getEditButtonAttribute('share_products.edit', 'edit-share-products'),
             null,
         );
     }

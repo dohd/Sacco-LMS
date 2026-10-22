@@ -10,8 +10,9 @@ trait ModelTrait
      */
     public function getViewButtonAttribute($route, $permission='')
     {
-        if ($this->userHasPermission($permission))
+        if (userCan($permission)) {
             return '<a class="dropdown-item pt-1 pb-1 view" href="'. route($route, $this). '"><i class="bi bi-eye-fill"></i>View</a>';
+        }
     }
 
     /**
@@ -20,8 +21,9 @@ trait ModelTrait
      */
     public function getEditButtonAttribute($route, $permission='')
     {
-        if ($this->userHasPermission($permission))
+        if (userCan($permission)) {
             return '<a class="dropdown-item pt-1 pb-1 edit" href="'. route($route, $this) . '"><i class="bi bi-pencil-square"></i>Edit</a>';
+        }
     }
 
     /**
@@ -30,7 +32,7 @@ trait ModelTrait
      */
     public function getDeleteButtonAttribute($route, $permission='')
     {
-        if ($this->userHasPermission($permission)) {
+        if (userCan($permission)) {
             return '<a class="dropdown-item pt-1 pb-1 destroy" href="javascript:">
                     <i class="bi bi-trash text-danger icon-xs"></i>Delete
                     <form action="'. route($route, $this) .'" method="POST">
@@ -59,22 +61,5 @@ trait ModelTrait
             <ul class="dropdown-menu">'. $li .'</ul>
         </div>
         ';
-    }
-
-    /**
-     * Validate Permission
-     */
-    public function userHasPermission($permission='')
-    {
-        if (!auth()->check() || $permission === '') {
-            return auth()->check();
-        }
-
-        try {
-            return auth()->user()->can($permission);
-        } catch (\Throwable $exception) {
-            // Some isolated module tests do not migrate Spatie's permission tables.
-            return false;
-        }
     }
 }
