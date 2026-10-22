@@ -81,7 +81,9 @@
                         <p>Amount: KES {{ number_format($application->amount_approved, 2) }}</p>
                         <p>Repayment: {{ $application->approved_repayment_months }} months</p>
                         <p>Monthly installment: KES {{ number_format($application->approved_monthly_installment, 2) }}</p>
-                        <p class="mb-0">Interest: {{ $application->approved_interest_rate }}% · {{ str_replace('_', ' ', $application->approved_interest_method ?? '') }} · {{ str_replace('_', ' ', $application->approved_interest_frequency ?? '') }}</p>
+                        <p class="mb-0">
+                            Interest: {{ +$application->approved_interest_rate }}% | {{ str_replace('_', ' ', $application->approved_interest_method ?? '') }} | {{ str_replace('_', ' ', $application->approved_interest_frequency ?? '') }}
+                        </p>
                     </div>
                 </div>
             @endif

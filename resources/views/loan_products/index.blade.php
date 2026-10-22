@@ -12,9 +12,11 @@
                           <tr>
                             <th>CODE#</th>
                             <th>NAME</th>
-                            <th>INTEREST RATE</th>
-                            <th>MAX AMOUNT</th>
-                            <th>INTEREST FREQUENCY</th>
+                            <th>INTR. RATE</th>
+                            <th>INTR. FREQUENCY</th>
+                            <th>INTR. METHOD</th>
+                            <th>MIN. AMOUNT</th>
+                            <th>MAX. AMOUNT</th>
                             <th>STATUS</th> 
                             <th>ACTION</th>                            
                           </tr>
@@ -25,8 +27,10 @@
                                     <td style="height: {{ $loanProducts->count() == 1? '80px': '' }}">{{ $row->code }}</td>
                                     <td>{{ $row->name }}</td>
                                     <td>{{ +$row->interest_rate }}%</td>
-                                    <td>{{ numberFormat($row->maximum_amount) }}</td>
                                     <td>{{ $row->interest_frequency }}</td>
+                                    <td>{{ $row->interest_method }}</td>
+                                    <td>{{ numberFormat($row->minimum_amount) }}</td>
+                                    <td>{{ numberFormat($row->maximum_amount) }}</td>
                                     <td>{{ $row->is_active? 'Active' : 'Inactive' }}</td>
                                     <td>{!! $row->action_buttons !!}</td>
                                 </tr>

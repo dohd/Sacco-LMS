@@ -59,7 +59,9 @@ class SavingsWithdrawalsController extends Controller
      */
     public function index()
     {
-        $savingsWithdrawals = SavingsWithdrawal::whereIn('savings_account_id', $this->visibleAccounts()->select('id'))->get();
+        $savingsWithdrawals = SavingsWithdrawal::whereIn('savings_account_id', $this->visibleAccounts()->select('id'))
+            ->latest()
+            ->get();
 
         return view('savings_withdrawals.index', compact('savingsWithdrawals'));
     }

@@ -29,8 +29,8 @@ class UsersController extends Controller
      */
     public function index()
     {
-        $users = User::where('id', '!=', auth()->id())
-            ->where('id', '!=', config('app.super_user_id'))
+        $users = User::whereNotIn('id', [auth()->id(), config('app.super_user_id')])
+            ->latest()
             ->get();
 
         return view('users.index', compact('users'));

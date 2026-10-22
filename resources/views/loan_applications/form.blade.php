@@ -964,7 +964,7 @@ $(function () {
         );
 
         $('#ruleMonths').text(minMonths + ' - ' + maxMonths + ' months');
-        $('#ruleInterest').text(rate.toFixed(4) + '% ' + method + ' / ' + frequency);
+        $('#ruleInterest').text(rate.toFixed(2) + '% ' + method + ' / ' + frequency);
 
         if (requiresGuarantors) {
             let text = 'Min ' + minGuarantors;
