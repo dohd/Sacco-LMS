@@ -169,7 +169,7 @@ class SavingsProductsController extends Controller
                     'minimum_balance' => $validated['minimum_balance'],
                     'minimum_monthly_contribution' => $validated['minimum_monthly_contribution'],
                     'allows_withdrawals' => $validated['allows_withdrawals'],
-                    'withdrawal_notice_days' => $validated['withdrawal_notice_days'],
+                    'withdrawal_notice_days' => $validated['withdrawal_notice_days'] ?? 0,
                     'can_secure_loan' => $validated['can_secure_loan'],
                     'is_active' => $validated['is_active'],
                 ]);                
@@ -341,7 +341,7 @@ class SavingsProductsController extends Controller
                     'minimum_balance' => $validated['minimum_balance'],
                     'minimum_monthly_contribution' => $validated['minimum_monthly_contribution'],
                     'allows_withdrawals' => $validated['allows_withdrawals'],
-                    'withdrawal_notice_days' => $validated['withdrawal_notice_days'],
+                    'withdrawal_notice_days' => $validated['withdrawal_notice_days'] ?? 0,
                     'can_secure_loan' => $validated['can_secure_loan'],
                     'is_active' => $validated['is_active'],
                 ]);                
