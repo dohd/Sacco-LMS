@@ -10,12 +10,12 @@
                     <table class="table table-borderless datatable">
                         <thead>
                           <tr>
-                            <th>MEMBERSHIP#</th>
+                            <th>MEMBERSHIP NO#</th>
                             <th>MEMBER</th>
                             <th>DECLARATION DATE</th>
-                            <th>STATUS</th> 
                             <th>NOMINEES</th> 
                             <th>WITNESSES</th> 
+                            <th>STATUS</th> 
                             <th>ACTION</th>                            
                           </tr>
                         </thead>
@@ -25,6 +25,8 @@
                                     <td style="height: {{ $nominations->count() == 1? '80px': '' }}">{{ @$nomination->member->membership_number }}</td>
                                     <td>{{ @$nomination->member->full_name }}</td>
                                     <td>{{ dateFormat($nomination->declaration_date) }}</td>
+                                    <td>{{ @$nomination->nominees->count() }}</td>
+                                    <td>{{ @$nomination->witnesses->count() }}</td>
                                     <td>
                                         @php
                                             $statusClasses = [                                                
@@ -36,9 +38,7 @@
                                         <span class="badge bg-{{ $statusClasses[$nomination->status] ?? 'secondary' }} fs-6">
                                             {{ ucfirst(str_replace('_', ' ', $nomination->status)) }}
                                         </span>
-                                    </td> 
-                                    <td>{{ @$nomination->nominees->count() }}</td>
-                                    <td>{{ @$nomination->witnesses->count() }}</td>
+                                    </td>                                    
                                     <td>{!! $nomination->action_buttons !!}</td>
                                 </tr>
                             @endforeach

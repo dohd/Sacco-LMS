@@ -12,9 +12,9 @@
                         <thead>
                           <tr>
                             <th>REPAYMENT NUMBER#</th>
-                            <th>PAYMENT DATE</th> 
-                            <th>LOAN APPL. NUMBER#</th>
+                            <th>LOAN NUMBER#</th>
                             <th>MEMBER</th>
+                            <th>PAYMENT DATE</th> 
                             <th>AMOUNT PAID</th>
                             <th>PRINCIPAL AMOUNT</th>                            
                             <th>PAYER NAME</th>
@@ -26,9 +26,9 @@
                             @foreach ($loanRepayments as $row)
                                 <tr>
                                     <td scope="row" style="height: {{ $loanRepayments->count()? '80px': '' }}">{{ $row->repayment_number }}</td>
-                                    <td>{{ $row->payment_date }}</td>
-                                    <td>{{ @$row->loan->loanApplication->application_number }}</td>
+                                    <td>{{ @$row->loan->loan_number }}</td>
                                     <td>{{ @$row->member->full_name }}</td>
+                                    <td>{{ $row->payment_date }}</td>
                                     <td>{{ numberFormat($row->amount_paid) }}</td>
                                     <td>{{ numberFormat($row->principal_amount) }}</td>                                    
                                     <td>{{ $row->payer_name }}</td>

@@ -11,13 +11,13 @@
                         <thead>
                           <tr>
                             <th>LOAN NUMBER#</th>
+                            <th>INSTALLMENT#</th>
                             <th>MEMBER</th> 
-                            <th>INSTALLMENT NUMBER#</th>
                             <th>DUE DATE</th>
-                            <th>OPN. PRINCIPAL BALANCE</th>
+                            <th>OPN. PRINCIPAL</th>
                             <th>PRINCIPAL DUE</th>
                             <th>PRINCIPAL PAID</th>
-                            <th>OUTSTANDING BALANCE</th>                            
+                            <th>OUTSTANDING BAL.</th>                            
                             <th>STATUS</th>
                             <th>ACTIONS</th>                            
                           </tr>
@@ -26,8 +26,8 @@
                             @foreach ($schedules as $row)
                                 <tr>
                                     <td scope="row" style="height: {{ $schedules->count() == 1? '80px': '' }}">{{ @$row->loan->loan_number }}</td>
-                                    <td>{{ @$row->member->full_name }}</td>
                                     <td>{{ $row->installment_number }}</td>
+                                    <td>{{ @$row->member->full_name }}</td>
                                     <td>{{ dateFormat($row->due_date) }}</td>
                                     <td>{{ numberFormat($row->opening_principal_balance) }}</td>
                                     <td>{{ numberFormat($row->principal_due) }}</td>

@@ -11,6 +11,8 @@
                         <thead>
                           <tr>
                             <th>CODE#</th>
+                            <th>ACCOUNT NO#</th>
+                            <th>MEMBER</th>
                             <th>DATE</th>
                             <th>AMOUNT</th>
                             <th>PAYMENT METHOD</th>
@@ -21,9 +23,9 @@
                         <tbody>
                             @foreach ($savingsWithdrawals as $row)
                                 <tr>
-                                    <td scope="row" style="height: {{ $savingsWithdrawals->count() == 1? '80px': '' }}">
-                                        {{ $row->request_number }}
-                                    </td>
+                                    <td scope="row" style="height: {{ $savingsWithdrawals->count() == 1? '80px': '' }}">{{ $row->request_number }}</td>
+                                    <td>{{ @$row->savingsAccount->account_number }}</td>
+                                    <td>{{ @$row->savingsAccount->member->full_name }}</td>
                                     <td>{{ dateFormat($row->requested_date) }}</td>
                                     <td>{{ numberFormat($row->amount) }}</td>
                                     <td>{{ $row->payment_method }}</td>

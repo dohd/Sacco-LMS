@@ -10,10 +10,10 @@
                     <table class="table table-borderless datatable">
                         <thead>
                           <tr>
-                            <th>DISBURSEMENT NUMBER#</th>
-                            <th>DATE</th> 
-                            <th>LOAN APP NUMBER#</th>
+                            <th>DISBURSEMENT NO#</th>
+                            <th>LOAN NO#</th>
                             <th>MEMBER</th>
+                            <th>DATE</th> 
                             <th>GROSS AMOUNT</th>
                             <th>DEDUCTIONS AMOUNT</th>
                             <th>NET AMOUNT</th>
@@ -24,9 +24,9 @@
                             @foreach ($loanDisbursements as $row)
                                 <tr>
                                     <td scope="row" style="height: {{ $loanDisbursements->count() == 1? '80px': '' }}">{{ $row->disbursement_number }}</td>
-                                    <td>{{ dateFormat($row->disbursement_date) }}</td>
-                                    <td>{{ @$row->loanApplication->application_number }}</td>
+                                    <td>{{ @$row->loan->loan_number }}</td>
                                     <td>{{ @$row->loanApplication->member->full_name }}</td>
+                                    <td>{{ dateFormat($row->disbursement_date) }}</td>
                                     <td>{{ numberFormat($row->gross_amount) }}</td>
                                     <td>{{ numberFormat($row->deductions_amount) }}</td>
                                     <td>{{ numberFormat($row->net_amount) }}</td>

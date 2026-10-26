@@ -10,7 +10,8 @@
                     <table class="table table-borderless datatable">
                         <thead>
                           <tr>
-                            <th>TRANS NO#</th>
+                            <th>TRANS. NO#</th>
+                            <th>ACCOUNT NO#</th>
                             <th>TRANS TYPE</th>
                             <th>DATE</th>
                             <th>AMOUNT</th>
@@ -23,9 +24,8 @@
                         <tbody>
                             @foreach ($savingsTranx as $row)
                                 <tr>
-                                    <td scope="row" style="height: {{ $savingsTranx->count() == 1? '80px': '' }}">
-                                        {{ $row->transaction_number }}
-                                    </td>
+                                    <td scope="row" style="height: {{ $savingsTranx->count() == 1? '80px': '' }}">{{ $row->transaction_number }}</td>
+                                    <td>{{ @$row->savingsAccount->account_number }}</td>
                                     <td>{{ $row->transaction_type }}</td>
                                     <td>{{ dateFormat($row->transaction_date)  }}</td>
                                     <td>{{ $row->amount }}</td>
