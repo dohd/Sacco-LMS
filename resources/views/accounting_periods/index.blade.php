@@ -21,14 +21,16 @@
                           </tr>
                         </thead>
                         <tbody>
-                            @foreach ([] as $i => $user)
+                            @foreach ($periods as $row)
                                 <tr>
-                                    <th scope="row" style="height: {{ count($accounting_periods) == 1? '80px': '' }}">{{ $i+1 }}</th>
-                                    <td>{{ $user->name }}</td>
-                                    <td>{{ $user->phone }}</td>
-                                    <td>{{ $user->email }}</td>
-                                    <td>{!! $user->is_active_status_budge !!}</td>
-                                    <td>{!! $user->action_buttons !!}</td>
+                                    <td scope="row" style="height: {{ $periods->count() == 1? '80px': '' }}">{{ $row->name }}</td>
+                                    <td>{{ $row->financial_year }}</td>
+                                    <td>{{ dateFormat($row->start_date) }}</td>
+                                    <td>{{ dateFormat($row->end_date) }}</td>
+                                    <td>{{ $row->status }}</td>
+                                    <td>{{ @$row->closedBy->name }}</td>
+                                    <td>{{ '' }}</td>
+                                    <td>{!! $row->action_buttons !!}</td>
                                 </tr>
                             @endforeach
                         </tbody>

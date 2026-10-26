@@ -205,8 +205,7 @@ class LoanProductsController extends Controller
             });
 
             return redirect()
-                // ->route('loan_products.show', $loanProduct->id)
-                ->route('loan_products.index')
+                ->route('loan_products.show', $loanProduct->id)
                 ->with('success', 'Loan product created successfully.');
         } catch (\Exception $e) {
             return errorHandler("The loan product could not be submitted. Please try again.", $e);

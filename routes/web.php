@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AccountingPeriods\AccountingPeriodsController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\ChartOfAccounts\ChartOfAccountsController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\Documents\DocumentsController;
 use App\Http\Controllers\HomeController;
@@ -98,6 +99,10 @@ Route::group(['middleware' => 'auth'], function() {
     Route::post('accounting_periods/lock/{id}', [AccountingPeriodsController::class, 'lock'])->name('accounting_periods.lock');
     Route::post('accounting_periods/close/{id}', [AccountingPeriodsController::class, 'close'])->name('accounting_periods.close');
     Route::resource('accounting_periods', AccountingPeriodsController::class);
+
+    Route::get('chart_of_accounts/parent_accounts', [ChartOfAccountsController::class, 'getParentAccounts'])->name('chart_of_accounts.parent_accounts');
+    Route::get('chart_of_accounts/account_code', [ChartOfAccountsController::class, 'getAccountCode'])->name('chart_of_accounts.account_code');
+    Route::resource('chart_of_accounts', ChartOfAccountsController::class);
 
     // Shares
     Route::post('share_products/toggle_status/{id}', [ShareProductsController::class, 'toggleStatus'])->name('share_products.toggle_status');
