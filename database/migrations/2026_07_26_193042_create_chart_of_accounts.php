@@ -16,10 +16,10 @@ class CreateChartOfAccounts extends Migration
         Schema::create('chart_of_accounts', function (Blueprint $table) {
             $table->id();
 
-            $table->string('account_code', 50)->unique();
-            $table->string('account_name');
+            $table->string('code', 50)->unique();
+            $table->string('name');
 
-            $table->unsignedBigInteger('parent_id');
+            $table->unsignedBigInteger('parent_id')->nullable();
 
             $table->enum('account_type', [
                 'asset',
@@ -57,7 +57,7 @@ class CreateChartOfAccounts extends Migration
 
             $table->index([
                 'account_type',
-                'is_active',
+                'parent_id',
             ]);
         });
     }
