@@ -13,14 +13,20 @@ class AccountingPeriod extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'start_date' => 'date',
+        'end_date' => 'date',
+        'closed_at' => 'datetime',
+    ];
+
     /**
      * Getters
      * */
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('accounting_periods.show', null),
-            $this->getEditButtonAttribute('accounting_periods.edit', null),
+            $this->getViewButtonAttribute('accounting_periods.show', 'view-accounting-periods'),
+            $this->getEditButtonAttribute('accounting_periods.edit', 'edit-accounting-periods'),
             null,
         );
     }

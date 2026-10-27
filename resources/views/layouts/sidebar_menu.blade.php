@@ -67,7 +67,7 @@
     </li>
     @endif
 
-    @if(userCan(['manage-settings', 'manage-chart-of-accounts']))
+    @if(userCan(['manage-accounting-periods', 'manage-chart-of-accounts']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#accounting" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-journal-bookmark"></i><span>Accounting</span><i class="bi bi-chevron-down ms-auto"></i>        
