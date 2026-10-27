@@ -28,13 +28,13 @@ class CreateJournalEntryLines extends Migration
             /*
              * Optional subledger references.
              */
-            $table->unsignedBigInteger('member_id');
+            $table->unsignedBigInteger('member_id')->nullable();
 
-            $table->unsignedBigInteger('loan_id');
+            $table->unsignedBigInteger('loan_id')->nullable();
 
-            $table->unsignedBigInteger('savings_account_id');
+            $table->unsignedBigInteger('savings_account_id')->nullable();
 
-            $table->unsignedBigInteger('share_account_id');
+            $table->unsignedBigInteger('share_account_id')->nullable();
 
             $table->timestamps();
 

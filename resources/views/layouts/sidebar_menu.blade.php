@@ -75,7 +75,7 @@
       <ul id="accounting" class="nav-content collapse" data-bs-parent="#sidebar-nav">
         <li><a href="{{ route('accounting_periods.index') }}"><i class="bi bi-circle"></i><span>Accounting Periods</span></a></li>
         <li><a href="{{ route('chart_of_accounts.index') }}"><i class="bi bi-circle"></i><span>Charts Of Accounts</span></a></li>
-        {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li> --}}
+        <li><a href="{{ route('journal_entries.index') }}"><i class="bi bi-circle"></i><span>Journal Entries</span></a></li>
       </ul>
     </li>
     @endif

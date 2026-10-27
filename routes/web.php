@@ -6,6 +6,7 @@ use App\Http\Controllers\ChartOfAccounts\ChartOfAccountsController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\Documents\DocumentsController;
 use App\Http\Controllers\HomeController;
+use App\Http\Controllers\JournalEntries\JournalEntriesController;
 use App\Http\Controllers\LoanApplications\LoanApplicationsController;
 use App\Http\Controllers\LoanDisbursements\LoanDisbursementsController;
 use App\Http\Controllers\LoanProducts\LoanProductsController;
@@ -103,6 +104,10 @@ Route::group(['middleware' => 'auth'], function() {
     Route::get('chart_of_accounts/parent_accounts', [ChartOfAccountsController::class, 'getParentAccounts'])->name('chart_of_accounts.parent_accounts');
     Route::get('chart_of_accounts/account_code', [ChartOfAccountsController::class, 'getAccountCode'])->name('chart_of_accounts.account_code');
     Route::resource('chart_of_accounts', ChartOfAccountsController::class);
+
+    Route::patch('journal_entries/{id}/post', [JournalEntriesController::class, 'post'])->name('journal_entries.post');
+    Route::post('journal_entries/{id}/reverse', [JournalEntriesController::class, 'reverse'])->name('journal_entries.reverse');
+    Route::resource('journal_entries', JournalEntriesController::class);
 
     // Shares
     Route::post('share_products/toggle_status/{id}', [ShareProductsController::class, 'toggleStatus'])->name('share_products.toggle_status');

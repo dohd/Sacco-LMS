@@ -52,14 +52,14 @@ class CreateJournalEntries extends Migration
 
             $table->unsignedBigInteger('created_by');
 
-            $table->unsignedBigInteger('posted_by');
+            $table->unsignedBigInteger('posted_by')->nullable();
 
             $table->timestamp('posted_at')->nullable();
 
             /*
              * Reversal information.
              */
-            $table->unsignedBigInteger('reversal_of_id');
+            $table->unsignedBigInteger('reversal_of_id')->nullable();
 
             $table->text('reversal_reason')->nullable();
 
