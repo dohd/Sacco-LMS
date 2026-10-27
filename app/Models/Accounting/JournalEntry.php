@@ -25,8 +25,8 @@ class JournalEntry extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('journal_entries.show', 'view-own-loan'),
-            $this->getEditButtonAttribute('journal_entries.edit', 'view-own-loan'),
+            $this->getViewButtonAttribute('journal_entries.show', 'view-journal-entries'),
+            $this->getEditButtonAttribute('journal_entries.edit', 'edit-journal-entries'),
             null,
         );
     }
