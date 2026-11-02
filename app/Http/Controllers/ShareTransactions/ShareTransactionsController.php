@@ -129,6 +129,10 @@ class ShareTransactionsController extends Controller
                     throw ValidationException::withMessages(['units' => 'The transaction would result in a negative share balance.']);
                 }
 
+                if ($direction === 'debit' && $newBalance < (float) $account->held_amount) {
+                    throw ValidationException::withMessages(['units' => 'Shares held as loan security cannot be withdrawn. Available: ' . number_format(max(0, $currentBalance - (float) $account->held_amount), 2)]);
+                }
+
                 if ($direction === 'credit' && !is_null($product->maximum_units) && $newUnits > $product->maximum_units) {
                     throw ValidationException::withMessages(['units' => 'The transaction would exceed the maximum units allowed for this share product.']);
                 }
@@ -318,6 +322,13 @@ class ShareTransactionsController extends Controller
                     ]);
                 }
 
+                if ($transaction->direction === 'debit' && $newBalance < (float) $account->held_amount) {
+                    throw ValidationException::withMessages([
+                        'transaction' => 'Shares held as loan security cannot be withdrawn. Available: ' .
+                            number_format(max(0, $currentBalance - (float) $account->held_amount), 2)
+                    ]);
+                }
+
                 if (
                     $transaction->direction === 'credit' &&
                     !is_null($product->maximum_units) &&
@@ -433,6 +444,13 @@ class ShareTransactionsController extends Controller
                     throw ValidationException::withMessages([
                         'transaction' =>
                             'The reversal would result in a negative share balance.'
+                    ]);
+                }
+
+                if ($direction === 'debit' && $newBalance < (float) $account->held_amount) {
+                    throw ValidationException::withMessages([
+                        'transaction' =>
+                            'The reversal would take the balance below shares held as loan security.'
                     ]);
                 }
 

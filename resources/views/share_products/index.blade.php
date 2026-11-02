@@ -28,8 +28,8 @@
                                         {{ $row->code }}
                                     </td>
                                     <td>{{ $row->name }}</td>
-                                    <td>{{ '_' }}</td>
-                                    <td>{{ '_' }}</td>
+                                    <td>{{ @$row->shareCapitalAccount->name }}</td>
+                                    <td>{{ @$row->sharePremiumAccount->name }}</td>
                                     <td>{{ $row->unit_value }}</td>
                                     <td>{{ $row->maximum_units }}</td>
                                     <td>{{ $row->minimum_units }}</td>

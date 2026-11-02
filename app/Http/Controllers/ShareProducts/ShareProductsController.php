@@ -20,7 +20,7 @@ class ShareProductsController extends Controller
      */
     public function index()
     {
-        $shareProducts = ShareProduct::all();
+        $shareProducts = ShareProduct::latest()->get();
 
         return view('share_products.index', compact('shareProducts'));
     }
@@ -34,7 +34,10 @@ class ShareProductsController extends Controller
     {
         request()->session()->forget(['_old_input', 'errors']);
 
-        $accounts = ChartOfAccount::all();
+        $accounts = ChartOfAccount::where('account_type', 'equity')
+            ->where('is_active', 1)
+            ->where('is_postable', 1)
+            ->get();
 
         return view('share_products.create', compact('accounts'));
     }
@@ -52,8 +55,8 @@ class ShareProductsController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:share_products,name'],
             'description' => ['nullable', 'string'],
 
-            // 'share_capital_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
-            // 'share_premium_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
+            'share_capital_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
+            'share_premium_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
 
             'share_capital_account_id' => ['required', 'integer'],
             'share_premium_account_id' => ['required', 'integer'],
@@ -69,45 +72,44 @@ class ShareProductsController extends Controller
         ]);
 
         try {
+            /*
+             * Make sure the selected GL accounts are active.
+             */
+            $accounts = ChartOfAccount::whereIn('id', [
+                $validated['share_capital_account_id'],
+                $validated['share_premium_account_id'],
+            ])
+                ->where('is_active', 1)
+                ->pluck('id')
+                ->toArray();
+
+            if (!in_array((int) $validated['share_capital_account_id'], $accounts, true)) {
+                throw ValidationException::withMessages([
+                    'share_capital_account_id' => 'The selected share capital account is not active or does not exist.'
+                ]);
+            }
+
+            if (!in_array((int) $validated['share_premium_account_id'], $accounts, true)) {
+                throw ValidationException::withMessages([
+                    'share_premium_account_id' => 'The selected share premium account is not active or does not exist.'
+                ]);
+            }
+
+            /*
+             * Prevent the same GL account from being used for both
+             * share capital and share premium.
+             */
+            if (
+                (int) $validated['share_capital_account_id'] ===
+                (int) $validated['share_premium_account_id']
+            ) {
+                throw ValidationException::withMessages([
+                    'share_premium_account_id' => 'Share capital and share premium must use different GL accounts.'
+                ]);
+            }
+
 
             $shareProduct = DB::transaction(function () use ($validated, $request) {
-
-                /*
-                 * Make sure the selected GL accounts are active.
-                 */
-                $accounts = ChartOfAccount::whereIn('id', [
-                    $validated['share_capital_account_id'],
-                    $validated['share_premium_account_id'],
-                ])
-                    ->where('is_active', 1)
-                    ->pluck('id')
-                    ->toArray();
-
-                // if (!in_array((int) $validated['share_capital_account_id'], $accounts, true)) {
-                //     throw ValidationException::withMessages([
-                //         'share_capital_account_id' => 'The selected share capital account is not active or does not exist.'
-                //     ]);
-                // }
-
-                // if (!in_array((int) $validated['share_premium_account_id'], $accounts, true)) {
-                //     throw ValidationException::withMessages([
-                //         'share_premium_account_id' => 'The selected share premium account is not active or does not exist.'
-                //     ]);
-                // }
-
-                /*
-                 * Prevent the same GL account from being used for both
-                 * share capital and share premium.
-                 */
-                // if (
-                //     (int) $validated['share_capital_account_id'] ===
-                //     (int) $validated['share_premium_account_id']
-                // ) {
-                //     throw ValidationException::withMessages([
-                //         'share_premium_account_id' => 'Share capital and share premium must use different GL accounts.'
-                //     ]);
-                // }
-
                 $minimumUnits = (int) $validated['minimum_units'];
                 $maximumUnits = isset($validated['maximum_units'])
                     ? (int) $validated['maximum_units']
@@ -119,7 +121,7 @@ class ShareProductsController extends Controller
                     ]);
                 }
 
-                $shareProduct = ShareProduct::create([
+                $product = ShareProduct::create([
                     'code' => strtoupper(trim($validated['code'])),
                     'name' => trim($validated['name']),
                     'description' => $validated['description'] ?? null,
@@ -137,16 +139,14 @@ class ShareProductsController extends Controller
                     'can_secure_loan' => $request->boolean('can_secure_loan'),
                 ]);
 
-                return $shareProduct;
+                return $product;
             });
 
             return redirect()
-                // ->route('share_products.show', $shareProduct->id)
-                ->route('share_products.index')
+                ->route('share_products.show', $shareProduct)
                 ->with('success', 'Share product created successfully.');
 
         } catch (Exception $e) {
-
             return errorHandler(
                 'Error creating share product. Please try again.',
                 $e
@@ -180,7 +180,10 @@ class ShareProductsController extends Controller
         // Flash the modified request to the old input session store
         request()->flash();
 
-        $accounts = ChartOfAccount::all();
+        $accounts = ChartOfAccount::where('account_type', 'equity')
+            ->where('is_active', 1)
+            ->where('is_postable', 1)
+            ->get();
 
         return view('share_products.edit', compact('shareProduct', 'accounts'));
     }
@@ -205,8 +208,8 @@ class ShareProductsController extends Controller
             ],
             'description' => ['nullable', 'string'],
 
-            // 'share_capital_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
-            // 'share_premium_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
+            'share_capital_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
+            'share_premium_account_id' => ['required', 'integer', 'exists:chart_of_accounts,id'],
 
             'share_capital_account_id' => ['required', 'integer'],
             'share_premium_account_id' => ['required', 'integer'],
@@ -222,44 +225,43 @@ class ShareProductsController extends Controller
         ]);
 
         try {
+            /*
+             * Make sure the selected GL accounts are active.
+             */
+            $accounts = ChartOfAccount::whereIn('id', [
+                $validated['share_capital_account_id'],
+                $validated['share_premium_account_id'],
+            ])
+                ->where('is_active', 1)
+                ->pluck('id')
+                ->toArray();
+
+            if (!in_array((int) $validated['share_capital_account_id'], $accounts, true)) {
+                throw ValidationException::withMessages([
+                    'share_capital_account_id' => 'The selected share capital account is not active or does not exist.'
+                ]);
+            }
+
+            if (!in_array((int) $validated['share_premium_account_id'], $accounts, true)) {
+                throw ValidationException::withMessages([
+                    'share_premium_account_id' => 'The selected share premium account is not active or does not exist.'
+                ]);
+            }
+
+            /*
+             * Prevent the same GL account from being used for both
+             * share capital and share premium.
+             */
+            if (
+                (int) $validated['share_capital_account_id'] ===
+                (int) $validated['share_premium_account_id']
+            ) {
+                throw ValidationException::withMessages([
+                    'share_premium_account_id' => 'Share capital and share premium must use different GL accounts.'
+                ]);
+            }
 
             DB::transaction(function () use ($validated, $request, $shareProduct) {
-
-                /*
-                 * Make sure the selected GL accounts are active.
-                 */
-                $accounts = ChartOfAccount::whereIn('id', [
-                    $validated['share_capital_account_id'],
-                    $validated['share_premium_account_id'],
-                ])
-                    ->where('is_active', 1)
-                    ->pluck('id')
-                    ->toArray();
-
-                // if (!in_array((int) $validated['share_capital_account_id'], $accounts, true)) {
-                //     throw ValidationException::withMessages([
-                //         'share_capital_account_id' => 'The selected share capital account is not active or does not exist.'
-                //     ]);
-                // }
-
-                // if (!in_array((int) $validated['share_premium_account_id'], $accounts, true)) {
-                //     throw ValidationException::withMessages([
-                //         'share_premium_account_id' => 'The selected share premium account is not active or does not exist.'
-                //     ]);
-                // }
-
-                /*
-                 * Prevent the same GL account from being used for both
-                 * share capital and share premium.
-                 */
-                // if (
-                //     (int) $validated['share_capital_account_id'] ===
-                //     (int) $validated['share_premium_account_id']
-                // ) {
-                //     throw ValidationException::withMessages([
-                //         'share_premium_account_id' => 'Share capital and share premium must use different GL accounts.'
-                //     ]);
-                // }
 
                 $minimumUnits = (int) $validated['minimum_units'];
                 $maximumUnits = isset($validated['maximum_units'])
@@ -292,7 +294,7 @@ class ShareProductsController extends Controller
             });
 
             return redirect()
-                ->route('share_products.show', $shareProduct->id)
+                ->route('share_products.show', $shareProduct)
                 ->with('success', 'Share product updated successfully.');
 
         } catch (Exception $e) {
