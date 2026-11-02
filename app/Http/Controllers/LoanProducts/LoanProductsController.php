@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\LoanProducts;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\LoanApplications\LoanProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -31,8 +32,21 @@ class LoanProductsController extends Controller
     public function create()
     {
         $accounts = collect();
+        $receivableAccounts = ChartOfAccount::where('account_type', 'asset')
+            ->where('is_postable', 1)
+            // Sorts rows with a config_key first, then sorts by config_key alphabetically
+            ->orderByRaw('CASE WHEN config_key IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('config_key', 'asc')
+            ->get();
 
-        return view('loan_products.create', compact('accounts'));
+        $incomeAccounts  = ChartOfAccount::where('account_type', 'income')
+            ->where('is_postable', 1)
+            // Sorts rows with a config_key first, then sorts by config_key alphabetically
+            ->orderByRaw('CASE WHEN config_key IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('config_key', 'asc')
+            ->get();
+
+        return view('loan_products.create', compact('accounts', 'receivableAccounts', 'incomeAccounts'));
     }
 
     /**
@@ -51,7 +65,7 @@ class LoanProductsController extends Controller
             'loan_principal_account_id' => ['required', 'integer'],
             'interest_receivable_account_id' => ['required', 'integer'],
             'interest_income_account_id' => ['required', 'integer'],
-            'penalty_receivable_account_id' => ['required', 'integer'],
+            'fee_receivable_account_id' => ['required', 'integer'],
             'penalty_income_account_id' => ['required', 'integer'],
             'processing_fee_income_account_id' => ['required', 'integer'],
 
@@ -150,7 +164,7 @@ class LoanProductsController extends Controller
             }
 
             $loanProduct = DB::transaction(function () use ($request, $validated, $eligibilityRules, $requiresGuarantors, $allowsTopUp) {
-                return LoanProduct::create([
+                $product = LoanProduct::create([
                     'code' => strtoupper(trim($validated['code'])),
                     'name' => trim($validated['name']),
                     'description' => $validated['description'] ?? null,
@@ -158,7 +172,7 @@ class LoanProductsController extends Controller
                     'loan_principal_account_id' => $validated['loan_principal_account_id'],
                     'interest_receivable_account_id' => $validated['interest_receivable_account_id'],
                     'interest_income_account_id' => $validated['interest_income_account_id'],
-                    'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'],
+                    'fee_receivable_account_id' => $validated['fee_receivable_account_id'],
                     'penalty_income_account_id' => $validated['penalty_income_account_id'],
                     'processing_fee_income_account_id' => $validated['processing_fee_income_account_id'],
 
@@ -202,6 +216,8 @@ class LoanProductsController extends Controller
                     'effective_from' => $validated['effective_from'] ?? null,
                     'effective_to' => $validated['effective_to'] ?? null,
                 ]);
+
+                return $product;
             });
 
             return redirect()
@@ -232,7 +248,22 @@ class LoanProductsController extends Controller
     public function edit(LoanProduct $loanProduct)
     {
         $accounts = collect();
-        return view('loan_products.edit', compact('loanProduct', 'accounts'));
+
+        $receivableAccounts = ChartOfAccount::where('account_type', 'asset')
+            ->where('is_postable', 1)
+            // Sorts rows with a config_key first, then sorts by config_key alphabetically
+            ->orderByRaw('CASE WHEN config_key IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('config_key', 'asc')
+            ->get();
+
+        $incomeAccounts  = ChartOfAccount::where('account_type', 'income')
+            ->where('is_postable', 1)
+            // Sorts rows with a config_key first, then sorts by config_key alphabetically
+            ->orderByRaw('CASE WHEN config_key IS NULL THEN 1 ELSE 0 END')
+            ->orderBy('config_key', 'asc')
+            ->get();
+
+        return view('loan_products.edit', compact('loanProduct', 'accounts', 'receivableAccounts', 'incomeAccounts'));
     }
 
     /**
@@ -258,7 +289,7 @@ class LoanProductsController extends Controller
             'loan_principal_account_id' => ['required', 'integer'],
             'interest_receivable_account_id' => ['required', 'integer'],
             'interest_income_account_id' => ['required', 'integer'],
-            'penalty_receivable_account_id' => ['required', 'integer'],
+            'fee_receivable_account_id' => ['required', 'integer'],
             'penalty_income_account_id' => ['required', 'integer'],
             'processing_fee_income_account_id' => ['required', 'integer'],
 
@@ -357,7 +388,7 @@ class LoanProductsController extends Controller
             }
 
             DB::transaction(function () use ($request, $validated, $eligibilityRules, $requiresGuarantors, $allowsTopUp, $loanProduct) {
-                return $loanProduct->update([
+                $loanProduct->update([
                     'code' => strtoupper(trim($validated['code'])),
                     'name' => trim($validated['name']),
                     'description' => $validated['description'] ?? null,
@@ -365,7 +396,7 @@ class LoanProductsController extends Controller
                     'loan_principal_account_id' => $validated['loan_principal_account_id'],
                     'interest_receivable_account_id' => $validated['interest_receivable_account_id'],
                     'interest_income_account_id' => $validated['interest_income_account_id'],
-                    'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'],
+                    'fee_receivable_account_id' => $validated['fee_receivable_account_id'],
                     'penalty_income_account_id' => $validated['penalty_income_account_id'],
                     'processing_fee_income_account_id' => $validated['processing_fee_income_account_id'],
 
@@ -409,6 +440,8 @@ class LoanProductsController extends Controller
                     'effective_from' => $validated['effective_from'] ?? null,
                     'effective_to' => $validated['effective_to'] ?? null,
                 ]);
+                
+                return true;
             });
 
             return redirect()

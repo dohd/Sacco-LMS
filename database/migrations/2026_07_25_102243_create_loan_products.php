@@ -30,8 +30,9 @@ class CreateLoanProducts extends Migration
             // General ledger mapping
             $table->unsignedBigInteger('loan_principal_account_id');
             $table->unsignedBigInteger('interest_receivable_account_id');
+            $table->unsignedBigInteger('fee_receivable_account_id');
+
             $table->unsignedBigInteger('interest_income_account_id');
-            $table->unsignedBigInteger('penalty_receivable_account_id');
             $table->unsignedBigInteger('penalty_income_account_id');
             $table->unsignedBigInteger('processing_fee_income_account_id');
 

@@ -97,12 +97,12 @@
                             <option value="0">
                                 -- Select Account --
                             </option>
-                            @foreach($accounts as $account)
+                            @foreach($receivableAccounts as $account)
                                 <option value="{{ $account->id }}"
                                     {{ old('loan_principal_account_id', $loanProduct->loan_principal_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->account_code }}
+                                    {{ $account->code }}
                                     -
-                                    {{ $account->account_name }}
+                                    {{ $account->name }}
                                 </option>
                             @endforeach
                         </select>
@@ -118,18 +118,39 @@
                             <option value="0">
                                 -- Select Account --
                             </option>
-                            @foreach($accounts as $account)
+                            @foreach($receivableAccounts as $account)
                                 <option value="{{ $account->id }}"
                                     {{ old('interest_receivable_account_id', $loanProduct->interest_receivable_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->account_code }}
+                                    {{ $account->code }}
                                     -
-                                    {{ $account->account_name }}
+                                    {{ $account->name }}
                                 </option>
                             @endforeach
                         </select>
                     </div>
                 </div>
                 <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
+                            Fee Receivable Account
+                            <span class="text-danger">*</span>
+                        </label>
+                        <select name="fee_receivable_account_id"
+                                class="form-select"
+                                >
+                            <option value="0">
+                                -- Select Account --
+                            </option>
+                            @foreach($receivableAccounts as $account)
+                                <option value="{{ $account->id }}"
+                                    {{ old('fee_receivable_account_id', $loanProduct->fee_receivable_account_id ?? '') == $account->id ? 'selected' : '' }}>
+                                    {{ $account->code }}
+                                    -
+                                    {{ $account->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                    </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">
                             Interest Income Account
@@ -141,37 +162,17 @@
                             <option value="0">
                                 -- Select Account --
                             </option>
-                            @foreach($accounts as $account)
+                            @foreach($incomeAccounts as $account)
                                 <option value="{{ $account->id }}"
                                     {{ old('interest_income_account_id', $loanProduct->interest_income_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->account_code }}
+                                    {{ $account->code }}
                                     -
-                                    {{ $account->account_name }}
+                                    {{ $account->name }}
                                 </option>
                             @endforeach
                         </select>
                     </div>
-                    <div class="col-md-6 mb-3">
-                        <label class="form-label">
-                            Penalty Receivable Account
-                            <span class="text-danger">*</span>
-                        </label>
-                        <select name="penalty_receivable_account_id"
-                                class="form-select"
-                                >
-                            <option value="0">
-                                -- Select Account --
-                            </option>
-                            @foreach($accounts as $account)
-                                <option value="{{ $account->id }}"
-                                    {{ old('penalty_receivable_account_id', $loanProduct->penalty_receivable_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->account_code }}
-                                    -
-                                    {{ $account->account_name }}
-                                </option>
-                            @endforeach
-                        </select>
-                    </div>
+                    
                 </div>
                 <div class="row">
                     <div class="col-md-6 mb-3">
@@ -185,12 +186,12 @@
                             <option value="0">
                                 -- Select Account --
                             </option>
-                            @foreach($accounts as $account)
+                            @foreach($incomeAccounts as $account)
                                 <option value="{{ $account->id }}"
                                     {{ old('penalty_income_account_id', $loanProduct->penalty_income_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->account_code }}
+                                    {{ $account->code }}
                                     -
-                                    {{ $account->account_name }}
+                                    {{ $account->name }}
                                 </option>
                             @endforeach
                         </select>
@@ -206,12 +207,12 @@
                             <option value="0">
                                 -- Select Account --
                             </option>
-                            @foreach($accounts as $account)
+                            @foreach($incomeAccounts as $account)
                                 <option value="{{ $account->id }}"
                                     {{ old('processing_fee_income_account_id', $loanProduct->processing_fee_income_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                                    {{ $account->account_code }}
+                                    {{ $account->code }}
                                     -
-                                    {{ $account->account_name }}
+                                    {{ $account->name }}
                                 </option>
                             @endforeach
                         </select>

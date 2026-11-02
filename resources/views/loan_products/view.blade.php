@@ -385,49 +385,63 @@
                     <div class="mb-3">
                         <small class="text-muted d-block">Loan Principal</small>
                         <strong>
-                            {{ $loanProduct->loanPrincipalAccount->account_code ?? $loanProduct->loan_principal_account_id }}
+                            {{ $loanProduct->loanPrincipalAccount->code ?? '' }}
                         </strong>
-                        <div class="small text-muted">
-                            {{ $loanProduct->loanPrincipalAccount->account_name ?? '' }}
-                        </div>
+                        <span class="small text-muted">
+                            - {{ $loanProduct->loanPrincipalAccount->name ?? '' }}
+                        </span>
                     </div>
 
                     <div class="mb-3">
                         <small class="text-muted d-block">Interest Receivable</small>
                         <strong>
-                            {{ $loanProduct->interestReceivableAccount->account_code ?? $loanProduct->interest_receivable_account_id }}
+                            {{ $loanProduct->interestReceivableAccount->code ?? '' }}
                         </strong>
-                        <div class="small text-muted">
-                            {{ $loanProduct->interestReceivableAccount->account_name ?? '' }}
-                        </div>
+                        <span class="small text-muted">
+                            - {{ $loanProduct->interestReceivableAccount->name ?? '' }}
+                        </span>
+                    </div>
+
+                    <div class="mb-3">
+                        <small class="text-muted d-block">Fee Receivable</small>
+                        <strong>
+                            {{ $loanProduct->feeReceivableAccount->code ?? '' }}
+                        </strong>
+                        <span class="small text-muted">
+                            - {{ $loanProduct->feeReceivableAccount->name ?? '' }}
+                        </span>
                     </div>
 
                     <div class="mb-3">
                         <small class="text-muted d-block">Interest Income</small>
                         <strong>
-                            {{ $loanProduct->interestIncomeAccount->account_code ?? $loanProduct->interest_income_account_id }}
+                            {{ $loanProduct->interestIncomeAccount->code ?? '' }}
                         </strong>
+                        <span class="small text-muted">
+                            - {{ $loanProduct->interestIncomeAccount->name ?? '' }}
+                        </span>
                     </div>
 
-                    <div class="mb-3">
-                        <small class="text-muted d-block">Penalty Receivable</small>
-                        <strong>
-                            {{ $loanProduct->penaltyReceivableAccount->account_code ?? $loanProduct->penalty_receivable_account_id }}
-                        </strong>
-                    </div>
+                    
 
                     <div class="mb-3">
                         <small class="text-muted d-block">Penalty Income</small>
                         <strong>
-                            {{ $loanProduct->penaltyIncomeAccount->account_code ?? $loanProduct->penalty_income_account_id }}
+                            {{ $loanProduct->penaltyIncomeAccount->code ?? '' }}
                         </strong>
+                        <span class="small text-muted">
+                            - {{ $loanProduct->penaltyIncomeAccount->name ?? '' }}
+                        </span>
                     </div>
 
                     <div>
                         <small class="text-muted d-block">Processing Fee Income</small>
                         <strong>
-                            {{ $loanProduct->processingFeeIncomeAccount->account_code ?? $loanProduct->processing_fee_income_account_id }}
+                            {{ $loanProduct->processingFeeIncomeAccount->code ?? $loanProduct->processing_fee_income_account_id }}
                         </strong>
+                        <span class="small text-muted">
+                            - {{ $loanProduct->processingFeeIncomeAccount->name ?? '' }}
+                        </span>
                     </div>
                 </div>
             </div>

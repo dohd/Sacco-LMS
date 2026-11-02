@@ -57,9 +57,9 @@ class LoanProduct extends Model
         return $this->belongsTo(ChartOfAccount::class, 'interest_income_account_id');
     }
 
-    public function penaltyReceivableAccount()
+    public function feeReceivableAccount()
     {
-        return $this->belongsTo(ChartOfAccount::class, 'penalty_receivable_account_id');
+        return $this->belongsTo(ChartOfAccount::class, 'fee_receivable_account_id');
     }
 
     public function penaltyIncomeAccount()
