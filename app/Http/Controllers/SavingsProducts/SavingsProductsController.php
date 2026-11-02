@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\SavingsProducts;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\Savings\SavingsProduct;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -30,8 +31,21 @@ class SavingsProductsController extends Controller
     public function create()
     {
         $accounts = collect();
+        $controlAccounts = ChartOfAccount::where('config_key', 'member_savings_control')
+            ->where('is_active', 1)
+            ->get();
+        $expAccounts = ChartOfAccount::where('account_type', 'expense')
+            ->where('name', 'NOT LIKE', '%loan%')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->get();
+        $incomeAccounts = ChartOfAccount::where('account_type', 'income')
+            ->where('name', 'NOT LIKE', '%loan%')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->get();    
         
-        return view('savings_products.create', compact('accounts'));
+        return view('savings_products.create', compact('accounts', 'controlAccounts', 'expAccounts', 'incomeAccounts'));
     }
 
     /**
@@ -137,17 +151,17 @@ class SavingsProductsController extends Controller
             $validated['fee_income_account_id'],
         ];
 
-        // if (count($accountIds) !== count(array_unique($accountIds))) {
-        //     return back()
-        //         ->withInput()
-        //         ->withErrors([
-        //             'savings_control_account_id' =>
-        //                 'The savings control, interest expense and fee income accounts must be different accounts.',
-        //         ]);
-        // }
+        if (count($accountIds) !== count(array_unique($accountIds))) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'savings_control_account_id' =>
+                        'The savings control, interest expense and fee income accounts must be different accounts.',
+                ]);
+        }
 
         try {
-            DB::transaction(function() use($validated) {
+            $savingsProduct = DB::transaction(function() use($validated) {
                 $product = SavingsProduct::create([
                     'code' => strtoupper(trim($validated['code'])),
                     'name' => trim($validated['name']),
@@ -172,10 +186,15 @@ class SavingsProductsController extends Controller
                     'withdrawal_notice_days' => $validated['withdrawal_notice_days'] ?? 0,
                     'can_secure_loan' => $validated['can_secure_loan'],
                     'is_active' => $validated['is_active'],
-                ]);                
+                ]); 
+
+                return $product;               
             });
 
-            return redirect()->route('savings_products.index')->with('success', 'Savings product created successfully.');
+            return redirect()
+                ->route('savings_products.show', $savingsProduct)
+                ->with('success', 'Savings product created successfully.');
+
         } catch (\Throwable $e) {
             return errorHandler("Error creating savings product. Please try again", $e);
         }
@@ -201,8 +220,21 @@ class SavingsProductsController extends Controller
     public function edit(SavingsProduct $savingsProduct)
     {
         $accounts = collect();
+        $controlAccounts = ChartOfAccount::where('config_key', 'member_savings_control')
+            ->where('is_active', 1)
+            ->get();
+        $expAccounts = ChartOfAccount::where('account_type', 'expense')
+            ->where('name', 'NOT LIKE', '%loan%')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->get();
+        $incomeAccounts = ChartOfAccount::where('account_type', 'income')
+            ->where('name', 'NOT LIKE', '%loan%')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->get();    
         
-        return view('savings_products.edit', compact('savingsProduct', 'accounts'));
+        return view('savings_products.edit', compact('savingsProduct', 'accounts', 'controlAccounts', 'expAccounts', 'incomeAccounts'));
     }
 
     /**
@@ -309,14 +341,14 @@ class SavingsProductsController extends Controller
             $validated['fee_income_account_id'],
         ];
 
-        // if (count($accountIds) !== count(array_unique($accountIds))) {
-        //     return back()
-        //         ->withInput()
-        //         ->withErrors([
-        //             'savings_control_account_id' =>
-        //                 'The savings control, interest expense and fee income accounts must be different accounts.',
-        //         ]);
-        // }
+        if (count($accountIds) !== count(array_unique($accountIds))) {
+            return back()
+                ->withInput()
+                ->withErrors([
+                    'savings_control_account_id' =>
+                        'The savings control, interest expense and fee income accounts must be different accounts.',
+                ]);
+        }
 
         try {
             DB::transaction(function() use($savingsProduct, $validated) {
@@ -344,7 +376,7 @@ class SavingsProductsController extends Controller
                     'withdrawal_notice_days' => $validated['withdrawal_notice_days'] ?? 0,
                     'can_secure_loan' => $validated['can_secure_loan'],
                     'is_active' => $validated['is_active'],
-                ]);                
+                ]); 
             });
 
             return redirect()->route('savings_products.show', $savingsProduct)->with('success', 'Savings product updated successfully.');

@@ -4,6 +4,7 @@ namespace App\Http\Controllers\ChartOfAccounts;
 
 use App\Http\Controllers\Controller;
 use App\Models\Accounting\ChartOfAccount;
+use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
@@ -192,34 +193,32 @@ class ChartOfAccountsController extends Controller
     {
         $accType = request('account_type');
         $isControlAcc = request('is_control_account');
-        $accountExists = ChartOfAccount::where('account_type', $accType)->exists();            
-        
-        if ($accountExists) {
-            $code = ChartOfAccount::max('code')+1;  
-            if (!empty($isControlAcc)) {
-                $code = ChartOfAccount::whereNull('parent_id')->max('code')+100;  
-            }        
-        } else {
-            $codes = [
-                'asset' => 1000,
-                'liability' => 2000,
-                'equity' => 3000,
-                'income' => 4000, 
-                'expense' => 5000,
-            ];
-            $code = $codes[$accType]+1;
-            if (!empty($isControlAcc)) {
-                $code = $codes[$accType]+100;
-            }  
-        }
 
-        return response()->json(compact('code'));
+        try {
+            $maxCode = (int) ChartOfAccount::where('account_type', $accType)->max('code');            
+            if ($maxCode) {
+                $code = empty($isControlAcc)? $maxCode + 1 : $maxCode + 100;    
+            } else {
+                $codes = [
+                    'asset' => 1000,
+                    'liability' => 2000,
+                    'equity' => 3000,
+                    'income' => 4000, 
+                    'expense' => 5000,
+                ];
+
+                $code = empty($isControlAcc)? $codes[$accType] + 1 : $codes[$accType] + 100; 
+            }
+
+            return response()->json(compact('code'));
+        } catch (Exception $e) {
+            return response()->json(['status' => 'error', 'message' => $e->getMessage()], 500);
+        }
     }
 
     public function getParentAccounts(Request $request)
     {
-        $accType = request('account_type');
-        $accounts = ChartOfAccount::where('account_type', $accType)
+        $accounts = ChartOfAccount::where('account_type', $request->account_type)
             ->where('is_control_account', 1)
             ->get();
 

@@ -108,10 +108,10 @@
                         class="form-select @error('savings_control_account_id') is-invalid @enderror">
                     <option value="0">Select Account</option>
 
-                    @foreach($accounts as $account)
+                    @foreach($controlAccounts as $account)
                         <option value="{{ $account->id }}"
                             {{ old('savings_control_account_id', $savingsProduct->savings_control_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                            {{ $account->account_code }} - {{ $account->account_name }}
+                            {{ $account->code }} - {{ $account->name }}
                         </option>
                     @endforeach
                 </select>
@@ -132,10 +132,10 @@
                         class="form-select @error('interest_expense_account_id') is-invalid @enderror">
                     <option value="0">Select Account</option>
 
-                    @foreach($accounts as $account)
+                    @foreach($expAccounts as $account)
                         <option value="{{ $account->id }}"
                             {{ old('interest_expense_account_id', $savingsProduct->interest_expense_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                            {{ $account->account_code }} - {{ $account->account_name }}
+                            {{ $account->code }} - {{ $account->name }}
                         </option>
                     @endforeach
                 </select>
@@ -156,10 +156,10 @@
                         class="form-select @error('fee_income_account_id') is-invalid @enderror">
                     <option value="0">Select Account</option>
 
-                    @foreach($accounts as $account)
+                    @foreach($incomeAccounts as $account)
                         <option value="{{ $account->id }}"
                             {{ old('fee_income_account_id', $savingsProduct->fee_income_account_id ?? '') == $account->id ? 'selected' : '' }}>
-                            {{ $account->account_code }} - {{ $account->account_name }}
+                            {{ $account->code }} - {{ $account->name }}
                         </option>
                     @endforeach
                 </select>

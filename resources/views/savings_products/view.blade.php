@@ -260,19 +260,19 @@
                             <div class="col-12">
                                 <div class="text-muted small">Savings Control Account</div>
                                 <div class="fw-semibold">
-                                    {{ $savingsProduct->savings_control_account_id }}
+                                    {{ $savingsProduct->savingsControlAccount->code ?? '' }} - {{ $savingsProduct->savingsControlAccount->name ?? ''}}
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="text-muted small">Interest Expense Account</div>
                                 <div class="fw-semibold">
-                                    {{ $savingsProduct->interest_expense_account_id }}
+                                    {{ $savingsProduct->interestExpenseAccount->code ?? '' }} - {{ $savingsProduct->interestExpenseAccount->name ?? '' }}
                                 </div>
                             </div>
                             <div class="col-md-6">
                                 <div class="text-muted small">Fee Income Account</div>
                                 <div class="fw-semibold">
-                                    {{ $savingsProduct->fee_income_account_id }}
+                                    {{ $savingsProduct->feeIncomeAccount->code ?? '' }} - {{ $savingsProduct->feeIncomeAccount->name }}
                                 </div>
                             </div>
                         </div>

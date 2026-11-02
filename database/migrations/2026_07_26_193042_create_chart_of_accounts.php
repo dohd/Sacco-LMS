@@ -53,6 +53,8 @@ class CreateChartOfAccounts extends Migration
 
             $table->text('description')->nullable();
 
+            $table->string('config_key')->nullable();
+
             $table->timestamps();
 
             $table->index([
