@@ -556,6 +556,11 @@ class LoanRepaymentsController extends Controller
                     'total_paid' => round($newTotalPaid, 2),
                     'status' => $loanStatus,
                 ]);
+
+                // A fully repaid loan frees the guarantors' shares.
+                if ($loanStatus === 'fully_paid') {
+                    app(\App\Services\LoanGuarantorService::class)->releaseForLoan($loan);
+                }
             });
 
             return back()->with('success', 'Loan repayment confirmed and allocated successfully.');
@@ -795,6 +800,11 @@ class LoanRepaymentsController extends Controller
 
                     'status' => $status,
                 ]);
+
+                // Reversing the payment that cleared a loan restores the guarantees.
+                if ($status !== 'fully_paid') {
+                    app(\App\Services\LoanGuarantorService::class)->reinstateForLoan($loan);
+                }
 
                 /*
                  * Mark original repayment as reversed.

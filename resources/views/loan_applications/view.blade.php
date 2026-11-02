@@ -327,6 +327,9 @@
                                         <th class="text-end">Shares Offered</th>
                                         <th>Witness</th>
                                         <th>Signature</th>
+                                        <th>Status</th>
+                                        <th class="text-end">Held</th>
+                                        <th>Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -363,6 +366,52 @@
                                                     -
                                                 @endif
                                             </td>
+                                            <td>
+                                                @php
+                                                    $guarantorClass = ['pending' => 'secondary', 'accepted' => 'success', 'declined' => 'danger',
+                                                        'held' => 'primary', 'released' => 'info', 'replaced' => 'dark', 'invoked' => 'warning'][$guarantor->status] ?? 'secondary';
+                                                @endphp
+                                                <span class="badge bg-{{ $guarantorClass }}">{{ ucfirst($guarantor->status) }}</span>
+                                                @if($guarantor->consented_at)
+                                                    <small class="d-block text-muted">{{ $guarantor->consented_at->format('d M Y') }}</small>
+                                                @endif
+                                                @if($guarantor->consent_note)
+                                                    <small class="d-block text-muted">{{ $guarantor->consent_note }}</small>
+                                                @endif
+                                            </td>
+                                            <td class="text-end">KES {{ number_format($guarantor->held_amount, 2) }}</td>
+                                            <td style="min-width: 260px;">
+                                                @if(userCan('manage-guarantors') && in_array($application->status, ['submitted', 'under_review']) && in_array($guarantor->status, ['pending', 'accepted', 'declined']))
+                                                    <form method="POST" action="{{ route('loan_applications.guarantor_consent', [$application, $guarantor]) }}" enctype="multipart/form-data" class="mb-0">
+                                                        @csrf
+                                                        @method('PATCH')
+                                                        <select name="decision" class="form-select form-select-sm mb-1">
+                                                            <option value="accepted">Accepted</option>
+                                                            <option value="declined">Declined</option>
+                                                        </select>
+                                                        <input type="file" name="signature" class="form-control form-control-sm mb-1" accept=".jpg,.jpeg,.png,.pdf" title="Signed guarantee form">
+                                                        <input type="text" name="note" class="form-control form-control-sm mb-1" placeholder="Note (required if declined)">
+                                                        <button type="submit" class="btn btn-sm btn-outline-primary">Record response</button>
+                                                    </form>
+                                                @elseif(userCan('manage-guarantors') && $guarantor->status === 'held' && $application->status === 'approved')
+                                                    <details>
+                                                        <summary class="btn btn-sm btn-outline-warning">Replace</summary>
+                                                        <form method="POST" action="{{ route('loan_applications.guarantor_replace', [$application, $guarantor]) }}" enctype="multipart/form-data" class="mt-2 mb-0">
+                                                            @csrf
+                                                            <select name="member_id" class="form-select form-select-sm mb-1" required>
+                                                                <option value="">New guarantor</option>
+                                                                @foreach($replacementMembers as $candidate)
+                                                                    <option value="{{ $candidate->id }}">{{ $candidate->full_name }} ({{ $candidate->membership_number }})</option>
+                                                                @endforeach
+                                                            </select>
+                                                            <input type="number" step="0.01" min="0.01" name="shares_offered" class="form-control form-control-sm mb-1" placeholder="Shares offered" value="{{ $guarantor->held_amount }}" required>
+                                                            <input type="text" name="witness_name" class="form-control form-control-sm mb-1" placeholder="Witness name">
+                                                            <input type="file" name="signature" class="form-control form-control-sm mb-1" accept=".jpg,.jpeg,.png,.pdf" required>
+                                                            <button type="submit" class="btn btn-sm btn-warning">Replace guarantor</button>
+                                                        </form>
+                                                    </details>
+                                                @endif
+                                            </td>
                                         </tr>
                                     @endforeach
                                 </tbody>
@@ -374,7 +423,9 @@
                                         <th class="text-end">
                                             KES {{ number_format($application->guarantors->sum('shares_offered'), 2) }}
                                         </th>
-                                        <th colspan="2"></th>
+                                        <th colspan="3"></th>
+                                        <th class="text-end">KES {{ number_format($application->guarantors->sum('held_amount'), 2) }}</th>
+                                        <th colspan="1"></th>
                                     </tr>
                                 </tfoot>
                             </table>

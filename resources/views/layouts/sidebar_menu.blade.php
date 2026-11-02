@@ -37,6 +37,9 @@
           <li><a href="{{ route('loan_products.index') }}"><i class="bi bi-circle"></i><span>Loan Products</span></a></li>
           <li><a href="{{ route('loan_applications.index') }}"><i class="bi bi-circle"></i><span>Loan Applications</span></a></li>
           <li><a href="{{ route('loans.index') }}"><i class="bi bi-circle"></i><span>Approved Loans</span></a></li>
+          @if(userCan('manage-guarantors'))
+            <li><a href="{{ route('loan_guarantees.index') }}"><i class="bi bi-circle"></i><span>Loan Guarantees</span></a></li>
+          @endif
           <li><a href="{{ route('loan_disbursements.index') }}"><i class="bi bi-circle"></i><span>Loan Disbursements</span></a></li>
           <li><a href="{{ route('loan_repayment_schedules.index') }}"><i class="bi bi-circle"></i><span>Loan Repayment Schedules</span></a></li>
           <li><a href="{{ route('loan_repayments.index') }}"><i class="bi bi-circle"></i><span>Loan Repayments</span></a></li>

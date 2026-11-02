@@ -2,7 +2,9 @@
 
 namespace Tests\Feature;
 
+use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanApplication;
+use App\Models\LoanApplications\LoanGuarantor;
 use App\Models\LoanApplications\LoanProduct;
 use App\Models\Memberships\Member;
 use App\Models\User;
@@ -152,7 +154,15 @@ class LoanApplicationWorkflowTest extends TestCase
         $approval = ['approved_amount' => 10000, 'repayment_period_months' => 10];
         $this->patchJson(route('loan_applications.approve', $application), $approval)->assertStatus(422)->assertJsonValidationErrors('securities');
         $this->patch(route('loan_applications.verify_security', $application), ['security_id' => $security->id, 'accepted_value' => 10000])->assertSessionHasNoErrors();
+        // The guarantor has not yet accepted, so approval is blocked.
+        $this->patchJson(route('loan_applications.approve', $application), $approval)->assertStatus(422)->assertJsonValidationErrors('guarantors');
+        $this->patch(route('loan_applications.guarantor_consent', [$application, $guarantor]), ['decision' => 'accepted'])->assertSessionHasNoErrors();
         $this->patch(route('loan_applications.approve', $application), $approval)->assertSessionHasNoErrors()->assertRedirect(route('loan_applications.show', $application));
+        $this->assertSame('held', $guarantor->fresh()->status);
+        $this->assertEquals(12000, $guarantor->fresh()->held_amount);
+        $this->assertSame(Loan::sole()->id, $guarantor->fresh()->loan_id);
+        $this->assertEquals(12000, DB::table('share_accounts')->where('member_id', $this->guarantor->id)->value('held_amount'));
+        $this->assertEquals(38000, DB::table('share_accounts')->where('member_id', $this->guarantor->id)->value('available_amount'));
         $application->refresh();
         $this->assertSame('approved', $application->status);
         $this->assertEquals(12000, $application->amount_requested);
@@ -240,6 +250,135 @@ class LoanApplicationWorkflowTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->get(route('documents.show', ['path' => $path]))->assertRedirect(route('login'));
+    }
+
+    /**
+     * Submit, review and approve a loan for $applicant guaranteed by $guarantor.
+     */
+    private function approveGuaranteedLoan(Member $applicant, Member $guarantor, float $offered = 12000, bool $consent = true): LoanApplication
+    {
+        $payload = $this->payload();
+        $payload['member_id'] = $applicant->id;
+        $payload['guarantors'] = [['member_id' => $guarantor->id, 'shares_offered' => $offered,
+            'signature' => UploadedFile::fake()->image('guarantor.jpg')]];
+        $this->post(route('loan_applications.store'), $payload)->assertSessionHasNoErrors();
+        $application = LoanApplication::where('member_id', $applicant->id)->firstOrFail();
+        if ($consent) {
+            $this->patch(route('loan_applications.guarantor_consent', [$application, $application->guarantors()->first()]), ['decision' => 'accepted'])->assertSessionHasNoErrors();
+        }
+        $this->patch(route('loan_applications.approve', $application), ['approved_amount' => 12000, 'repayment_period_months' => 12])->assertSessionHasNoErrors();
+        return $application->fresh();
+    }
+
+    private function guarantorAvailable(Member $member): float
+    {
+        return (float) DB::table('share_accounts')->where('member_id', $member->id)->value('available_amount');
+    }
+
+    public function test_declined_or_changed_guarantee_needs_fresh_consent_before_approval(): void
+    {
+        $this->post(route('loan_applications.store'), $this->payload())->assertSessionHasNoErrors();
+        $application = LoanApplication::firstOrFail();
+        $guarantor = $application->guarantors()->firstOrFail();
+        $this->assertSame('pending', $guarantor->status);
+
+        // Acceptance needs a signed form; refusal needs a reason.
+        $this->patchJson(route('loan_applications.guarantor_consent', [$application, $guarantor]), ['decision' => 'accepted'])->assertStatus(422)->assertJsonValidationErrors('signature');
+        $this->patchJson(route('loan_applications.guarantor_consent', [$application, $guarantor]), ['decision' => 'declined'])->assertStatus(422)->assertJsonValidationErrors('note');
+        $this->patch(route('loan_applications.guarantor_consent', [$application, $guarantor]), ['decision' => 'accepted', 'signature' => UploadedFile::fake()->image('signed.jpg')])->assertSessionHasNoErrors();
+        $this->assertSame('accepted', $guarantor->fresh()->status);
+
+        // Changing the guarantee amount on a deferred application resets consent.
+        $this->patch(route('loan_applications.workflow', $application), ['action' => 'defer', 'note' => 'Adjust guarantee'])->assertSessionHasNoErrors();
+        $payload = $this->payload();
+        $payload['guarantors'][0]['id'] = $guarantor->id;
+        $payload['guarantors'][0]['shares_offered'] = 13000;
+        $this->patch(route('loan_applications.update', $application), $payload)->assertSessionHasNoErrors();
+        $this->assertSame('pending', $guarantor->fresh()->status);
+        $this->assertNull($guarantor->fresh()->consented_at);
+        $this->patchJson(route('loan_applications.approve', $application), ['approved_amount' => 12000, 'repayment_period_months' => 12])
+            ->assertStatus(422)->assertJsonValidationErrors('guarantors');
+        $this->assertSame(0, Loan::count());
+        $this->assertEquals(0, DB::table('share_accounts')->where('member_id', $this->guarantor->id)->value('held_amount'));
+    }
+
+    public function test_held_shares_cannot_back_a_second_loan_or_be_withdrawn(): void
+    {
+        $this->approveGuaranteedLoan($this->member, $this->guarantor);
+        $this->assertEquals(38000, $this->guarantorAvailable($this->guarantor));
+
+        // 40,000 offered but only 38,000 free.
+        $other = $this->makeMember('APPLICANT2', User::first()->id);
+        $payload = $this->payload();
+        $payload['member_id'] = $other->id;
+        $payload['guarantors'] = [['member_id' => $this->guarantor->id, 'shares_offered' => 40000]];
+        $this->postJson(route('loan_applications.store'), $payload)->assertStatus(422)->assertJsonValidationErrors('guarantors');
+
+        // Withdrawing into the held amount is refused; withdrawing free shares is allowed.
+        \App\Models\Shares\ShareProduct::create(['code' => 'SH', 'name' => 'Shares', 'unit_value' => 100,
+            'share_capital_account_id' => 0, 'share_premium_account_id' => 0]);
+        DB::table('share_accounts')->where('member_id', $this->guarantor->id)->update(['total_units' => 500]);
+        $account = DB::table('share_accounts')->where('member_id', $this->guarantor->id)->first();
+        $redeem = fn(int $units) => $this->postJson(route('share_transactions.store'), [
+            'share_account_id' => $account->id, 'transaction_type' => 'redemption', 'units' => $units,
+            'transaction_date' => today()->toDateString(), 'value_date' => today()->toDateString()]);
+        $redeem(450)->assertStatus(422)->assertJsonValidationErrors('units');
+        $this->assertSame(0, DB::table('share_transactions')->count());
+        $redeem(300)->assertRedirect();
+        $this->assertSame(1, DB::table('share_transactions')->count());
+    }
+
+    public function test_guarantor_shares_are_released_when_loan_is_fully_repaid(): void
+    {
+        $application = $this->approveGuaranteedLoan($this->member, $this->guarantor);
+        $loan = Loan::sole();
+        $service = app(\App\Services\LoanGuarantorService::class);
+
+        // Release is keyed to loan completion; reinstatement restores the hold.
+        DB::transaction(fn() => $service->releaseForLoan($loan));
+        $guarantor = $application->guarantors()->firstOrFail();
+        $this->assertSame('released', $guarantor->status);
+        $this->assertEquals(0, $guarantor->held_amount);
+        $this->assertEquals(50000, $this->guarantorAvailable($this->guarantor));
+        $this->assertEquals(0, DB::table('share_accounts')->where('member_id', $this->guarantor->id)->value('held_amount'));
+        $this->assertSame(0, DB::table('loan_guarantor_holds')->where('status', 'active')->count());
+
+        DB::transaction(fn() => $service->reinstateForLoan($loan));
+        $this->assertSame('held', $guarantor->fresh()->status);
+        $this->assertEquals(38000, $this->guarantorAvailable($this->guarantor));
+
+        // A disbursement reversal closes the loan and frees the guarantors too.
+        DB::transaction(fn() => $service->releaseForLoan($loan));
+        $this->assertEquals(50000, $this->guarantorAvailable($this->guarantor));
+    }
+
+    public function test_guarantor_can_be_replaced_on_a_running_loan(): void
+    {
+        $application = $this->approveGuaranteedLoan($this->member, $this->guarantor);
+        $old = $application->guarantors()->firstOrFail();
+        $replacement = $this->makeMember('REPLACEMENT', User::first()->id);
+
+        // Applicant and an already-used guarantor are rejected; coverage must still be met.
+        $replace = fn(array $data) => $this->postJson(route('loan_applications.guarantor_replace', [$application, $old]),
+            $data + ['signature' => UploadedFile::fake()->image('new.jpg')]);
+        $replace(['member_id' => $this->member->id, 'shares_offered' => 12000])->assertStatus(422)->assertJsonValidationErrors('member_id');
+        $replace(['member_id' => $this->guarantor->id, 'shares_offered' => 12000])->assertStatus(422)->assertJsonValidationErrors('member_id');
+        $replace(['member_id' => $replacement->id, 'shares_offered' => 5000])->assertStatus(422)->assertJsonValidationErrors('shares_offered');
+        $this->assertSame('held', $old->fresh()->status);
+
+        $replace(["member_id" => $replacement->id, "shares_offered" => 12000])->assertRedirect();
+        $this->assertSame('replaced', $old->fresh()->status);
+        $this->assertEquals(50000, $this->guarantorAvailable($this->guarantor));
+        $this->assertEquals(38000, $this->guarantorAvailable($replacement));
+        $new = LoanGuarantor::where('member_id', $replacement->id)->firstOrFail();
+        $this->assertSame('held', $new->status);
+        $this->assertSame(Loan::sole()->id, $new->loan_id);
+        $this->assertEquals(12000, $application->fresh()->guarantor_security);
+
+        // Held guarantees are listed for staff; none are in arrears yet.
+        $this->get(route('loan_guarantees.index'))->assertOk()->assertSee($replacement->full_name)->assertDontSee($this->guarantor->full_name);
+        $this->get(route('loan_guarantees.index', ['filter' => 'in_arrears']))->assertOk()->assertDontSee($replacement->full_name);
+        $this->get(route('loan_applications.show', $application))->assertOk()->assertSee('Replaced');
     }
 
     public function test_invalid_input_cannot_create_records_or_reuse_another_applications_children(): void

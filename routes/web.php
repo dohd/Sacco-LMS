@@ -63,8 +63,11 @@ Route::group(['middleware' => 'auth'], function() {
     Route::patch('loan_products/status/{loanProduct}', [LoanProductsController::class, 'status'])->name('loan_products.status');
     Route::resource('loan_products', LoanProductsController::class);
 
+    Route::get('loan_guarantees', [\App\Http\Controllers\LoanGuarantees\LoanGuaranteesController::class, 'index'])->name('loan_guarantees.index');
     Route::patch('loan_applications/{application}/approve', [LoanApplicationsController::class, 'approve'])->name('loan_applications.approve');
     Route::patch('loan_applications/{application}/workflow', [LoanApplicationsController::class, 'workflow'])->name('loan_applications.workflow');
+    Route::patch('loan_applications/{application}/guarantors/{guarantor}/consent', [LoanApplicationsController::class, 'recordGuarantorConsent'])->name('loan_applications.guarantor_consent');
+    Route::post('loan_applications/{application}/guarantors/{guarantor}/replace', [LoanApplicationsController::class, 'replaceGuarantor'])->name('loan_applications.guarantor_replace');
     Route::patch('loan_applications/{application}/verify-security', [LoanApplicationsController::class, 'verifySecurity'])->name('loan_applications.verify_security');
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
 

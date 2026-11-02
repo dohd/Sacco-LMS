@@ -8,9 +8,11 @@ use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanApplication;
 use App\Models\LoanApplications\LoanApproval;
 use App\Models\LoanApplications\LoanDisbursement;
+use App\Models\LoanApplications\LoanGuarantor;
 use App\Models\LoanApplications\LoanProduct;
 use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Memberships\Member;
+use App\Services\LoanGuarantorService;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -292,7 +294,10 @@ class LoanApplicationsController extends Controller
     public function show(LoanApplication $application)
     {
         $application->load(['member', 'loanProduct', 'guarantors', 'securities', 'witnesses']);
-        return view('loan_applications.view', compact('application'));
+        $replacementMembers = $application->status === 'approved' && $this->hasSaccoPermission('manage-guarantors')
+            ? Member::whereNull('deleted_at')->where('id', '!=', $application->member_id)->orderBy('first_name')->get()
+            : collect();
+        return view('loan_applications.view', compact('application', 'replacementMembers'));
     }
 
     /**
@@ -453,12 +458,18 @@ class LoanApplicationsController extends Controller
                     ]);
                 }
 
+                // Every guarantor must have accepted and signed.
+                if ($lockedApp->guarantors->isNotEmpty()) {
+                    app(LoanGuarantorService::class)->assertConsented($lockedApp);
+                }
+
                 // Assemble payload and validate structural eligibility rules
                 $eligibility = array_merge(
                     $lockedApp->toArray(),
                     $this->memberFinancials($lockedApp->member),
                     [
                         'amount_approved' => $approvedAmount,
+                        'coverage_base' => $approvedAmount,
                         'repayment_period_months' => $repaymentMonths,
                         'guarantors' => $lockedApp->guarantors->toArray(),
                     ]
@@ -567,6 +578,11 @@ class LoanApplicationsController extends Controller
                 ]);
 
                 /*
+                 * 4a. Hold the guarantors' shares against this loan
+                 */
+                app(LoanGuarantorService::class)->placeHolds($lockedApp, $loan);
+
+                /*
                  * 4b. Generate Repayment Schedule Rows
                  */
                 $remainingPrincipalTrack = $principalBal; // Initialized with capitalized fee compound
@@ -646,6 +662,143 @@ class LoanApplicationsController extends Controller
         }
     }
 
+    /**
+     * Record a guarantor's acceptance (with signature) or refusal.
+     */
+    public function recordGuarantorConsent(LoanApplication $application, LoanGuarantor $guarantor, Request $request)
+    {
+        $this->requireSaccoPermission('manage-guarantors');
+        abort_unless((int) $guarantor->loan_application_id === (int) $application->id, 404);
+        $data = $request->validate([
+            'decision' => ['required', Rule::in(['accepted', 'declined'])],
+            'signature' => ['nullable', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+            'note' => ['nullable', 'required_if:decision,declined', 'string'],
+        ]);
+        $uploaded = null;
+        $obsolete = null;
+
+        try {
+            DB::transaction(function () use ($application, $guarantor, $data, $request, &$uploaded, &$obsolete) {
+                $application = LoanApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
+                $this->requireStatus($application, ['submitted', 'under_review']);
+                $guarantor = LoanGuarantor::whereKey($guarantor->id)->lockForUpdate()->firstOrFail();
+                if (!in_array($guarantor->status, ['pending', 'accepted', 'declined'], true)) {
+                    throw ValidationException::withMessages(['guarantor' => 'This guarantee can no longer be changed.']);
+                }
+
+                $signature = $guarantor->signature;
+                if ($request->hasFile('signature')) {
+                    $uploaded = $request->file('signature')->store('loan_applications/guarantors', 'private');
+                    $obsolete = $signature;
+                    $signature = $uploaded;
+                }
+                if ($data['decision'] === 'accepted' && !$signature) {
+                    throw ValidationException::withMessages(['signature' => 'A signed guarantee form is required to record acceptance.']);
+                }
+
+                $guarantor->update([
+                    'status' => $data['decision'],
+                    'signature' => $signature,
+                    'consented_at' => now(),
+                    'consented_by' => Auth::id(),
+                    'consent_note' => $data['note'] ?? null,
+                ]);
+            });
+        } catch (\Throwable $e) {
+            if ($uploaded) {
+                Storage::disk('private')->delete($uploaded);
+            }
+            if ($e instanceof ValidationException) {
+                throw $e;
+            }
+            return errorHandler('The guarantor response could not be saved. Please try again.', $e);
+        }
+
+        if ($obsolete) {
+            Storage::disk('private')->delete($obsolete);
+        }
+        return back()->with('success', 'Guarantor response recorded.');
+    }
+
+    /**
+     * Swap a guarantor on an approved, still-running loan.
+     */
+    public function replaceGuarantor(LoanApplication $application, LoanGuarantor $guarantor, Request $request)
+    {
+        $this->requireSaccoPermission('manage-guarantors');
+        abort_unless((int) $guarantor->loan_application_id === (int) $application->id, 404);
+        $data = $request->validate([
+            'member_id' => ['required', 'integer', 'exists:members,id'],
+            'shares_offered' => ['required', 'numeric', 'gt:0'],
+            'witness_name' => ['nullable', 'string', 'max:255'],
+            'signature' => ['required', 'file', 'mimes:jpg,jpeg,png,pdf', 'max:5120'],
+        ]);
+        $uploaded = $request->file('signature')->store('loan_applications/guarantors', 'private');
+
+        try {
+            DB::transaction(function () use ($application, $guarantor, $data, $uploaded) {
+                $application = LoanApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
+                $this->requireStatus($application, ['approved']);
+                $application->load('loanProduct');
+                $loan = Loan::where('loan_application_id', $application->id)->lockForUpdate()->first();
+                if (!$loan || !in_array($loan->status, ['active', 'in_arrears', 'restructured'], true)) {
+                    throw ValidationException::withMessages(['guarantor' => 'Guarantors can only be replaced on a running loan.']);
+                }
+                $old = LoanGuarantor::whereKey($guarantor->id)->lockForUpdate()->firstOrFail();
+                if ($old->status !== 'held') {
+                    throw ValidationException::withMessages(['guarantor' => 'Only a guarantor currently holding shares can be replaced.']);
+                }
+                $newMemberId = (int) $data['member_id'];
+                if ($newMemberId === (int) $application->member_id) {
+                    throw ValidationException::withMessages(['member_id' => 'The applicant cannot guarantee their own loan.']);
+                }
+                if ($application->guarantors()->where('member_id', $newMemberId)->exists()) {
+                    throw ValidationException::withMessages(['member_id' => 'This member has already been a guarantor on this application.']);
+                }
+                $member = Member::findOrFail($newMemberId);
+                if (!$member->is_active || $member->status !== 'active' || $member->deleted_at) {
+                    throw ValidationException::withMessages(['member_id' => 'The new guarantor must be an active member.']);
+                }
+
+                $product = $application->loanProduct;
+                if ($product && $product->requires_guarantors) {
+                    $covered = (float) $application->guarantors()->where('status', 'held')->where('id', '!=', $old->id)->sum('held_amount')
+                        + (float) $data['shares_offered'];
+                    $required = (float) $application->amount_approved * ((float) $product->minimum_guarantor_coverage_percentage / 100);
+                    if ($covered < $required) {
+                        throw ValidationException::withMessages(['shares_offered' => 'The remaining guarantors would not meet the required coverage.']);
+                    }
+                }
+
+                $service = app(LoanGuarantorService::class);
+                $service->releaseGuarantor($old, 'replaced');
+                $new = $application->guarantors()->create([
+                    'member_id' => $member->id,
+                    'guarantor_name' => $member->full_name,
+                    'member_number' => $member->membership_number,
+                    'national_id' => $member->national_id,
+                    'shares_offered' => $data['shares_offered'],
+                    'witness_name' => $data['witness_name'] ?? null,
+                    'signature' => $uploaded,
+                    'status' => 'accepted',
+                    'consented_at' => now(),
+                    'consented_by' => Auth::id(),
+                    'consent_note' => 'Replaced guarantor #' . $old->id,
+                ]);
+                $service->holdGuarantor($new, $loan);
+                $application->update(['guarantor_security' => $application->guarantors()->where('status', 'held')->sum('held_amount')]);
+            });
+        } catch (\Throwable $e) {
+            Storage::disk('private')->delete($uploaded);
+            if ($e instanceof ValidationException) {
+                throw $e;
+            }
+            return errorHandler('The guarantor could not be replaced. Please try again.', $e);
+        }
+
+        return back()->with('success', 'Guarantor replaced and shares held.');
+    }
+
     private function generateDisbursementNumber()
     {
         return app(LoanDisbursementsController::class)->generateDisbursementNumber();
@@ -692,6 +845,13 @@ class LoanApplicationsController extends Controller
             // A changed signer cannot retain another person's signature.
             if ($relation !== 'securities' && $child->isDirty(['member_id', 'national_id', 'name'])) {
                 $child->$fileField = null;
+            }
+            // A changed guarantor or guarantee amount needs fresh consent.
+            if ($relation === 'guarantors' && $child->exists && (
+                $child->isDirty('member_id')
+                || round((float) $child->getOriginal('shares_offered'), 2) !== round((float) $data['shares_offered'], 2)
+            )) {
+                $child->fill(['status' => 'pending', 'consented_at' => null, 'consented_by' => null, 'consent_note' => null]);
             }
             if ($request->hasFile("$relation.$index.$fileField")) {
                 $child->$fileField = $request->file("$relation.$index.$fileField")->store("loan_applications/$relation", 'private');
@@ -844,14 +1004,14 @@ class LoanApplicationsController extends Controller
             fn($item) => (float) ($item['shares_offered'] ?? 0)
         );
 
-        $requiredCoverage = (float) $validated['amount_requested']
+        $requiredCoverage = (float) ($validated['coverage_base'] ?? $validated['amount_requested'])
             * ((float) $loanProduct->minimum_guarantor_coverage_percentage / 100);
 
         if ($totalGuaranteed < $requiredCoverage) {
             throw ValidationException::withMessages([
                 'guarantors' => 'Guarantor security must cover at least ' .
                     number_format($loanProduct->minimum_guarantor_coverage_percentage, 2) .
-                    '% of the requested amount.',
+                    '% of the ' . (isset($validated['coverage_base']) ? 'approved' : 'requested') . ' amount.',
             ]);
         }
     }

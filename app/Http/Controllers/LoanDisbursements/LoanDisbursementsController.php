@@ -128,6 +128,7 @@ class LoanDisbursementsController extends Controller
                 'closure_reason' => $validated['reversal_reason']]);
             \App\Models\LoanApplications\LoanRepaymentSchedule::where('loan_id', $loan->id)
                 ->update(['status' => 'waived', 'outstanding_amount' => 0]);
+            app(\App\Services\LoanGuarantorService::class)->releaseForLoan($loan);
             $record->update(['status' => 'reversed', 'reversed_by' => auth()->id(),
                 'reversed_at' => now(), 'reversal_reason' => $validated['reversal_reason']]);
         });
