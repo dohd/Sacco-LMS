@@ -210,6 +210,8 @@ class SharePostingTest extends TestCase
         $this->assertEquals(0, $this->memberBalance());
         $this->assertSame('reversed', JournalEntry::where('posting_key', 'share_transaction:' . $purchase->id . ':confirmed')->value('status'));
         $this->assertSame(2, JournalEntry::count());
+        // The reversing lines stay tagged to the member's share account.
+        $this->assertSame(4, DB::table('journal_entry_lines')->where('share_account_id', $this->account->id)->count());
     }
 
     public function test_bonus_issue_and_adjustments_post_against_a_chosen_equity_account(): void

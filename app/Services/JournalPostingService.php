@@ -6,8 +6,10 @@ use App\Models\Accounting\AccountingPeriod;
 use App\Models\Accounting\ChartOfAccount;
 use App\Models\Accounting\JournalEntry;
 use App\Models\Accounting\JournalEntryLine;
+use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanRepayment;
+use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Savings\SavingsTransaction;
 use App\Models\Shares\ShareTransaction;
 use App\Models\Savings\SavingsWithdrawal;
@@ -180,7 +182,7 @@ class JournalPostingService
                 ['account' => $product->loan_principal_account_id, 'amount' => $repayment->principal_amount, 'label' => 'Principal'],
                 ['account' => $product->interest_receivable_account_id, 'amount' => $repayment->interest_amount, 'label' => 'Interest'],
                 ['account' => $product->fee_receivable_account_id, 'amount' => $repayment->fees_amount, 'label' => 'Fees'],
-                ['account' => $product->penalty_income_account_id, 'amount' => $repayment->penalty_amount, 'label' => 'Penalty'],
+                ['account' => $product->penalty_receivable_account_id, 'amount' => $repayment->penalty_amount, 'label' => 'Penalty'],
             ];
             $lines = [['account' => $receiptAccount->id, 'debit' => $amountReceived, 'description' => 'Repayment received']];
             foreach ($parts as $part) {
@@ -221,6 +223,130 @@ class JournalPostingService
             $reason,
             'Repayment ' . $repayment->repayment_number
         );
+    }
+
+    /**
+     * Post a penalty assessed on an overdue installment.
+     *
+     *   Dr  Penalty receivable        penalty
+     *   Cr  Penalty income            penalty
+     *
+     * The receivable is cleared when the penalty is paid (see
+     * postLoanRepaymentReceipt).
+     */
+    public function postLoanPenaltyAccrual(LoanRepaymentSchedule $schedule, float $amount, string $assessedOn): JournalEntry
+    {
+        return DB::transaction(function () use ($schedule, $amount, $assessedOn) {
+            $loan = Loan::with('loanApplication.loanProduct')->findOrFail($schedule->loan_id);
+            $product = optional($loan->loanApplication)->loanProduct;
+            if (!$product) {
+                throw ValidationException::withMessages(['penalty' => 'The loan product for this penalty could not be found.']);
+            }
+
+            $amount = round($amount, 2);
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['penalty' => 'The penalty has no amount to post.']);
+            }
+
+            if (!$product->penalty_receivable_account_id) {
+                throw ValidationException::withMessages([
+                    'ledger' => 'The loan product has no penalty receivable account. Set it on the loan product.',
+                ]);
+            }
+
+            return $this->postEntry([
+                'posting_key' => 'loan_penalty:' . $schedule->id . ':assessed',
+                'event_type' => 'loan_penalty',
+                'source' => $schedule,
+                'transaction_date' => $assessedOn,
+                'posting_date' => $assessedOn,
+                'reference_number' => $loan->loan_number . '/' . $schedule->installment_number,
+                'description' => 'Penalty on installment ' . $schedule->installment_number . ' of loan ' . $loan->loan_number,
+                'created_by' => $loan->disbursed_by,
+                'member_id' => $loan->member_id,
+                'loan_id' => $loan->id,
+            ], [
+                ['account' => $product->penalty_receivable_account_id, 'debit' => $amount, 'description' => 'Penalty assessed'],
+                ['account' => $product->penalty_income_account_id, 'credit' => $amount, 'description' => 'Penalty income'],
+            ]);
+        });
+    }
+
+    /**
+     * Write off what is still owed on a loan.
+     *
+     *   Dr  Write-off expense          total written off
+     *   Cr  Loan principal             remaining principal
+     *   Cr  Interest receivable        remaining interest
+     *   Cr  Fee receivable             remaining fees
+     *   Cr  Penalty receivable         remaining penalties
+     *
+     * The amounts are the loan's own balances in the ledger (its tagged
+     * journal lines), so the loan's sub-ledger returns to exactly zero.
+     *
+     * @return array{entry: JournalEntry, principal: float, interest: float, fees: float, penalty: float}
+     */
+    public function postLoanWriteOff(Loan $loan, string $writtenOffOn, string $reason): array
+    {
+        return DB::transaction(function () use ($loan, $writtenOffOn, $reason) {
+            $loan = Loan::with('loanApplication.loanProduct')->whereKey($loan->id)->lockForUpdate()->firstOrFail();
+            $product = optional($loan->loanApplication)->loanProduct;
+            if (!$product) {
+                throw ValidationException::withMessages(['write_off' => 'The loan product for this loan could not be found.']);
+            }
+            if (!$product->write_off_expense_account_id) {
+                throw ValidationException::withMessages([
+                    'ledger' => 'The loan product has no write-off expense account. Set it on the loan product.',
+                ]);
+            }
+
+            $accounts = [
+                'principal' => $product->loan_principal_account_id,
+                'interest' => $product->interest_receivable_account_id,
+                'fees' => $product->fee_receivable_account_id,
+                'penalty' => $product->penalty_receivable_account_id,
+            ];
+            $labels = ['principal' => 'Principal', 'interest' => 'Interest', 'fees' => 'Fees', 'penalty' => 'Penalty'];
+
+            $lines = [];
+            $amounts = ['principal' => 0.0, 'interest' => 0.0, 'fees' => 0.0, 'penalty' => 0.0];
+            foreach ($accounts as $key => $accountId) {
+                if (!$accountId) {
+                    continue;
+                }
+                $owed = round((float) JournalEntryLine::where('loan_id', $loan->id)
+                    ->where('chart_of_account_id', $accountId)
+                    ->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted', 'reversed']))
+                    ->sum(DB::raw('debit - credit')), 2);
+                if ($owed > 0) {
+                    $amounts[$key] = $owed;
+                    $lines[] = ['account' => $accountId, 'credit' => $owed, 'description' => $labels[$key] . ' written off'];
+                }
+            }
+
+            $total = round(array_sum($amounts), 2);
+            if ($total <= 0) {
+                throw ValidationException::withMessages([
+                    'write_off' => 'There is nothing outstanding in the ledger to write off for this loan.',
+                ]);
+            }
+            array_unshift($lines, ['account' => $product->write_off_expense_account_id, 'debit' => $total, 'description' => 'Loan written off']);
+
+            $entry = $this->postEntry([
+                'posting_key' => 'loan_write_off:' . $loan->id,
+                'event_type' => 'loan_write_off',
+                'source' => $loan,
+                'transaction_date' => $writtenOffOn,
+                'posting_date' => $writtenOffOn,
+                'reference_number' => $loan->loan_number,
+                'description' => 'Write-off of loan ' . $loan->loan_number . ': ' . $reason,
+                'created_by' => $loan->disbursed_by,
+                'member_id' => $loan->member_id,
+                'loan_id' => $loan->id,
+            ], $lines);
+
+            return ['entry' => $entry] + $amounts;
+        });
     }
 
     /**
@@ -696,6 +822,7 @@ class JournalPostingService
                     'member_id' => $line->member_id,
                     'loan_id' => $line->loan_id,
                     'savings_account_id' => $line->savings_account_id,
+                    'share_account_id' => $line->share_account_id,
                 ]);
             }
 

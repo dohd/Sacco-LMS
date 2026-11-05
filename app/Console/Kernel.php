@@ -17,6 +17,8 @@ class Kernel extends ConsoleKernel
     {
         // Runs daily; credits interest only for products whose period ended yesterday.
         $schedule->command('savings:credit-interest')->dailyAt('00:30')->withoutOverlapping();
+        // Marks overdue installments, refreshes loan arrears and assesses penalties.
+        $schedule->command('loans:assess-penalties')->dailyAt('01:00')->withoutOverlapping();
     }
 
     /**

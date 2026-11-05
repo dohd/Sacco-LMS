@@ -196,6 +196,40 @@
                             @endforeach
                         </select>
                     </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
+                            Penalty Receivable Account
+                        </label>
+                        <select name="penalty_receivable_account_id" class="form-select @error('penalty_receivable_account_id') is-invalid @enderror">
+                            <option value="">-- Select Account --</option>
+                            @foreach($receivableAccounts as $account)
+                                <option value="{{ $account->id }}"
+                                    {{ old('penalty_receivable_account_id', $loanProduct->penalty_receivable_account_id ?? '') == $account->id ? 'selected' : '' }}>
+                                    {{ $account->code }} - {{ $account->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('penalty_receivable_account_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">Holds penalties until they are paid. Required when a penalty rate is set.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
+                            Loan Write-off Expense Account
+                        </label>
+                        <select name="write_off_expense_account_id" class="form-select @error('write_off_expense_account_id') is-invalid @enderror">
+                            <option value="">-- Select Account --</option>
+                            @foreach($expenseAccounts as $account)
+                                <option value="{{ $account->id }}"
+                                    {{ old('write_off_expense_account_id', $loanProduct->write_off_expense_account_id ?? '') == $account->id ? 'selected' : '' }}>
+                                    {{ $account->code }} - {{ $account->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('write_off_expense_account_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">Charged when a loan is written off.</div>
+                    </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">
                             Processing Fee Income Account
@@ -349,6 +383,15 @@
                                name="grace_period_days"
                                class="form-control"
                                value="{{ old('grace_period_days', $loanProduct->grace_period_days ?? 0) }}">
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="form-label">Penalty Rate (%)</label>
+                        <input type="number" min="0" max="100" step="0.01"
+                               name="penalty_rate"
+                               class="form-control @error('penalty_rate') is-invalid @enderror"
+                               value="{{ old('penalty_rate', $loanProduct->penalty_rate ?? 0) }}">
+                        @error('penalty_rate')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">One-off charge on the unpaid part of an installment once the grace period has passed. 0 for none.</div>
                     </div>
                 </div>
             </div>

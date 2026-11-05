@@ -39,6 +39,12 @@ class LoanProductsController extends Controller
             ->orderBy('config_key', 'asc')
             ->get();
 
+        $expenseAccounts = ChartOfAccount::where('account_type', 'expense')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->orderBy('code')
+            ->get();
+
         $incomeAccounts  = ChartOfAccount::where('account_type', 'income')
             ->where('is_postable', 1)
             // Sorts rows with a config_key first, then sorts by config_key alphabetically
@@ -46,7 +52,7 @@ class LoanProductsController extends Controller
             ->orderBy('config_key', 'asc')
             ->get();
 
-        return view('loan_products.create', compact('accounts', 'receivableAccounts', 'incomeAccounts'));
+        return view('loan_products.create', compact('accounts', 'receivableAccounts', 'incomeAccounts', 'expenseAccounts'));
     }
 
     /**
@@ -100,6 +106,13 @@ class LoanProductsController extends Controller
             'processing_fee_percentage' => ['nullable', 'numeric', 'between:0,100'],
             'insurance_fee_percentage' => ['nullable', 'numeric', 'between:0,100'],
             'grace_period_days' => ['nullable', 'integer', 'min:0'],
+            'penalty_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'penalty_receivable_account_id' => [
+                'nullable', 'integer',
+                Rule::requiredIf(fn() => (float) $request->input('penalty_rate') > 0),
+                $this->postableAccountRule('asset'),
+            ],
+            'write_off_expense_account_id' => ['nullable', 'integer', $this->postableAccountRule('expense')],
 
             'is_active' => ['nullable', 'boolean'],
             'effective_from' => ['nullable', 'date'],
@@ -211,6 +224,9 @@ class LoanProductsController extends Controller
                     'processing_fee_percentage' => $validated['processing_fee_percentage'] ?? 0,
                     'insurance_fee_percentage' => $validated['insurance_fee_percentage'] ?? 0,
                     'grace_period_days' => $validated['grace_period_days'] ?? 0,
+                    'penalty_rate' => $validated['penalty_rate'] ?? 0,
+                    'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'] ?? null,
+                    'write_off_expense_account_id' => $validated['write_off_expense_account_id'] ?? null,
 
                     'is_active' => $request->boolean('is_active', true),
                     'effective_from' => $validated['effective_from'] ?? null,
@@ -256,6 +272,12 @@ class LoanProductsController extends Controller
             ->orderBy('config_key', 'asc')
             ->get();
 
+        $expenseAccounts = ChartOfAccount::where('account_type', 'expense')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->orderBy('code')
+            ->get();
+
         $incomeAccounts  = ChartOfAccount::where('account_type', 'income')
             ->where('is_postable', 1)
             // Sorts rows with a config_key first, then sorts by config_key alphabetically
@@ -263,7 +285,7 @@ class LoanProductsController extends Controller
             ->orderBy('config_key', 'asc')
             ->get();
 
-        return view('loan_products.edit', compact('loanProduct', 'accounts', 'receivableAccounts', 'incomeAccounts'));
+        return view('loan_products.edit', compact('loanProduct', 'accounts', 'receivableAccounts', 'incomeAccounts', 'expenseAccounts'));
     }
 
     /**
@@ -324,6 +346,13 @@ class LoanProductsController extends Controller
             'processing_fee_percentage' => ['nullable', 'numeric', 'between:0,100'],
             'insurance_fee_percentage' => ['nullable', 'numeric', 'between:0,100'],
             'grace_period_days' => ['nullable', 'integer', 'min:0'],
+            'penalty_rate' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'penalty_receivable_account_id' => [
+                'nullable', 'integer',
+                Rule::requiredIf(fn() => (float) $request->input('penalty_rate') > 0),
+                $this->postableAccountRule('asset'),
+            ],
+            'write_off_expense_account_id' => ['nullable', 'integer', $this->postableAccountRule('expense')],
 
             'is_active' => ['nullable', 'boolean'],
             'effective_from' => ['nullable', 'date'],
@@ -435,6 +464,9 @@ class LoanProductsController extends Controller
                     'processing_fee_percentage' => $validated['processing_fee_percentage'] ?? 0,
                     'insurance_fee_percentage' => $validated['insurance_fee_percentage'] ?? 0,
                     'grace_period_days' => $validated['grace_period_days'] ?? 0,
+                    'penalty_rate' => $validated['penalty_rate'] ?? 0,
+                    'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'] ?? null,
+                    'write_off_expense_account_id' => $validated['write_off_expense_account_id'] ?? null,
 
                     'is_active' => $request->boolean('is_active', $loanProduct->is_active),
                     'effective_from' => $validated['effective_from'] ?? null,
@@ -476,5 +508,17 @@ class LoanProductsController extends Controller
                 ->route('loan_products.show', $loanProduct)
                 ->with('success', 'The loan product has been deactivated successfully.');  
         }
+    }
+
+    /**
+     * An active, postable, non-control ledger account of the given type.
+     */
+    private function postableAccountRule(string $type)
+    {
+        return Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+            ->where('account_type', $type)
+            ->where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false));
     }
 }

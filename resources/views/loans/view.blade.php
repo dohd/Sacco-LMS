@@ -74,11 +74,29 @@
                         <span class="badge bg-{{ $statusClass }} fs-6 px-3 py-2">
                             {{ ucwords(str_replace('_', ' ', $loan->status)) }}
                         </span>
+                        @if(in_array($loan->status, ['active', 'in_arrears']) && userCan('write-off-loan'))
+                            <div class="mt-2">
+                                <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#writeOffModal">
+                                    <i class="fa fa-ban me-1"></i> Write Off
+                                </button>
+                            </div>
+                        @endif
                     </div>
                 </div>
             </div>
         </div>
 
+
+        @if($loan->status === 'written_off')
+            <div class="alert alert-dark mb-4">
+                <strong>Written off on {{ $date($loan->written_off_date) }}.</strong>
+                Principal {{ $money($loan->written_off_principal) }},
+                interest {{ $money($loan->written_off_interest) }},
+                fees {{ $money($loan->written_off_fees) }},
+                penalties {{ $money($loan->written_off_penalty) }}.
+                <div class="small mt-1">{{ $loan->write_off_reason }}</div>
+            </div>
+        @endif
 
         {{-- =====================================================
              FINANCIAL SUMMARY
@@ -655,4 +673,37 @@
             </div>
         </div>
     </div>
+
+    @if(in_array($loan->status, ['active', 'in_arrears']) && userCan('write-off-loan'))
+        <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" action="{{ route('loans.write_off', $loan->id) }}" class="modal-content">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">Write Off Loan {{ $loan->loan_number }}</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-warning small">
+                            The principal, interest, fees and penalties still owed on this loan in the ledger are charged to the
+                            loan product's write-off expense account, and the open installments are closed.
+                            Guarantor holds are not released.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Write-off date</label>
+                            <input type="date" name="write_off_date" class="form-control" max="{{ today()->toDateString() }}" value="{{ old('write_off_date', today()->toDateString()) }}" required>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Reason</label>
+                            <textarea name="write_off_reason" class="form-control" rows="3" maxlength="1000" required>{{ old('write_off_reason') }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-danger">Write Off</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
 @endsection
