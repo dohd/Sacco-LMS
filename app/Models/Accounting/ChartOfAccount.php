@@ -32,6 +32,18 @@ class ChartOfAccount extends Model
     }
 
     /**
+     * Accounts that can receive or pay out money: postable, active asset
+     * accounts that are not control accounts (cash, bank, mobile wallets).
+     */
+    public function scopeCashAndBank($query)
+    {
+        return $query->where('account_type', 'asset')
+            ->where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false);
+    }
+
+    /**
      * Relationships
      * */
     public function parent()

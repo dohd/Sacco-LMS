@@ -161,6 +161,20 @@
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="text-muted small">
+                            Ledger Account
+                        </label>
+                        <div>
+                            @if($loanRepayment->depositAccount)
+                                {{ $loanRepayment->depositAccount->code }} - {{ $loanRepayment->depositAccount->name }}
+                            @elseif($loanRepayment->payment_method === 'account_credit')
+                                Member savings control
+                            @else
+                                —
+                            @endif
+                        </div>
+                    </div>
+                    <div class="col-md-4 mb-3">
+                        <label class="text-muted small">
                             Payment Date
                         </label>
                         <div>

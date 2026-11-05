@@ -22,6 +22,21 @@ $(function () {
 
 
     /*
+     * Account credit repayments post to the savings control account, so the
+     * cash / bank ledger account only applies to the other methods.
+     */
+    function toggleDepositAccount() {
+        const isCredit = $('#payment_method').val() === 'account_credit';
+        $('#depositAccountGroup').toggle(!isCredit);
+        $('#deposit_account_id').prop('required', !isCredit);
+        if (isCredit) {
+            $('#deposit_account_id').val('');
+        }
+    }
+    $('#payment_method').on('change', toggleDepositAccount);
+    toggleDepositAccount();
+
+    /*
      * Prevent accidental double submission.
      */
     $('form').on('submit', function () {

@@ -7,6 +7,8 @@ use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanRepayment;
 use App\Models\LoanApplications\LoanRepaymentAllocation;
 use App\Models\LoanApplications\LoanRepaymentSchedule;
+use App\Models\Accounting\ChartOfAccount;
+use App\Services\JournalPostingService;
 use App\Models\Memberships\Member;
 use Auth;
 use Carbon\Carbon;
@@ -65,7 +67,9 @@ class LoanRepaymentsController extends Controller
             ->get();
 
 
-        return view('loan_repayments.create', compact('members', 'loans'));
+        $depositAccounts = $this->depositAccounts();
+
+        return view('loan_repayments.create', compact('members', 'loans', 'depositAccounts'));
     }
 
     /**
@@ -92,6 +96,7 @@ class LoanRepaymentsController extends Controller
                 'required',
                 'in:cash,bank_transfer,mobile_money,cheque,standing_order,check_off,post_dated_cheque,account_credit'
             ],
+            'deposit_account_id' => $this->depositAccountRules(),
             'transaction_reference' => ['nullable', 'string', 'max:255'],
             'payer_name' => ['nullable', 'string', 'max:255'],
             'payer_phone' => ['nullable', 'string', 'max:255'],
@@ -150,6 +155,11 @@ class LoanRepaymentsController extends Controller
 
                     'payment_method' =>
                         $validated['payment_method'],
+
+                    'deposit_account_id' =>
+                        $validated['payment_method'] === 'account_credit'
+                            ? null
+                            : $validated['deposit_account_id'],
 
                     'transaction_reference' =>
                         $validated['transaction_reference'] ?? null,
@@ -233,8 +243,9 @@ class LoanRepaymentsController extends Controller
 
         $members = Member::all();
         $loanRepayment->load(['loan', 'member']);
+        $depositAccounts = $this->depositAccounts();
 
-        return view('loan_repayments.show', compact('loanRepayment', 'repayment', 'members', 'loans'));
+        return view('loan_repayments.edit', compact('loanRepayment', 'repayment', 'members', 'depositAccounts'));
     }
 
     /**
@@ -261,6 +272,7 @@ class LoanRepaymentsController extends Controller
                 'required',
                 'in:cash,bank_transfer,mobile_money,cheque,standing_order,check_off,post_dated_cheque,account_credit'
             ],
+            'deposit_account_id' => $this->depositAccountRules(),
             'transaction_reference' => ['nullable', 'string', 'max:255'],
             'receipt_number' => [
                 'nullable',
@@ -300,6 +312,11 @@ class LoanRepaymentsController extends Controller
 
                     'payment_method' =>
                         $validated['payment_method'],
+
+                    'deposit_account_id' =>
+                        $validated['payment_method'] === 'account_credit'
+                            ? null
+                            : $validated['deposit_account_id'],
 
                     'transaction_reference' =>
                         $validated['transaction_reference'] ?? null,
@@ -561,6 +578,9 @@ class LoanRepaymentsController extends Controller
                 if ($loanStatus === 'fully_paid') {
                     app(\App\Services\LoanGuarantorService::class)->releaseForLoan($loan);
                 }
+
+                // Post the receipt to the general ledger; any failure rolls back the confirmation.
+                app(JournalPostingService::class)->postLoanRepaymentReceipt($repayment->fresh());
             });
 
             return back()->with('success', 'Loan repayment confirmed and allocated successfully.');
@@ -616,7 +636,7 @@ class LoanRepaymentsController extends Controller
                         0,
                         round(
                             $schedule->principal_paid -
-                            $allocation->principal_amount,
+                            $allocation->principal_allocated,
                             2
                         )
                     );
@@ -625,7 +645,7 @@ class LoanRepaymentsController extends Controller
                         0,
                         round(
                             $schedule->interest_paid -
-                            $allocation->interest_amount,
+                            $allocation->interest_allocated,
                             2
                         )
                     );
@@ -634,7 +654,7 @@ class LoanRepaymentsController extends Controller
                         0,
                         round(
                             $schedule->fees_paid -
-                            $allocation->fees_amount,
+                            $allocation->fees_allocated,
                             2
                         )
                     );
@@ -643,7 +663,7 @@ class LoanRepaymentsController extends Controller
                         0,
                         round(
                             $schedule->penalty_paid -
-                            $allocation->penalty_amount,
+                            $allocation->penalty_allocated,
                             2
                         )
                     );
@@ -690,14 +710,24 @@ class LoanRepaymentsController extends Controller
                         'fully_paid_date' => $fullyPaidDate,
                         'status' => $status,
                     ]);
+
+                    $allocation->update([
+                        'status' => 'reversed',
+                        'reversed_at' => now(),
+                        'reversed_by' => Auth::id(),
+                        'reversal_reason' => $validated['reversal_reason'],
+                    ]);
                 }
 
                 /*
                  * Restore loan balances.
                  */
+                // Fees are capitalised into the principal balance at approval and
+                // confirmation reduces it by principal plus fees, so restore both here.
                 $principalBalance = round(
                     $loan->principal_balance +
-                    $repayment->principal_amount,
+                    $repayment->principal_amount +
+                    $repayment->fees_amount,
                     2
                 );
 
@@ -707,11 +737,7 @@ class LoanRepaymentsController extends Controller
                     2
                 );
 
-                $feesBalance = round(
-                    $loan->fees_balance +
-                    $repayment->fees_amount,
-                    2
-                );
+                $feesBalance = round((float) $loan->fees_balance, 2);
 
                 $penaltyBalance = round(
                     $loan->penalty_balance +
@@ -815,6 +841,9 @@ class LoanRepaymentsController extends Controller
                     'reversed_by' => Auth::id(),
                     'reversal_reason' => $validated['reversal_reason'],
                 ]);
+
+                // Reverse the ledger entry posted at confirmation.
+                app(JournalPostingService::class)->reverseLoanRepaymentReceipt($repayment->fresh(), $validated['reversal_reason']);
             });
 
             return redirect()
@@ -829,6 +858,34 @@ class LoanRepaymentsController extends Controller
                 $e
             );
         }
+    }
+
+    /**
+     * Ledger accounts that can receive a repayment: postable cash and bank
+     * style asset accounts, never control accounts.
+     */
+    private function depositAccounts()
+    {
+        return ChartOfAccount::where('account_type', 'asset')
+            ->where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false)
+            ->orderBy('code')
+            ->get();
+    }
+
+    private function depositAccountRules(): array
+    {
+        return [
+            'required_unless:payment_method,account_credit',
+            'nullable',
+            'integer',
+            Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+                ->where('account_type', 'asset')
+                ->where('is_active', true)
+                ->where('is_postable', true)
+                ->where('is_control_account', false)),
+        ];
     }
 
     private function generateLoanRepaymentNumber()

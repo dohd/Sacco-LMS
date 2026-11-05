@@ -59,7 +59,7 @@ class LoanApplicationWorkflowTest extends TestCase
             'interest_rate' => 12, 'interest_method' => 'flat_rate', 'interest_frequency' => 'annual',
             'requires_guarantors' => true, 'minimum_guarantors' => 1, 'maximum_guarantors' => 2,
             'loan_principal_account_id' => 0, 'interest_receivable_account_id' => 0,
-            'interest_income_account_id' => 0, 'penalty_receivable_account_id' => 0,
+            'interest_income_account_id' => 0, 'fee_receivable_account_id' => 0,
             'penalty_income_account_id' => 0, 'processing_fee_income_account_id' => 0,
         ]);
     }

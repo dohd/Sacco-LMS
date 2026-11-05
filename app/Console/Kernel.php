@@ -15,7 +15,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule)
     {
-        // $schedule->command('inspire')->hourly();
+        // Runs daily; credits interest only for products whose period ended yesterday.
+        $schedule->command('savings:credit-interest')->dailyAt('00:30')->withoutOverlapping();
     }
 
     /**

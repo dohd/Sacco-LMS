@@ -3,12 +3,15 @@
 namespace App\Http\Controllers\SavingsTransactions;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\Savings\SavingsAccount;
 use App\Models\Savings\SavingsProduct;
 use App\Models\Savings\SavingsTransaction;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use App\Services\JournalPostingService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -183,11 +186,31 @@ class SavingsTransactionsController extends Controller
     /**
      * Transaction confirmation
      * */
-    public function confirm($id)
+    public function confirm(Request $request, $id)
     {
         $this->requireSaccoPermission('confirm-savings-transaction');
+        $validated = $request->validate([
+            'deposit_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+                    ->where('account_type', 'asset')
+                    ->where('is_active', true)
+                    ->where('is_postable', true)
+                    ->where('is_control_account', false)),
+            ],
+            'offset_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+                    ->where('is_active', true)
+                    ->where('is_postable', true)
+                    ->where('is_control_account', false)
+                    ->where(fn($q) => $q->whereNull('config_key')->orWhere('config_key', '!=', 'individual_savings_register'))),
+            ],
+        ]);
         try {
-            $transaction = DB::transaction(function () use ($id) {
+            $transaction = DB::transaction(function () use ($id, $validated) {
                 $transaction = SavingsTransaction::where('id', $id)
                     ->lockForUpdate()
                     ->first();
@@ -295,11 +318,33 @@ class SavingsTransactionsController extends Controller
                     ]);
                 }
 
+                // A deposit needs the cash or bank account that received the money.
+                $depositAccountId = $transaction->transaction_type === 'deposit'
+                    ? ($validated['deposit_account_id'] ?? $transaction->deposit_account_id)
+                    : null;
+                if ($transaction->transaction_type === 'deposit' && !$depositAccountId) {
+                    throw ValidationException::withMessages([
+                        'deposit_account_id' => 'Select the cash or bank ledger account that received this deposit.',
+                    ]);
+                }
+
+                // An adjustment needs the ledger account that balances it.
+                $offsetAccountId = $transaction->transaction_type === 'adjustment'
+                    ? ($validated['offset_account_id'] ?? $transaction->offset_account_id)
+                    : null;
+                if ($transaction->transaction_type === 'adjustment' && !$offsetAccountId) {
+                    throw ValidationException::withMessages([
+                        'offset_account_id' => 'Select the ledger account that balances this adjustment.',
+                    ]);
+                }
+
                 /*
                  * Update the transaction.
                  */
                 $transaction->update([
                     'running_balance' => $newLedgerBalance,
+                    'deposit_account_id' => $depositAccountId,
+                    'offset_account_id' => $offsetAccountId,
                     'status' => 'confirmed',
                     'confirmed_by' => Auth::id(),
                     'confirmed_at' => now(),
@@ -313,6 +358,13 @@ class SavingsTransactionsController extends Controller
                     'available_balance' => $newAvailableBalance,
                     'last_transaction_date' => $transaction->transaction_date,
                 ]);
+
+                // Post deposits to the general ledger; any failure rolls back the confirmation.
+                if ($transaction->transaction_type === 'deposit') {
+                    app(JournalPostingService::class)->postSavingsDeposit($transaction->fresh());
+                } elseif (in_array($transaction->transaction_type, ['fee', 'interest', 'adjustment'], true)) {
+                    app(JournalPostingService::class)->postSavingsMovement($transaction->fresh());
+                }
 
                 return $transaction;
             });
@@ -466,11 +518,19 @@ class SavingsTransactionsController extends Controller
                     'last_transaction_date' => now()->toDateString(),
                 ]);
 
+                // Reverse the ledger entry posted for a deposit or a paid withdrawal.
+                app(JournalPostingService::class)->reverseSavingsTransaction(
+                    $original->fresh(),
+                    $validated['description'] ?? 'Reversal of transaction ' . $original->transaction_number
+                );
+
                 return $reversal;
             });
 
             // return redirect()->back()->with('success', 'Transaction reversed successfully.');
             return response()->json(['status' => 'success', 'message' => 'Transaction reversed successfully.']);
+        } catch (ValidationException $e) {
+            return response()->json(['status' => 'error', 'message' => collect($e->errors())->flatten()->first()], 422);
         } catch (Exception $e) {
             Log::error($e->getMessage() . ' at ' . $e->getFile() . ':'. $e->getLine());
             // return errorHandler("Error reversing transaction. Please try again.", $e);
@@ -486,7 +546,13 @@ class SavingsTransactionsController extends Controller
      */
     public function show(SavingsTransaction $savingsTransaction)
     {
-        return view('savings_transactions.view', compact('savingsTransaction'));
+        $depositAccounts = ChartOfAccount::cashAndBank()->orderBy('code')->get();
+        $offsetAccounts = ChartOfAccount::where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false)
+            ->where(fn($q) => $q->whereNull('config_key')->orWhere('config_key', '!=', 'individual_savings_register'))
+            ->orderBy('code')->get();
+        return view('savings_transactions.view', compact('savingsTransaction', 'depositAccounts', 'offsetAccounts'));
     }
 
     /**

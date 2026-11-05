@@ -61,8 +61,8 @@ class SavingsProductsController extends Controller
             'name' => ['required', 'string', 'max:255', 'unique:savings_products,name'],
             'product_type' => ['required', Rule::in(['compulsory', 'voluntary', 'fixed_deposit'])],
             'savings_control_account_id' => ['required', 'integer'],
-            'interest_expense_account_id' => ['required', 'integer'],
-            'fee_income_account_id' => ['required', 'integer'],
+            'interest_expense_account_id' => ['required', 'integer', $this->postableAccountRule('expense')],
+            'fee_income_account_id' => ['required', 'integer', $this->postableAccountRule('income')],
             'interest_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'interest_frequency' => ['required', Rule::in(['annual', 'monthly', 'quarterly', 'semi_annual', 'at_maturity'])],
             'interest_calculation_method' => ['required', Rule::in(['simple', 'compound'])],
@@ -251,8 +251,8 @@ class SavingsProductsController extends Controller
             'name' => ['required', 'string', 'max:255'],
             'product_type' => ['required', Rule::in(['compulsory', 'voluntary', 'fixed_deposit'])],
             'savings_control_account_id' => ['required', 'integer'],
-            'interest_expense_account_id' => ['required', 'integer'],
-            'fee_income_account_id' => ['required', 'integer'],
+            'interest_expense_account_id' => ['required', 'integer', $this->postableAccountRule('expense')],
+            'fee_income_account_id' => ['required', 'integer', $this->postableAccountRule('income')],
             'interest_rate' => ['required', 'numeric', 'min:0', 'max:100'],
             'interest_frequency' => ['required', Rule::in(['annual', 'monthly', 'quarterly', 'semi_annual', 'at_maturity'])],
             'interest_calculation_method' => ['required', Rule::in(['simple', 'compound'])],
@@ -394,5 +394,17 @@ class SavingsProductsController extends Controller
     public function destroy($id)
     {
         //
+    }
+
+    /**
+     * An active, postable, non-control ledger account of the given type.
+     */
+    private function postableAccountRule(string $type)
+    {
+        return \Illuminate\Validation\Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+            ->where('account_type', $type)
+            ->where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false));
     }
 }

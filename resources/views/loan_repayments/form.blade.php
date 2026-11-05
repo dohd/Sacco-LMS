@@ -306,6 +306,47 @@
                 </div>
 
 
+                {{-- Cash / bank ledger account --}}
+                <div class="col-md-4" id="depositAccountGroup">
+
+                    <label class="form-label">
+                        Cash / Bank Ledger Account
+                        <span class="text-danger">*</span>
+                    </label>
+
+                    <select name="deposit_account_id"
+                            id="deposit_account_id"
+                            class="form-select">
+
+                        <option value="">
+                            Select Account
+                        </option>
+
+                        @foreach($depositAccounts ?? [] as $account)
+
+                            <option value="{{ $account->id }}"
+                                {{ old(
+                                    'deposit_account_id',
+                                    $isEdit
+                                        ? $loanRepayment->deposit_account_id
+                                        : ''
+                                ) == $account->id ? 'selected' : '' }}>
+
+                                {{ $account->code }} - {{ $account->name }}
+
+                            </option>
+
+                        @endforeach
+
+                    </select>
+
+                    <small class="text-muted">
+                        Where the money was received. Not needed for account credit.
+                    </small>
+
+                </div>
+
+
                 {{-- Transaction reference --}}
                 <div class="col-md-4">
 

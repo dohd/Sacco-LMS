@@ -4,6 +4,7 @@ namespace App\Http\Controllers\SavingsWithdrawals;
 
 use App\Http\Controllers\Controller;
 use App\Http\Controllers\SavingsTransactions\SavingsTransactionsController;
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\Savings\SavingsAccount;
 use App\Models\Savings\SavingsProduct;
 use App\Models\Savings\SavingsTransaction;
@@ -11,6 +12,8 @@ use App\Models\Savings\SavingsWithdrawal;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
+use App\Services\JournalPostingService;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -229,7 +232,8 @@ class SavingsWithdrawalsController extends Controller
      */
     public function show(SavingsWithdrawal $savingsWithdrawal)
     {
-        return view('savings_withdrawals.view', compact('savingsWithdrawal'));
+        $paymentAccounts = ChartOfAccount::cashAndBank()->orderBy('code')->get();
+        return view('savings_withdrawals.view', compact('savingsWithdrawal', 'paymentAccounts'));
     }
 
     /**
@@ -592,6 +596,15 @@ class SavingsWithdrawalsController extends Controller
         $this->requireSaccoPermission('pay-savings-withdrawal');
         $validated = $request->validate([
             'payment_reference' => ['required', 'string', 'max:255'],
+            'payment_account_id' => [
+                'required',
+                'integer',
+                Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+                    ->where('account_type', 'asset')
+                    ->where('is_active', true)
+                    ->where('is_postable', true)
+                    ->where('is_control_account', false)),
+            ],
         ]);
 
         try {
@@ -684,7 +697,11 @@ class SavingsWithdrawalsController extends Controller
                     'paid_at' => now(),
                     'paid_by' => Auth::id(),
                     'payment_reference' => $validated['payment_reference'],
+                    'payment_account_id' => $validated['payment_account_id'],
                 ]);
+
+                // Cash leaves here, so post it to the general ledger; any failure rolls back the payment.
+                app(JournalPostingService::class)->postSavingsWithdrawal($withdrawal->fresh());
 
                 return $withdrawal;
             });

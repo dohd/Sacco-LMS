@@ -24,7 +24,23 @@
                     </button>
                 @endif
                 @if($tranx->status === 'pending' && !in_array($tranx->transaction_type, ['reversal', 'withdrawal']) && userCan('confirm-savings-transaction'))
-                    {{ Form::open(['route' => ['savings_transactions.confirm', $tranx->id], 'method' => 'POST']) }}
+                    {{ Form::open(['route' => ['savings_transactions.confirm', $tranx->id], 'method' => 'POST', 'class' => 'd-flex gap-2']) }}
+                        @if($tranx->transaction_type === 'deposit')
+                            <select name="deposit_account_id" class="form-select form-select-sm" required title="Cash or bank ledger account that received the deposit">
+                                <option value="">Received into...</option>
+                                @foreach($depositAccounts ?? [] as $ledgerAccount)
+                                    <option value="{{ $ledgerAccount->id }}" {{ (string) old('deposit_account_id', $tranx->deposit_account_id) === (string) $ledgerAccount->id ? 'selected' : '' }}>{{ $ledgerAccount->code }} - {{ $ledgerAccount->name }}</option>
+                                @endforeach
+                            </select>
+                        @endif
+                        @if($tranx->transaction_type === 'adjustment')
+                            <select name="offset_account_id" class="form-select form-select-sm" required title="Ledger account that balances the adjustment">
+                                <option value="">Offset account...</option>
+                                @foreach($offsetAccounts ?? [] as $ledgerAccount)
+                                    <option value="{{ $ledgerAccount->id }}" {{ (string) old('offset_account_id', $tranx->offset_account_id) === (string) $ledgerAccount->id ? 'selected' : '' }}>{{ $ledgerAccount->code }} - {{ $ledgerAccount->name }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                         <button type="submit" class="btn btn-success btn-sm"  id="confirmTransactionBtn">
                             <i class="fa fa-undo"></i>
                             Confirm

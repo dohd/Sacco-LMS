@@ -54,6 +54,11 @@ class LoanRepayment extends Model
         return $this->belongsTo(Loan::class, 'loan_id');
     }
 
+    public function depositAccount()
+    {
+        return $this->belongsTo(\App\Models\Accounting\ChartOfAccount::class, 'deposit_account_id');
+    }
+
     public function member()
     {
         return $this->belongsTo(Member::class);

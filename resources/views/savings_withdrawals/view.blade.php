@@ -745,6 +745,18 @@
                                    maxlength="255"
                                    placeholder="Enter payment / voucher / transaction reference">
                         </div>
+                        <div class="mb-3">
+                            <label class="form-label">
+                                Paid From (Cash / Bank Ledger Account)
+                                <span class="text-danger">*</span>
+                            </label>
+                            <select name="payment_account_id" class="form-select" required>
+                                <option value="">Select account</option>
+                                @foreach($paymentAccounts ?? [] as $ledgerAccount)
+                                    <option value="{{ $ledgerAccount->id }}">{{ $ledgerAccount->code }} - {{ $ledgerAccount->name }}</option>
+                                @endforeach
+                            </select>
+                        </div>
                         <div class="small text-muted">
                             Payment method:
                             <strong>

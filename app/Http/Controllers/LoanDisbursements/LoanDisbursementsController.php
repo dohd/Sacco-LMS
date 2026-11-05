@@ -4,10 +4,13 @@ namespace App\Http\Controllers\LoanDisbursements;
 
 use App\Http\Controllers\Controller;
 use App\Models\LoanApplications\{Loan, LoanDisbursement, LoanRepayment};
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\Memberships\Member;
+use App\Services\JournalPostingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
+use Illuminate\Validation\Rule;
 use Illuminate\Validation\ValidationException;
 
 class LoanDisbursementsController extends Controller
@@ -53,13 +56,29 @@ class LoanDisbursementsController extends Controller
     public function edit(LoanDisbursement $loanDisbursement)
     {
         $this->requireState($loanDisbursement, ['approved']);
-        return view('loan_disbursements.edit', compact('loanDisbursement'));
+        $depositAccounts = ChartOfAccount::where('account_type', 'asset')
+            ->where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false)
+            ->orderBy('code')
+            ->get();
+        return view('loan_disbursements.edit', compact('loanDisbursement', 'depositAccounts'));
     }
 
     public function update(Request $request, LoanDisbursement $loanDisbursement)
     {
         $validated = $request->validate([
             'disbursement_method' => ['required', 'in:bank_transfer,mobile_money,cheque,cash,account_credit'],
+            'disbursement_account_id' => [
+                'required_unless:disbursement_method,account_credit',
+                'nullable',
+                'integer',
+                Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+                    ->where('account_type', 'asset')
+                    ->where('is_active', true)
+                    ->where('is_postable', true)
+                    ->where('is_control_account', false)),
+            ],
             'transaction_reference' => ['nullable', 'string', 'max:255'],
             'cheque_number' => ['required_if:disbursement_method,cheque', 'nullable', 'string', 'max:255'],
             'cheque_date' => ['nullable', 'date'],
@@ -77,6 +96,9 @@ class LoanDisbursementsController extends Controller
         DB::transaction(function () use ($loanDisbursement, $validated) {
             $record = LoanDisbursement::whereKey($loanDisbursement->id)->lockForUpdate()->firstOrFail();
             $this->requireState($record, ['approved']);
+            if ($validated['disbursement_method'] === 'account_credit') {
+                $validated['disbursement_account_id'] = null;
+            }
             $record->update($validated);
         });
         return redirect()->route('loan_disbursements.show', $loanDisbursement)->with('success', 'Payment details updated.');
@@ -108,6 +130,10 @@ class LoanDisbursementsController extends Controller
                     'disbursed_by' => auth()->id()]);
             }
             $record->update(['status' => $status, 'processed_by' => auth()->id(), 'processed_at' => now()]);
+            if ($status === 'processed') {
+                // Post the payout to the general ledger; any failure rolls back the disbursement.
+                app(JournalPostingService::class)->postLoanDisbursement($record->fresh());
+            }
         });
         return back()->with('success', 'Disbursement processing updated.');
     }
@@ -131,6 +157,7 @@ class LoanDisbursementsController extends Controller
             app(\App\Services\LoanGuarantorService::class)->releaseForLoan($loan);
             $record->update(['status' => 'reversed', 'reversed_by' => auth()->id(),
                 'reversed_at' => now(), 'reversal_reason' => $validated['reversal_reason']]);
+            app(JournalPostingService::class)->reverseLoanDisbursement($record->fresh(), $validated['reversal_reason']);
         });
         return back()->with('success', 'Disbursement reversed and loan closed.');
     }

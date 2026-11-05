@@ -287,6 +287,22 @@
                                 </div>
                             </div>
 
+                            <div class="col-md-6">
+                                <label class="text-muted small d-block">
+                                    Ledger Account
+                                </label>
+
+                                <div class="fw-semibold">
+                                    @if($loanDisbursement->disbursement_account_id && ($ledgerAccount = \App\Models\Accounting\ChartOfAccount::find($loanDisbursement->disbursement_account_id)))
+                                        {{ $ledgerAccount->code }} - {{ $ledgerAccount->name }}
+                                    @elseif($loanDisbursement->disbursement_method === 'account_credit')
+                                        Member savings control
+                                    @else
+                                        —
+                                    @endif
+                                </div>
+                            </div>
+
                             @if($loanDisbursement->disbursement_method === 'bank_transfer')
 
                                 <div class="col-md-6">
