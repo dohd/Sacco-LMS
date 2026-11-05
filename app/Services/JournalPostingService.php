@@ -11,6 +11,7 @@ use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanRepayment;
 use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Savings\SavingsTransaction;
+use App\Models\Shares\ShareAccount;
 use App\Models\Shares\ShareTransaction;
 use App\Models\Savings\SavingsWithdrawal;
 use Illuminate\Database\Eloquent\Model;
@@ -158,6 +159,12 @@ class JournalPostingService
                 ]);
             }
 
+            if ($repayment->payment_method === 'guarantee') {
+                throw ValidationException::withMessages([
+                    'repayment' => 'A repayment funded by a guarantee is posted by the guarantee invocation.',
+                ]);
+            }
+
             if (round((float) $repayment->unallocated_amount, 2) > 0) {
                 throw ValidationException::withMessages([
                     'repayment' => 'Unallocated repayment amounts cannot be posted until an overpayment account is configured.',
@@ -223,6 +230,88 @@ class JournalPostingService
             $reason,
             'Repayment ' . $repayment->repayment_number
         );
+    }
+
+    /**
+     * Post a guarantee invoked on a defaulting loan. The guarantor's shares
+     * are redeemed and the proceeds repay the loan, so no cash moves.
+     *
+     *   Dr  Share capital (one line per share account)   shares redeemed
+     *   Cr  Loan principal                               principal portion
+     *   Cr  Interest receivable                          interest portion
+     *   Cr  Fee receivable                               fees portion
+     *   Cr  Penalty receivable                           penalty portion
+     *
+     * The share lines are tagged with the guarantor's member and share
+     * account; the loan lines with the borrower's loan.
+     *
+     * @param ShareTransaction[] $redemptions
+     */
+    public function postGuaranteeInvocation(LoanRepayment $repayment, array $redemptions): JournalEntry
+    {
+        return DB::transaction(function () use ($repayment, $redemptions) {
+            $repayment = LoanRepayment::with('loan.loanApplication.loanProduct')->whereKey($repayment->id)->lockForUpdate()->firstOrFail();
+            $loan = $repayment->loan;
+            $product = optional(optional($loan)->loanApplication)->loanProduct;
+            if (!$loan || !$product) {
+                throw ValidationException::withMessages(['repayment' => 'The loan product for this repayment could not be found.']);
+            }
+
+            if (round((float) $repayment->unallocated_amount, 2) > 0) {
+                throw ValidationException::withMessages(['repayment' => 'The guarantee is larger than the amount owed on the loan.']);
+            }
+
+            $lines = [];
+            $debits = 0.0;
+            foreach ($redemptions as $redemption) {
+                $account = ShareAccount::with('shareProduct')->findOrFail($redemption->share_account_id);
+                $amount = round((float) $redemption->amount, 2);
+                $lines[] = [
+                    'account' => $account->shareProduct->share_capital_account_id,
+                    'debit' => $amount,
+                    'description' => 'Shares applied to loan ' . $loan->loan_number,
+                    'member_id' => $account->member_id,
+                    'loan_id' => null,
+                    'share_account_id' => $account->id,
+                ];
+                $debits = round($debits + $amount, 2);
+            }
+
+            $parts = [
+                ['account' => $product->loan_principal_account_id, 'amount' => $repayment->principal_amount, 'label' => 'Principal'],
+                ['account' => $product->interest_receivable_account_id, 'amount' => $repayment->interest_amount, 'label' => 'Interest'],
+                ['account' => $product->fee_receivable_account_id, 'amount' => $repayment->fees_amount, 'label' => 'Fees'],
+                ['account' => $product->penalty_receivable_account_id, 'amount' => $repayment->penalty_amount, 'label' => 'Penalty'],
+            ];
+            foreach ($parts as $part) {
+                if (round((float) $part['amount'], 2) > 0) {
+                    $lines[] = [
+                        'account' => $part['account'],
+                        'credit' => round((float) $part['amount'], 2),
+                        'description' => $part['label'] . ' repaid from guarantee',
+                        'member_id' => $loan->member_id,
+                        'loan_id' => $loan->id,
+                        'share_account_id' => null,
+                    ];
+                }
+            }
+            if ($debits <= 0) {
+                throw ValidationException::withMessages(['repayment' => 'The guarantee has no amount to post.']);
+            }
+
+            return $this->postEntry([
+                'posting_key' => 'guarantee_invocation:' . $repayment->id . ':confirmed',
+                'event_type' => 'guarantee_invocation',
+                'source' => $repayment,
+                'transaction_date' => $repayment->payment_date,
+                'posting_date' => $repayment->value_date ?: $repayment->payment_date,
+                'reference_number' => $repayment->repayment_number,
+                'description' => 'Guarantee invoked on loan ' . $loan->loan_number . ' (' . $repayment->repayment_number . ')',
+                'created_by' => $repayment->recorded_by,
+                'member_id' => $loan->member_id,
+                'loan_id' => $loan->id,
+            ], $lines);
+        });
     }
 
     /**
@@ -740,10 +829,10 @@ class JournalPostingService
                 'debit' => $line['debit'] ?? 0,
                 'credit' => $line['credit'] ?? 0,
                 'description' => $line['description'] ?? null,
-                'member_id' => $header['member_id'] ?? null,
-                'loan_id' => $header['loan_id'] ?? null,
-                'savings_account_id' => $header['savings_account_id'] ?? null,
-                'share_account_id' => $header['share_account_id'] ?? null,
+                'member_id' => array_key_exists('member_id', $line) ? $line['member_id'] : ($header['member_id'] ?? null),
+                'loan_id' => array_key_exists('loan_id', $line) ? $line['loan_id'] : ($header['loan_id'] ?? null),
+                'savings_account_id' => array_key_exists('savings_account_id', $line) ? $line['savings_account_id'] : ($header['savings_account_id'] ?? null),
+                'share_account_id' => array_key_exists('share_account_id', $line) ? $line['share_account_id'] : ($header['share_account_id'] ?? null),
             ]);
         }
 

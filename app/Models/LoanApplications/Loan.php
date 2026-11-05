@@ -73,4 +73,9 @@ class Loan extends Model
     {
         return $this->hasMany(LoanRepaymentSchedule::class);
     }    
+
+    public function guarantors()
+    {
+        return $this->hasMany(LoanGuarantor::class);
+    }
 }

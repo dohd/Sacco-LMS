@@ -20,7 +20,7 @@ class SaccoPermissionSeeder extends Seeder
             'view-own-savings', 'view-own-shares', 'view-own-repayment',
             'view-members', 'approve-membership', 'review-loan', 'approve-loan',
             'verify-loan-security', 'manage-guarantors', 'process-disbursement', 'confirm-repayment',
-            'reverse-repayment', 'reverse-disbursement', 'write-off-loan', 'manage-savings-products', 'manage-savings-accounts',
+            'reverse-repayment', 'reverse-disbursement', 'write-off-loan', 'invoke-guarantee', 'manage-savings-products', 'manage-savings-accounts',
             'confirm-savings-transaction', 'reverse-savings-transaction',
             'approve-savings-withdrawal', 'pay-savings-withdrawal',
             'manage-share-products', 'manage-share-accounts', 'confirm-share-transaction',
@@ -40,7 +40,7 @@ class SaccoPermissionSeeder extends Seeder
                 'approve-loan', 'verify-loan-security', 'manage-guarantors', 'view-own-loan'],
             'cashier' => ['view-dashboard', 'create-savings-transaction', 'confirm-savings-transaction',
                 'approve-savings-withdrawal', 'pay-savings-withdrawal', 'confirm-repayment'],
-            'accountant' => ['view-dashboard', 'write-off-loan', 'reverse-repayment', 'reverse-savings-transaction',
+            'accountant' => ['view-dashboard', 'write-off-loan', 'invoke-guarantee', 'reverse-repayment', 'reverse-savings-transaction',
                 'reverse-share-transaction'],
         ];
 

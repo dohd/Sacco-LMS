@@ -66,6 +66,38 @@ class LoansController extends Controller
     }
 
     /**
+     * Call a guarantor's held shares in against a defaulting loan.
+     */
+    public function invokeGuarantee(Request $request, $id, $guarantorId)
+    {
+        $this->requireSaccoPermission('invoke-guarantee');
+        $validated = $request->validate([
+            'amount' => ['nullable', 'numeric', 'gt:0'],
+            'invocation_date' => ['required', 'date', 'before_or_equal:today'],
+            'invocation_reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $guarantor = \App\Models\LoanApplications\LoanGuarantor::where('loan_id', $id)->findOrFail($guarantorId);
+            $result = DB::transaction(function () use ($guarantor, $validated) {
+                return app(\App\Services\LoanGuarantorService::class)->invoke(
+                    $guarantor,
+                    isset($validated['amount']) ? (float) $validated['amount'] : null,
+                    $validated['invocation_reason'],
+                    $validated['invocation_date']
+                );
+            });
+
+            return redirect()->route('loans.show', $id)
+                ->with('success', number_format($result['amount'], 2) . ' was taken from the guarantor\'s shares and applied to the loan.');
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            return errorHandler('The guarantee could not be invoked. Please try again.', $e);
+        }
+    }
+
+    /**
      * Write off what is still owed on a loan.
      *
      * The ledger balances of the loan are charged to the product's write-off

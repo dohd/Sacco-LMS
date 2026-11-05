@@ -433,6 +433,12 @@ class ShareTransactionsController extends Controller
                     ]);
                 }
 
+                if ($original->loan_guarantor_id) {
+                    throw ValidationException::withMessages([
+                        'transaction' => 'These shares were applied to a loan under a guarantee and cannot be reversed here.'
+                    ]);
+                }
+
                 if (ShareTransaction::where('reversal_of_id', $original->id)->exists()) {
                     throw ValidationException::withMessages([
                         'transaction' => 'This transaction has already been reversed.'

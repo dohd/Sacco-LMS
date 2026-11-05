@@ -642,6 +642,41 @@
         </div>
 
 
+        @php $guarantors = $loan->guarantors()->orderBy('id')->get(); @endphp
+        @if($guarantors->isNotEmpty())
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white"><h6 class="mb-0">Guarantors</h6></div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0 align-middle">
+                        <thead>
+                            <tr>
+                                <th>Guarantor</th>
+                                <th>Status</th>
+                                <th class="text-end">Held</th>
+                                <th class="text-end">Invoked</th>
+                                <th></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            @foreach($guarantors as $guarantor)
+                                <tr>
+                                    <td>{{ $guarantor->guarantor_name }}</td>
+                                    <td>{{ ucfirst($guarantor->status) }}</td>
+                                    <td class="text-end">{{ number_format($guarantor->held_amount, 2) }}</td>
+                                    <td class="text-end">{{ number_format($guarantor->invoked_amount, 2) }}</td>
+                                    <td class="text-end">
+                                        @if($guarantor->status === 'held' && in_array($loan->status, ['active', 'in_arrears']) && userCan('invoke-guarantee'))
+                                            <button type="button" class="btn btn-sm btn-outline-danger" data-bs-toggle="modal" data-bs-target="#invokeModal{{ $guarantor->id }}">Invoke</button>
+                                        @endif
+                                    </td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
+
         {{-- =====================================================
              AUDIT
         ====================================================== --}}
@@ -673,6 +708,46 @@
             </div>
         </div>
     </div>
+
+    @if(in_array($loan->status, ['active', 'in_arrears']))
+        @foreach($loan->guarantors()->where('status', 'held')->get() as $guarantor)
+            @if(userCan('invoke-guarantee'))
+            <div class="modal fade" id="invokeModal{{ $guarantor->id }}" tabindex="-1" aria-hidden="true">
+                <div class="modal-dialog modal-dialog-centered">
+                    <form method="POST" action="{{ route('loans.guarantee_invoke', [$loan->id, $guarantor->id]) }}" class="modal-content">
+                        @csrf
+                        <div class="modal-header">
+                            <h5 class="modal-title">Invoke Guarantee: {{ $guarantor->guarantor_name }}</h5>
+                            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="alert alert-warning small">
+                                The guarantor's held shares ({{ number_format($guarantor->held_amount, 2) }}) are redeemed in whole units
+                                and applied to this loan. This cannot be reversed from the repayment or share screens.
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Amount to take</label>
+                                <input type="number" step="0.01" min="0.01" name="amount" class="form-control" placeholder="Leave blank to take the arrears">
+                            </div>
+                            <div class="mb-3">
+                                <label class="form-label">Date</label>
+                                <input type="date" name="invocation_date" class="form-control" max="{{ today()->toDateString() }}" value="{{ today()->toDateString() }}" required>
+                            </div>
+                            <div class="mb-0">
+                                <label class="form-label">Reason</label>
+                                <textarea name="invocation_reason" class="form-control" rows="3" maxlength="1000" required></textarea>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                            <button type="submit" class="btn btn-danger">Invoke Guarantee</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            @endif
+        @endforeach
+    @endif
 
     @if(in_array($loan->status, ['active', 'in_arrears']) && userCan('write-off-loan'))
         <div class="modal fade" id="writeOffModal" tabindex="-1" aria-hidden="true">

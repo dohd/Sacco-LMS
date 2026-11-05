@@ -71,6 +71,7 @@ Route::group(['middleware' => 'auth'], function() {
     Route::patch('loan_applications/{application}/verify-security', [LoanApplicationsController::class, 'verifySecurity'])->name('loan_applications.verify_security');
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
 
+    Route::post('loans/{loan}/guarantors/{guarantor}/invoke', [LoansController::class, 'invokeGuarantee'])->name('loans.guarantee_invoke');
     Route::post('loans/{loan}/write-off', [LoansController::class, 'writeOff'])->name('loans.write_off');
     Route::resource('loans', LoansController::class);
 
