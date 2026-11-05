@@ -770,6 +770,121 @@ class JournalPostingService
     }
 
     /**
+     * Accounts whose balances must agree with a subledger (loan, savings or
+     * share balances). Only the transaction screens may post to them, because
+     * a manual line carries no member, loan or account tag.
+     */
+    public function subledgerControlledAccountIds(): array
+    {
+        $ids = ChartOfAccount::where('config_key', 'individual_savings_register')->pluck('id')->all();
+        foreach (['loan_principal_account_id', 'interest_receivable_account_id', 'fee_receivable_account_id', 'penalty_receivable_account_id'] as $column) {
+            $ids = array_merge($ids, DB::table('loan_products')->whereNotNull($column)->pluck($column)->all());
+        }
+        $ids = array_merge($ids, DB::table('share_products')->whereNotNull('share_capital_account_id')->pluck('share_capital_account_id')->all());
+
+        return array_values(array_unique(array_map('intval', $ids)));
+    }
+
+    /**
+     * Refuse manual journal lines on subledger-controlled accounts.
+     */
+    public function assertManualAccountsAllowed(array $accountIds): void
+    {
+        $blocked = array_intersect(array_map('intval', $accountIds), $this->subledgerControlledAccountIds());
+        if ($blocked) {
+            $codes = ChartOfAccount::whereIn('id', $blocked)->orderBy('code')->pluck('code')->implode(', ');
+            throw ValidationException::withMessages([
+                'lines' => "Account {$codes} is controlled by a loan, savings or share subledger and cannot be used in a manual journal. Record the transaction on its own screen instead.",
+            ]);
+        }
+    }
+
+    /**
+     * Post a draft manual journal. The same rules as every other posting
+     * apply: an open period containing the transaction date, a balanced entry
+     * and active, postable accounts that are not subledger-controlled.
+     */
+    public function postManualEntry(int $id): JournalEntry
+    {
+        return DB::transaction(function () use ($id) {
+            $entry = JournalEntry::whereKey($id)->lockForUpdate()->with('lines')->firstOrFail();
+
+            if ($entry->event_type !== 'manual' || $entry->status !== 'draft') {
+                throw ValidationException::withMessages(['journal' => 'Only draft manual journals can be posted.']);
+            }
+
+            $period = AccountingPeriod::whereKey($entry->accounting_period_id)->lockForUpdate()->firstOrFail();
+            if ($period->status !== 'open') {
+                throw ValidationException::withMessages(['journal' => 'The accounting period is not open.']);
+            }
+            $date = $entry->transaction_date->toDateString();
+            if ($date < $period->start_date->toDateString() || $date > $period->end_date->toDateString()) {
+                throw ValidationException::withMessages(['journal' => 'Transaction date falls outside the accounting period.']);
+            }
+
+            if ($entry->lines->count() < 2) {
+                throw ValidationException::withMessages(['journal' => 'A journal must contain at least two lines.']);
+            }
+            foreach ($entry->lines as $line) {
+                $debit = round((float) $line->debit, 2);
+                $credit = round((float) $line->credit, 2);
+                if ($debit < 0 || $credit < 0 || ($debit > 0) === ($credit > 0)) {
+                    throw ValidationException::withMessages(['journal' => 'Each journal line must have either a debit or a credit amount.']);
+                }
+            }
+            $difference = $entry->lines->sum(fn($line) => round((float) $line->debit, 2) - round((float) $line->credit, 2));
+            if (bccomp((string) round($difference, 2), '0', 2) !== 0 || round((float) $entry->lines->sum('debit'), 2) <= 0) {
+                throw ValidationException::withMessages(['journal' => 'The journal is not balanced.']);
+            }
+
+            foreach ($entry->lines as $line) {
+                $account = ChartOfAccount::find($line->chart_of_account_id);
+                if (!$account || !$account->is_active) {
+                    throw ValidationException::withMessages(['journal' => 'One or more accounts are inactive.']);
+                }
+                if (!$account->is_postable) {
+                    throw ValidationException::withMessages(['journal' => "Account {$account->code} is not postable."]);
+                }
+            }
+            $this->assertManualAccountsAllowed($entry->lines->pluck('chart_of_account_id')->all());
+
+            $actor = Auth::id() ?: $entry->created_by;
+            $entry->update(['status' => 'posted', 'posted_by' => $actor, 'posted_at' => now()]);
+
+            return $entry->fresh();
+        });
+    }
+
+    /**
+     * Reverse a posted manual journal. Entries created by a transaction are
+     * reversed from that transaction, so its records stay in step with the ledger.
+     */
+    public function reverseManualEntry(int $id, string $reason): JournalEntry
+    {
+        return DB::transaction(function () use ($id, $reason) {
+            $original = JournalEntry::whereKey($id)->lockForUpdate()->firstOrFail();
+
+            if ($original->event_type !== 'manual') {
+                throw ValidationException::withMessages([
+                    'journal' => 'This entry was created by a transaction. Reverse the transaction itself instead.',
+                ]);
+            }
+            if ($original->status !== 'posted') {
+                throw ValidationException::withMessages(['journal' => 'Only posted journals can be reversed.']);
+            }
+
+            return $this->reverseEntry(
+                $original->posting_key,
+                'manual_reversal:' . $original->id,
+                'manual_reversal',
+                $original,
+                $reason,
+                'Journal ' . $original->entry_number
+            );
+        });
+    }
+
+    /**
      * Member balances are posted to the individual savings register, the
      * postable sub-ledger of the member savings control account.
      */

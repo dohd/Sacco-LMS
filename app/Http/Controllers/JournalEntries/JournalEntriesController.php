@@ -7,6 +7,7 @@ use App\Models\Accounting\AccountingPeriod;
 use App\Models\Accounting\ChartOfAccount;
 use App\Models\Accounting\JournalEntry;
 use App\Models\Accounting\JournalEntryLine;
+use App\Services\JournalPostingService;
 use Auth;
 use DB;
 use Illuminate\Http\Request;
@@ -53,6 +54,7 @@ class JournalEntriesController extends Controller
      */
     public function store(Request $request)
     {
+        $this->requireSaccoPermission('manage-journals');
         $validated = $request->validate([
             'accounting_period_id' => ['required', 'exists:accounting_periods,id'],
             'transaction_date' => ['required', 'date'],
@@ -112,6 +114,8 @@ class JournalEntriesController extends Controller
                         'lines' => 'The journal must be balanced and contain a valid amount.',
                     ]);
                 }
+
+                app(JournalPostingService::class)->assertManualAccountsAllowed(array_column($validated['lines'], 'account_id'));
 
                 $entryNumber = $this->generateJournalEntryNumber();
 
@@ -211,6 +215,7 @@ class JournalEntriesController extends Controller
      */
     public function update(Request $request, JournalEntry $journalEntry)
     {
+        $this->requireSaccoPermission('manage-journals');
         if ($journalEntry->status !== 'draft') {
             throw ValidationException::withMessages([
                 'journal' => 'Only draft journal entries can be edited.',
@@ -311,6 +316,8 @@ class JournalEntriesController extends Controller
                     ]);
                 }
 
+                app(JournalPostingService::class)->assertManualAccountsAllowed(array_column($validated['lines'], 'account_id'));
+
                 $journalEntry->update([
                     'accounting_period_id' => $period->id,
                     'transaction_date' => $validated['transaction_date'],
@@ -353,6 +360,8 @@ class JournalEntriesController extends Controller
      */
     public function destroy(JournalEntry $journalEntry)
     {
+        $this->requireSaccoPermission('manage-journals');
+
         try {
             if ($journalEntry->status !== 'draft') {
                 throw ValidationException::withMessages([
@@ -382,181 +391,37 @@ class JournalEntriesController extends Controller
     // Posting journal entry
     public function post($id)
     {
+        $this->requireSaccoPermission('post-journal');
+
         try {
-            DB::transaction(function () use ($id) {
+            app(JournalPostingService::class)->postManualEntry((int) $id);
 
-                $journalEntry = JournalEntry::whereKey($id)
-                    ->lockForUpdate()
-                    ->with('lines')
-                    ->firstOrFail();
-
-                if ($journalEntry->status !== 'draft') {
-                    throw ValidationException::withMessages([
-                        'journal' => 'Only draft journals can be posted.',
-                    ]);
-                }
-
-                $period = AccountingPeriod::whereKey(
-                    $journalEntry->accounting_period_id
-                )->lockForUpdate()->firstOrFail();
-
-                if ($period->status !== 'open') {
-                    throw ValidationException::withMessages([
-                        'journal' => 'The accounting period is not open.',
-                    ]);
-                }
-
-                if (
-                    $journalEntry->transaction_date < $period->start_date ||
-                    $journalEntry->transaction_date > $period->end_date
-                ) {
-                    throw ValidationException::withMessages([
-                        'journal' => 'Transaction date falls outside the accounting period.',
-                    ]);
-                }
-
-                if ($journalEntry->lines->count() < 2) {
-                    throw ValidationException::withMessages([
-                        'journal' => 'A journal must contain at least two lines.',
-                    ]);
-                }
-
-                $debit = $journalEntry->lines->sum('debit');
-                $credit = $journalEntry->lines->sum('credit');
-
-                if (
-                    $debit <= 0 ||
-                    round($debit, 2) !== round($credit, 2)
-                ) {
-                    throw ValidationException::withMessages([
-                        'journal' => 'The journal is not balanced.',
-                    ]);
-                }
-
-                foreach ($journalEntry->lines as $line) {
-                    $account = ChartOfAccount::find($line->chart_of_account_id);
-
-                    if (!$account || !$account->is_active) {
-                        throw ValidationException::withMessages([
-                            'journal' => 'One or more accounts are inactive.',
-                        ]);
-                    }
-
-                    if (!$account->is_postable) {
-                        throw ValidationException::withMessages([
-                            'journal' => "Account {$account->code} is not postable.",
-                        ]);
-                    }
-                }
-
-                $journalEntry->update([
-                    'status' => 'posted',
-                    'posted_by' => Auth::id(),
-                    'posted_at' => now(),
-                ]);
-            });
-
-            return back()->with(
-                'success',
-                'Journal entry posted successfully.'
-            );
-
+            return back()->with('success', 'Journal entry posted successfully.');
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Exception $e) {
-            return errorHandler(
-                'Error posting journal entry. Please try again.',
-                $e
-            );
+            return errorHandler('Error posting journal entry. Please try again.', $e);
         }
-    }   
+    }
 
     // Reverse journal entry
     public function reverse(Request $request, $id)
     {
+        $this->requireSaccoPermission('reverse-journal');
         $validated = $request->validate([
             'reversal_reason' => ['required', 'string', 'max:1000'],
         ]);
 
         try {
-            $reversal = DB::transaction(function () use ($id, $validated) {
-                $original = JournalEntry::whereKey($id)
-                    ->lockForUpdate()
-                    ->with('lines')
-                    ->firstOrFail();
-
-                if ($original->status !== 'posted') {
-                    throw ValidationException::withMessages([
-                        'journal' => 'Only posted journals can be reversed.',
-                    ]);
-                }
-
-                if ($original->reversal_of_id) {
-                    throw ValidationException::withMessages([
-                        'journal' => 'This journal is already a reversal.',
-                    ]);
-                }
-
-                if ($original->reversals()->where('status', 'posted')->exists()) {
-                    throw ValidationException::withMessages([
-                        'journal' => 'This journal has already been reversed.',
-                    ]);
-                }
-
-                $period = AccountingPeriod::whereKey(
-                    $original->accounting_period_id
-                )->lockForUpdate()->firstOrFail();
-
-                if ($period->status !== 'open') {
-                    throw ValidationException::withMessages([
-                        'journal' => 'The accounting period is not open.',
-                    ]);
-                }
-
-                $entryNumber = $this->generateJournalEntryNumber();
-
-                $reversal = JournalEntry::create([
-                    'accounting_period_id' => $period->id,
-                    'entry_number' => $entryNumber,
-                    'posting_key' => 'manual_reversal:' . $original->id,
-                    'transaction_date' => now()->toDateString(),
-                    'posting_date' => now()->toDateString(),
-                    'reference_number' => $original->entry_number,
-                    'event_type' => 'manual_reversal',
-                    'description' => 'Reversal of ' . $original->entry_number,
-                    'status' => 'posted',
-                    'created_by' => Auth::id(),
-                    'posted_by' => Auth::id(),
-                    'posted_at' => now(),
-                    'reversal_of_id' => $original->id,
-                    'reversal_reason' => $validated['reversal_reason'],
-                ]);
-
-                foreach ($original->lines as $line) {
-                    JournalEntryLine::create([
-                        'journal_entry_id' => $reversal->id,
-                        'chart_of_account_id' => $line->chart_of_account_id,
-                        'debit' => $line->credit,
-                        'credit' => $line->debit,
-                    ]);
-                }
-
-                $original->update([
-                    'status' => 'reversed',
-                ]);
-
-                return $reversal;
-            });
+            $reversal = app(JournalPostingService::class)->reverseManualEntry((int) $id, $validated['reversal_reason']);
 
             return redirect()
                 ->route('journal_entries.show', $reversal->id)
                 ->with('success', 'Journal entry reversed successfully.');
-
         } catch (ValidationException $e) {
             throw $e;
         } catch (\Exception $e) {
-            return errorHandler(
-                'Error reversing journal entry. Please try again.',
-                $e
-            );
+            return errorHandler('Error reversing journal entry. Please try again.', $e);
         }
     }
 
