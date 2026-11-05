@@ -80,18 +80,19 @@ class ShareProductsController extends Controller
                 $validated['share_premium_account_id'],
             ])
                 ->where('is_active', 1)
+                ->where('is_postable', 1)
                 ->pluck('id')
                 ->toArray();
 
             if (!in_array((int) $validated['share_capital_account_id'], $accounts, true)) {
                 throw ValidationException::withMessages([
-                    'share_capital_account_id' => 'The selected share capital account is not active or does not exist.'
+                    'share_capital_account_id' => 'The selected share capital account is not active, not postable or does not exist.'
                 ]);
             }
 
             if (!in_array((int) $validated['share_premium_account_id'], $accounts, true)) {
                 throw ValidationException::withMessages([
-                    'share_premium_account_id' => 'The selected share premium account is not active or does not exist.'
+                    'share_premium_account_id' => 'The selected share premium account is not active, not postable or does not exist.'
                 ]);
             }
 
@@ -233,18 +234,19 @@ class ShareProductsController extends Controller
                 $validated['share_premium_account_id'],
             ])
                 ->where('is_active', 1)
+                ->where('is_postable', 1)
                 ->pluck('id')
                 ->toArray();
 
             if (!in_array((int) $validated['share_capital_account_id'], $accounts, true)) {
                 throw ValidationException::withMessages([
-                    'share_capital_account_id' => 'The selected share capital account is not active or does not exist.'
+                    'share_capital_account_id' => 'The selected share capital account is not active, not postable or does not exist.'
                 ]);
             }
 
             if (!in_array((int) $validated['share_premium_account_id'], $accounts, true)) {
                 throw ValidationException::withMessages([
-                    'share_premium_account_id' => 'The selected share premium account is not active or does not exist.'
+                    'share_premium_account_id' => 'The selected share premium account is not active, not postable or does not exist.'
                 ]);
             }
 

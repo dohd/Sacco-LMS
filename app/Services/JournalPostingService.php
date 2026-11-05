@@ -9,6 +9,7 @@ use App\Models\Accounting\JournalEntryLine;
 use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanRepayment;
 use App\Models\Savings\SavingsTransaction;
+use App\Models\Shares\ShareTransaction;
 use App\Models\Savings\SavingsWithdrawal;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Auth;
@@ -458,6 +459,102 @@ class JournalPostingService
     }
 
     /**
+     * Post a confirmed share purchase, redemption, bonus issue or adjustment.
+     *
+     *   Credit (purchase, bonus issue, credit adjustment)
+     *       Dr  Ledger account chosen on confirmation    amount
+     *       Cr  Share capital account of the product     amount
+     *   Debit (redemption, debit adjustment)
+     *       Dr  Share capital account of the product     amount
+     *       Cr  Ledger account chosen on confirmation    amount
+     *
+     * The chosen ledger account is cash or bank for a purchase or redemption,
+     * and the reserve or other account that balances a bonus issue or
+     * adjustment. Shares are carried at unit value, so the share premium
+     * account is not used. Transfers between members do not change share
+     * capital and are not posted.
+     */
+    public function postShareTransaction(ShareTransaction $transaction): JournalEntry
+    {
+        return DB::transaction(function () use ($transaction) {
+            $transaction = ShareTransaction::with('shareAccount.shareProduct')
+                ->whereKey($transaction->id)
+                ->lockForUpdate()
+                ->firstOrFail();
+
+            $type = $transaction->transaction_type;
+            if ($transaction->status !== 'confirmed' || !in_array($type, ['purchase', 'redemption', 'bonus_issue', 'adjustment'], true)) {
+                throw ValidationException::withMessages([
+                    'transaction' => 'Only a confirmed purchase, redemption, bonus issue or adjustment can be posted.',
+                ]);
+            }
+
+            $account = $transaction->shareAccount;
+            $product = optional($account)->shareProduct;
+            if (!$account || !$product) {
+                throw ValidationException::withMessages([
+                    'transaction' => 'The share product for this transaction could not be found.',
+                ]);
+            }
+
+            $other = ChartOfAccount::find($transaction->ledger_account_id);
+            if (!$other || (int) $other->id === (int) $product->share_capital_account_id) {
+                throw ValidationException::withMessages([
+                    'ledger_account_id' => in_array($type, ['purchase', 'redemption'], true)
+                        ? 'Select the cash or bank ledger account for this share transaction.'
+                        : 'Select the ledger account that balances this share transaction.',
+                ]);
+            }
+
+            $amount = round((float) $transaction->amount, 2);
+            if ($amount <= 0) {
+                throw ValidationException::withMessages(['transaction' => 'The transaction has no amount to post.']);
+            }
+
+            $label = ucwords(str_replace('_', ' ', $type));
+            $capital = $product->share_capital_account_id;
+            $lines = $transaction->direction === 'credit'
+                ? [
+                    ['account' => $other->id, 'debit' => $amount, 'description' => $label . ' offset'],
+                    ['account' => $capital, 'credit' => $amount, 'description' => 'Share capital'],
+                ]
+                : [
+                    ['account' => $capital, 'debit' => $amount, 'description' => 'Share capital'],
+                    ['account' => $other->id, 'credit' => $amount, 'description' => $label . ' offset'],
+                ];
+
+            return $this->postEntry([
+                'posting_key' => 'share_transaction:' . $transaction->id . ':confirmed',
+                'event_type' => 'share_' . $type,
+                'source' => $transaction,
+                'transaction_date' => $transaction->transaction_date,
+                'posting_date' => $transaction->value_date ?: $transaction->transaction_date,
+                'reference_number' => $transaction->payment_reference ?: $transaction->receipt_number ?: $transaction->transaction_number,
+                'description' => $label . ' ' . $transaction->transaction_number . ' on share account ' . $account->account_number,
+                'created_by' => $transaction->confirmed_by ?: $transaction->recorded_by,
+                'member_id' => $account->member_id,
+                'share_account_id' => $account->id,
+            ], $lines);
+        });
+    }
+
+    /**
+     * Reverse the journal posted for a share transaction. Transactions
+     * confirmed before ledger posting existed have no entry, so are skipped.
+     */
+    public function reverseShareTransaction(ShareTransaction $transaction, string $reason): ?JournalEntry
+    {
+        return $this->reverseEntry(
+            'share_transaction:' . $transaction->id . ':confirmed',
+            'share_transaction:' . $transaction->id . ':reversed',
+            'share_' . $transaction->transaction_type . '_reversal',
+            $transaction,
+            $reason,
+            'Share transaction ' . $transaction->transaction_number
+        );
+    }
+
+    /**
      * Member balances are posted to the individual savings register, the
      * postable sub-ledger of the member savings control account.
      */
@@ -520,6 +617,7 @@ class JournalPostingService
                 'member_id' => $header['member_id'] ?? null,
                 'loan_id' => $header['loan_id'] ?? null,
                 'savings_account_id' => $header['savings_account_id'] ?? null,
+                'share_account_id' => $header['share_account_id'] ?? null,
             ]);
         }
 

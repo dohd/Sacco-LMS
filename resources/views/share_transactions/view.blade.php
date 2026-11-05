@@ -21,8 +21,18 @@
                     </a>
                     <form method="POST"
                           action="{{ route('share_transactions.confirm', $shareTransaction->id) }}"
-                          class="confirm-form">
+                          class="confirm-form d-flex gap-2">
                         @csrf
+                        @if(in_array($shareTransaction->transaction_type, ['purchase', 'redemption', 'bonus_issue', 'adjustment']))
+                            @php($cashType = in_array($shareTransaction->transaction_type, ['purchase', 'redemption']))
+                            <select name="ledger_account_id" class="form-select" required
+                                    title="{{ $cashType ? 'Cash or bank ledger account' : 'Ledger account that balances this transaction' }}">
+                                <option value="">{{ $cashType ? ($shareTransaction->transaction_type === 'purchase' ? 'Received into...' : 'Paid from...') : 'Offset account...' }}</option>
+                                @foreach(($cashType ? $cashAccounts : $offsetAccounts) ?? [] as $ledgerAccount)
+                                    <option value="{{ $ledgerAccount->id }}" {{ (string) old('ledger_account_id', $shareTransaction->ledger_account_id) === (string) $ledgerAccount->id ? 'selected' : '' }}>{{ $ledgerAccount->code }} - {{ $ledgerAccount->name }}</option>
+                                @endforeach
+                            </select>
+                        @endif
                         <button type="submit" class="btn btn-success">
                             <i class="fa fa-check me-1"></i> Confirm
                         </button>

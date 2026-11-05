@@ -5,7 +5,9 @@ namespace App\Http\Controllers\ShareTransactions;
 use App\Http\Controllers\Controller;
 use App\Models\Shares\ShareAccount;
 use App\Models\Shares\ShareProduct;
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\Shares\ShareTransaction;
+use App\Services\JournalPostingService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Str;
 use Illuminate\Support\Facades\Auth;
@@ -176,7 +178,12 @@ class ShareTransactionsController extends Controller
      */
     public function show(ShareTransaction $shareTransaction)
     {
-        return view('share_transactions.view', compact('shareTransaction'));
+        $cashAccounts = ChartOfAccount::cashAndBank()->orderBy('code')->get();
+        $offsetAccounts = ChartOfAccount::where('is_active', true)
+            ->where('is_postable', true)
+            ->where('is_control_account', false)
+            ->orderBy('code')->get();
+        return view('share_transactions.view', compact('shareTransaction', 'cashAccounts', 'offsetAccounts'));
     }
 
     /**
@@ -254,13 +261,23 @@ class ShareTransactionsController extends Controller
     /**
      * Confirm transaction
      * */
-    public function confirm($id)
+    public function confirm(Request $request, $id)
     {
         $this->requireSaccoPermission('confirm-share-transaction');
+        $validated = $request->validate([
+            'ledger_account_id' => [
+                'nullable',
+                'integer',
+                Rule::exists('chart_of_accounts', 'id')->where(fn($query) => $query
+                    ->where('is_active', true)
+                    ->where('is_postable', true)
+                    ->where('is_control_account', false)),
+            ],
+        ]);
         $shareTransaction = ShareTransaction::findOrFail($id);
 
         try {
-            DB::transaction(function () use ($shareTransaction) {
+            DB::transaction(function () use ($shareTransaction, $validated) {
 
                 $transaction = ShareTransaction::whereKey($shareTransaction->id)
                     ->lockForUpdate()
@@ -339,9 +356,25 @@ class ShareTransactionsController extends Controller
                     ]);
                 }
 
+                // Purchases and redemptions move cash or bank; bonus issues and
+                // adjustments need the account that balances them.
+                $ledgerAccountId = null;
+                if (in_array($transaction->transaction_type, ['purchase', 'redemption', 'bonus_issue', 'adjustment'], true)) {
+                    $ledgerAccountId = $validated['ledger_account_id'] ?? $transaction->ledger_account_id;
+                    $cashType = in_array($transaction->transaction_type, ['purchase', 'redemption'], true);
+                    if (!$ledgerAccountId || ($cashType && !ChartOfAccount::cashAndBank()->whereKey($ledgerAccountId)->exists())) {
+                        throw ValidationException::withMessages([
+                            'ledger_account_id' => $cashType
+                                ? 'Select the cash or bank ledger account for this share transaction.'
+                                : 'Select the ledger account that balances this share transaction.',
+                        ]);
+                    }
+                }
+
                 $transaction->update([
                     'running_units' => $newUnits,
                     'running_balance' => $newBalance,
+                    'ledger_account_id' => $ledgerAccountId,
                     'status' => 'confirmed',
                     'confirmed_by' => Auth::id(),
                     'confirmed_at' => now(),
@@ -355,6 +388,11 @@ class ShareTransactionsController extends Controller
                         $newBalance - $account->held_amount
                     ),
                 ]);
+
+                // Post to the general ledger; any failure rolls back the confirmation.
+                if ($ledgerAccountId) {
+                    app(JournalPostingService::class)->postShareTransaction($transaction->fresh());
+                }
             });
 
             return back()->with(
@@ -487,6 +525,8 @@ class ShareTransactionsController extends Controller
                 $original->update([
                     'status' => 'reversed',
                 ]);
+
+                app(JournalPostingService::class)->reverseShareTransaction($original->fresh(), $validated['description']);
 
                 return $reversal;
             });
