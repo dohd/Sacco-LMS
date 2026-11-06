@@ -875,7 +875,7 @@ class JournalPostingService
 
             return $this->reverseEntry(
                 $original->posting_key,
-                'manual_reversal:' . $original->id,
+                'manual_journal:' . $original->id . ':reversed',
                 'manual_reversal',
                 $original,
                 $reason,
@@ -1053,18 +1053,32 @@ class JournalPostingService
         return $period;
     }
 
-    private function generateJournalEntryNumber(): string
+    /**
+     * The next entry number for this year, JE-YYYY-000001 onwards.
+     *
+     * Numbers come from a locked per-year counter, so two postings never
+     * receive the same number and a deleted draft cannot cause a clash. The
+     * counter starts after the highest number already issued that year. It
+     * moves with the surrounding transaction, so a rolled-back posting leaves
+     * no gap.
+     */
+    public function generateJournalEntryNumber(): string
     {
-        do {
-            $number = 'JE-' . now()->format('Y') . '-' .
-                str_pad(
-                    JournalEntry::whereYear('created_at', now()->year)->count() + 1,
-                    6,
-                    '0',
-                    STR_PAD_LEFT
-                );
-        } while (JournalEntry::where('entry_number', $number)->exists());
+        $year = (int) now()->format('Y');
 
-        return $number;
+        return DB::transaction(function () use ($year) {
+            $row = DB::table('journal_number_sequences')->where('year', $year)->lockForUpdate()->first();
+            if (!$row) {
+                $highest = (int) JournalEntry::where('entry_number', 'like', 'JE-' . $year . '-%')
+                    ->max(DB::raw('CAST(SUBSTRING(entry_number, 9) AS UNSIGNED)'));
+                DB::table('journal_number_sequences')->insertOrIgnore(['year' => $year, 'last_number' => $highest]);
+                $row = DB::table('journal_number_sequences')->where('year', $year)->lockForUpdate()->first();
+            }
+
+            $next = (int) $row->last_number + 1;
+            DB::table('journal_number_sequences')->where('year', $year)->update(['last_number' => $next]);
+
+            return 'JE-' . $year . '-' . str_pad((string) $next, 6, '0', STR_PAD_LEFT);
+        });
     }
 }

@@ -117,20 +117,22 @@ class JournalEntriesController extends Controller
 
                 app(JournalPostingService::class)->assertManualAccountsAllowed(array_column($validated['lines'], 'account_id'));
 
-                $entryNumber = $this->generateJournalEntryNumber();
+                $entryNumber = app(JournalPostingService::class)->generateJournalEntryNumber();
 
                 $journalEntry = JournalEntry::create([
                     'accounting_period_id' => $period->id,
                     'entry_number' => $entryNumber,
-                    'posting_key' => 'manual:' . $entryNumber,
+                    // The id is not known yet; the key is completed straight after the row exists.
+                    'posting_key' => 'manual_journal:pending:' . $entryNumber,
                     'transaction_date' => $validated['transaction_date'],
                     'posting_date' => $validated['posting_date'],
                     'reference_number' => $validated['reference_number'] ?? null,
                     'event_type' => 'manual',
                     'description' => $validated['description'],
                     'status' => 'draft',
-                    'created_by' => Auth::id(),                    
+                    'created_by' => Auth::id(),
                 ]);
+                $journalEntry->update(['posting_key' => 'manual_journal:' . $journalEntry->id . ':posted']);
 
                 foreach ($validated['lines'] as $line) {
                     JournalEntryLine::create([
@@ -423,20 +425,5 @@ class JournalEntriesController extends Controller
         } catch (\Exception $e) {
             return errorHandler('Error reversing journal entry. Please try again.', $e);
         }
-    }
-
-    private function generateJournalEntryNumber()
-    {
-        do {
-            $number = 'JE-' . now()->format('Y') . '-' .
-                str_pad(
-                    JournalEntry::whereYear('created_at', now()->year)->count() + 1,
-                    6,
-                    '0',
-                    STR_PAD_LEFT
-                );
-        } while (JournalEntry::where('entry_number', $number)->exists());
-
-        return $number;
     }
 }

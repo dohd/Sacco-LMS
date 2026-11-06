@@ -120,7 +120,8 @@ class ManualJournalTest extends TestCase
         $this->post(route('journal_entries.reverse', $entry->id), ['reversal_reason' => 'Wrong month'])->assertSessionHasNoErrors();
         $this->assertSame('reversed', $entry->fresh()->status);
         $reversal = JournalEntry::where('reversal_of_id', $entry->id)->sole();
-        $this->assertSame('manual_reversal:' . $entry->id, $reversal->posting_key);
+        $this->assertSame('manual_journal:' . $entry->id . ':posted', $entry->posting_key);
+        $this->assertSame('manual_journal:' . $entry->id . ':reversed', $reversal->posting_key);
         $this->assertSame('posted', $reversal->status);
         $this->assertEquals(0, $this->balance('rent'));
 
@@ -181,6 +182,39 @@ class ManualJournalTest extends TestCase
             ->assertStatus(422)->assertJsonValidationErrors('journal');
         $this->assertSame('posted', $system->fresh()->status);
         $this->assertSame(0, JournalEntry::where('reversal_of_id', $system->id)->count());
+    }
+
+    public function test_entry_numbers_stay_unique_after_a_draft_is_deleted(): void
+    {
+        $first = $this->draft();
+        $second = $this->draft();
+        $third = $this->draft();
+        $this->assertSame(['000001', '000002', '000003'], [substr($first->entry_number, -6), substr($second->entry_number, -6), substr($third->entry_number, -6)]);
+
+        // The old count-based generator looped forever here: two entries were left, so the next number was already taken.
+        $this->delete(route('journal_entries.destroy', $second->id))->assertSessionHasNoErrors();
+        $fourth = $this->draft();
+        $fifth = $this->draft();
+        $this->assertSame('000004', substr($fourth->entry_number, -6));
+        $this->assertSame('000005', substr($fifth->entry_number, -6));
+        $this->assertSame(JournalEntry::count(), JournalEntry::distinct('entry_number')->count('entry_number'));
+
+        // Every key follows type:id:state.
+        foreach (JournalEntry::all() as $entry) {
+            $this->assertSame('manual_journal:' . $entry->id . ':posted', $entry->posting_key);
+        }
+    }
+
+    public function test_numbering_continues_after_the_highest_number_already_issued(): void
+    {
+        JournalEntry::create([
+            'accounting_period_id' => $this->periodId, 'entry_number' => 'JE-' . now()->format('Y') . '-000050',
+            'posting_key' => 'loan_repayment:9:confirmed', 'transaction_date' => today(), 'posting_date' => today(),
+            'event_type' => 'loan_repayment', 'description' => 'Existing', 'status' => 'posted', 'created_by' => $this->userId,
+        ]);
+        $this->assertSame('000051', substr($this->draft()->entry_number, -6));
+        $this->assertSame('000052', substr($this->draft()->entry_number, -6));
+        $this->assertSame(52, (int) DB::table('journal_number_sequences')->where('year', (int) now()->format('Y'))->value('last_number'));
     }
 
     public function test_users_without_permission_cannot_post_or_reverse(): void
