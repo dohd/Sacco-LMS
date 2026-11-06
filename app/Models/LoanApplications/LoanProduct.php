@@ -33,8 +33,8 @@ class LoanProduct extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('loan_products.show', null),
-            $this->getEditButtonAttribute('loan_products.edit', null),
+            $this->getViewButtonAttribute('loan_products.show', 'manage-loan-products'),
+            $this->getEditButtonAttribute('loan_products.edit', 'manage-loan-products'),
             null,
         );
     }

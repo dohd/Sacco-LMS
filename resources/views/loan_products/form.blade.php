@@ -232,6 +232,22 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">
+                            Unearned Interest Account
+                        </label>
+                        <select name="unearned_interest_account_id" class="form-select @error('unearned_interest_account_id') is-invalid @enderror">
+                            <option value="">-- Recognise interest at disbursement --</option>
+                            @foreach($liabilityAccounts as $account)
+                                <option value="{{ $account->id }}"
+                                    {{ old('unearned_interest_account_id', $loanProduct->unearned_interest_account_id ?? '') == $account->id ? 'selected' : '' }}>
+                                    {{ $account->code }} - {{ $account->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('unearned_interest_account_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">When set, interest is held here at disbursement and released to interest income as each installment falls due. Applies to loans disbursed from now on.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
                             Processing Fee Income Account
                             <span class="text-danger">*</span>
                         </label>

@@ -45,6 +45,13 @@ class LoanProductsController extends Controller
             ->orderBy('code')
             ->get();
 
+        $liabilityAccounts = ChartOfAccount::where('account_type', 'liability')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->where('is_control_account', 0)
+            ->orderBy('code')
+            ->get();
+
         $incomeAccounts  = ChartOfAccount::where('account_type', 'income')
             ->where('is_postable', 1)
             // Sorts rows with a config_key first, then sorts by config_key alphabetically
@@ -52,7 +59,7 @@ class LoanProductsController extends Controller
             ->orderBy('config_key', 'asc')
             ->get();
 
-        return view('loan_products.create', compact('accounts', 'receivableAccounts', 'incomeAccounts', 'expenseAccounts'));
+        return view('loan_products.create', compact('accounts', 'receivableAccounts', 'incomeAccounts', 'expenseAccounts', 'liabilityAccounts'));
     }
 
     /**
@@ -113,6 +120,7 @@ class LoanProductsController extends Controller
                 $this->postableAccountRule('asset'),
             ],
             'write_off_expense_account_id' => ['nullable', 'integer', $this->postableAccountRule('expense')],
+            'unearned_interest_account_id' => ['nullable', 'integer', $this->postableAccountRule('liability')],
 
             'is_active' => ['nullable', 'boolean'],
             'effective_from' => ['nullable', 'date'],
@@ -227,6 +235,7 @@ class LoanProductsController extends Controller
                     'penalty_rate' => $validated['penalty_rate'] ?? 0,
                     'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'] ?? null,
                     'write_off_expense_account_id' => $validated['write_off_expense_account_id'] ?? null,
+                    'unearned_interest_account_id' => $validated['unearned_interest_account_id'] ?? null,
 
                     'is_active' => $request->boolean('is_active', true),
                     'effective_from' => $validated['effective_from'] ?? null,
@@ -278,6 +287,13 @@ class LoanProductsController extends Controller
             ->orderBy('code')
             ->get();
 
+        $liabilityAccounts = ChartOfAccount::where('account_type', 'liability')
+            ->where('is_postable', 1)
+            ->where('is_active', 1)
+            ->where('is_control_account', 0)
+            ->orderBy('code')
+            ->get();
+
         $incomeAccounts  = ChartOfAccount::where('account_type', 'income')
             ->where('is_postable', 1)
             // Sorts rows with a config_key first, then sorts by config_key alphabetically
@@ -285,7 +301,7 @@ class LoanProductsController extends Controller
             ->orderBy('config_key', 'asc')
             ->get();
 
-        return view('loan_products.edit', compact('loanProduct', 'accounts', 'receivableAccounts', 'incomeAccounts', 'expenseAccounts'));
+        return view('loan_products.edit', compact('loanProduct', 'accounts', 'receivableAccounts', 'incomeAccounts', 'expenseAccounts', 'liabilityAccounts'));
     }
 
     /**
@@ -353,6 +369,7 @@ class LoanProductsController extends Controller
                 $this->postableAccountRule('asset'),
             ],
             'write_off_expense_account_id' => ['nullable', 'integer', $this->postableAccountRule('expense')],
+            'unearned_interest_account_id' => ['nullable', 'integer', $this->postableAccountRule('liability')],
 
             'is_active' => ['nullable', 'boolean'],
             'effective_from' => ['nullable', 'date'],
@@ -467,6 +484,7 @@ class LoanProductsController extends Controller
                     'penalty_rate' => $validated['penalty_rate'] ?? 0,
                     'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'] ?? null,
                     'write_off_expense_account_id' => $validated['write_off_expense_account_id'] ?? null,
+                    'unearned_interest_account_id' => $validated['unearned_interest_account_id'] ?? null,
 
                     'is_active' => $request->boolean('is_active', $loanProduct->is_active),
                     'effective_from' => $validated['effective_from'] ?? null,

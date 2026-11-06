@@ -32,8 +32,11 @@ class JournalPostingService
      *   Cr  Interest income                                 interest charged on the loan
      *   Cr  Processing fee income                           fees capitalised into the loan
      *
-     * Interest and fees are recognised in full when the loan is disbursed and
-     * collected later through the receivable accounts as repayments arrive.
+     * Fees are recognised in full when the loan is disbursed. Interest is too,
+     * unless the product has an unearned interest account: then the credit goes
+     * to that liability instead and is released to interest income as each
+     * installment falls due (see postLoanInterestRelease). Either way the
+     * receivables are collected as repayments arrive.
      */
     public function postLoanDisbursement(LoanDisbursement $disbursement): JournalEntry
     {
@@ -85,16 +88,21 @@ class JournalPostingService
                 ['account' => $product->loan_principal_account_id, 'debit' => $payout, 'description' => 'Loan principal disbursed'],
                 ['account' => $source->id, 'credit' => $payout, 'description' => 'Loan paid out'],
             ];
+            // With an unearned interest account the interest is held as a liability and released
+            // to income as installments fall due; without one it is recognised in full now.
+            $deferInterest = $interest > 0 && $product->unearned_interest_account_id;
             if ($interest > 0) {
                 $lines[] = ['account' => $product->interest_receivable_account_id, 'debit' => $interest, 'description' => 'Interest charged'];
-                $lines[] = ['account' => $product->interest_income_account_id, 'credit' => $interest, 'description' => 'Interest income'];
+                $lines[] = $deferInterest
+                    ? ['account' => $product->unearned_interest_account_id, 'credit' => $interest, 'description' => 'Unearned interest']
+                    : ['account' => $product->interest_income_account_id, 'credit' => $interest, 'description' => 'Interest income'];
             }
             if ($fees > 0) {
                 $lines[] = ['account' => $product->fee_receivable_account_id, 'debit' => $fees, 'description' => 'Fees capitalised'];
                 $lines[] = ['account' => $product->processing_fee_income_account_id, 'credit' => $fees, 'description' => 'Fee income'];
             }
 
-            return $this->postEntry([
+            $entry = $this->postEntry([
                 'posting_key' => 'loan_disbursement:' . $disbursement->id . ':processed',
                 'event_type' => 'loan_disbursement',
                 'source' => $disbursement,
@@ -106,6 +114,12 @@ class JournalPostingService
                 'member_id' => $loan->member_id,
                 'loan_id' => $loan->id,
             ], $lines);
+
+            if ($deferInterest && !$loan->interest_deferred) {
+                $loan->update(['interest_deferred' => true]);
+            }
+
+            return $entry;
         });
     }
 
@@ -115,6 +129,31 @@ class JournalPostingService
      */
     public function reverseLoanDisbursement(LoanDisbursement $disbursement, string $reason): ?JournalEntry
     {
+        // Interest already released to income (or reclassified) goes back first.
+        $schedules = LoanRepaymentSchedule::where('loan_id', $disbursement->loan_id)->whereNotNull('interest_released_on')->get();
+        foreach ($schedules as $schedule) {
+            $this->reverseEntry(
+                'loan_interest:' . $schedule->id . ':released',
+                'loan_interest:' . $schedule->id . ':reversed',
+                'loan_interest_release_reversal',
+                $schedule,
+                $reason,
+                'Interest on installment ' . $schedule->installment_number
+            );
+        }
+        $loan = Loan::find($disbursement->loan_id);
+        if ($loan) {
+            $this->reverseEntry(
+                'loan_interest:' . $loan->id . ':reclassified',
+                'loan_interest:' . $loan->id . ':reclassification_reversed',
+                'loan_interest_reclassification_reversal',
+                $loan,
+                $reason,
+                'Interest reclassification ' . $loan->loan_number
+            );
+        }
+        LoanRepaymentSchedule::where('loan_id', $disbursement->loan_id)->update(['interest_released_on' => null]);
+
         return $this->reverseEntry(
             'loan_disbursement:' . $disbursement->id . ':processed',
             'loan_disbursement:' . $disbursement->id . ':reversed',
@@ -315,6 +354,115 @@ class JournalPostingService
     }
 
     /**
+     * Release an installment's interest from unearned interest to income on
+     * its due date.
+     *
+     *   Dr  Unearned interest        interest due on the installment
+     *   Cr  Interest income          interest due on the installment
+     *
+     * Dated on the due date, or on the run date when the period of the due
+     * date is no longer open. Releases do not depend on whether the installment
+     * has been paid: interest paid early stays unearned until it falls due.
+     */
+    public function postLoanInterestRelease(LoanRepaymentSchedule $schedule, string $asOf): ?JournalEntry
+    {
+        return DB::transaction(function () use ($schedule, $asOf) {
+            $schedule = LoanRepaymentSchedule::whereKey($schedule->id)->lockForUpdate()->firstOrFail();
+            if ($schedule->interest_released_on) {
+                return null;
+            }
+
+            $loan = Loan::with('loanApplication.loanProduct')->findOrFail($schedule->loan_id);
+            $product = optional($loan->loanApplication)->loanProduct;
+            if (!$product || !$product->unearned_interest_account_id) {
+                throw ValidationException::withMessages(['interest' => 'The loan product has no unearned interest account.']);
+            }
+
+            $due = \Carbon\Carbon::parse($schedule->due_date)->toDateString();
+            $date = AccountingPeriod::where('status', 'open')->whereDate('start_date', '<=', $due)->whereDate('end_date', '>=', $due)->exists()
+                ? $due : $asOf;
+            $amount = round((float) $schedule->interest_due, 2);
+
+            $entry = null;
+            if ($amount > 0) {
+                $entry = $this->postEntry([
+                    'posting_key' => 'loan_interest:' . $schedule->id . ':released',
+                    'event_type' => 'loan_interest_release',
+                    'source' => $schedule,
+                    'transaction_date' => $date,
+                    'posting_date' => $date,
+                    'reference_number' => $loan->loan_number . '/' . $schedule->installment_number,
+                    'description' => 'Interest earned on installment ' . $schedule->installment_number . ' of loan ' . $loan->loan_number,
+                    'created_by' => $loan->disbursed_by,
+                    'member_id' => $loan->member_id,
+                    'loan_id' => $loan->id,
+                ], [
+                    ['account' => $product->unearned_interest_account_id, 'debit' => $amount, 'description' => 'Unearned interest released'],
+                    ['account' => $product->interest_income_account_id, 'credit' => $amount, 'description' => 'Interest income'],
+                ]);
+            }
+            $schedule->update(['interest_released_on' => $due]);
+
+            return $entry;
+        });
+    }
+
+    /**
+     * Move the unreleased interest of a loan that was booked to income in full
+     * into unearned interest, so it is released as installments fall due.
+     *
+     *   Dr  Interest income          interest on installments not yet due
+     *   Cr  Unearned interest        interest on installments not yet due
+     *
+     * Installments already due keep their income and are marked released.
+     * Returns the amount moved, or null when the loan is skipped.
+     */
+    public function reclassifyLoanInterest(Loan $loan, string $asOf): ?float
+    {
+        return DB::transaction(function () use ($loan, $asOf) {
+            $loan = Loan::with('loanApplication.loanProduct')->whereKey($loan->id)->lockForUpdate()->firstOrFail();
+            $product = optional($loan->loanApplication)->loanProduct;
+            if ($loan->interest_deferred || !$product || !$product->unearned_interest_account_id) {
+                return null;
+            }
+            // Only loans whose disbursement is in the ledger can be reclassified.
+            $disbursement = LoanDisbursement::where('loan_id', $loan->id)->where('status', 'processed')->first();
+            if (!$disbursement || !JournalEntry::where('posting_key', 'loan_disbursement:' . $disbursement->id . ':processed')->exists()) {
+                return null;
+            }
+
+            $schedules = LoanRepaymentSchedule::where('loan_id', $loan->id)->whereNull('interest_released_on')
+                ->whereIn('status', ['pending', 'partially_paid', 'overdue', 'paid'])->lockForUpdate()->get();
+            $future = $schedules->filter(fn($s) => \Carbon\Carbon::parse($s->due_date)->toDateString() > $asOf);
+            $amount = round((float) $future->sum('interest_due'), 2);
+
+            if ($amount > 0) {
+                $this->postEntry([
+                    'posting_key' => 'loan_interest:' . $loan->id . ':reclassified',
+                    'event_type' => 'loan_interest_reclassification',
+                    'source' => $loan,
+                    'transaction_date' => $asOf,
+                    'posting_date' => $asOf,
+                    'reference_number' => $loan->loan_number,
+                    'description' => 'Unearned interest on loan ' . $loan->loan_number,
+                    'created_by' => $loan->disbursed_by,
+                    'member_id' => $loan->member_id,
+                    'loan_id' => $loan->id,
+                ], [
+                    ['account' => $product->interest_income_account_id, 'debit' => $amount, 'description' => 'Interest not yet earned'],
+                    ['account' => $product->unearned_interest_account_id, 'credit' => $amount, 'description' => 'Unearned interest'],
+                ]);
+            }
+            foreach ($schedules->diff($future) as $schedule) {
+                $schedule->update(['interest_released_on' => \Carbon\Carbon::parse($schedule->due_date)->toDateString()]);
+            }
+            $loan->update(['interest_deferred' => true]);
+
+            return $amount;
+        });
+    }
+
+    /**
      * Post a penalty assessed on an overdue installment.
      *
      *   Dr  Penalty receivable        penalty
@@ -413,13 +561,38 @@ class JournalPostingService
                 }
             }
 
-            $total = round(array_sum($amounts), 2);
-            if ($total <= 0) {
+            // Interest not yet released is still held as unearned interest. It is cleared against
+            // the receivable, not charged to expense; any part already collected is earned now.
+            $unearnedLines = [];
+            if ($product->unearned_interest_account_id) {
+                $unearned = round((float) JournalEntryLine::where('loan_id', $loan->id)
+                    ->where('chart_of_account_id', $product->unearned_interest_account_id)
+                    ->whereHas('journalEntry', fn($q) => $q->whereIn('status', ['posted', 'reversed']))
+                    ->sum(DB::raw('credit - debit')), 2);
+                $cleared = min($unearned, $amounts['interest']);
+                if ($cleared > 0) {
+                    $unearnedLines[] = ['account' => $product->unearned_interest_account_id, 'debit' => $cleared, 'description' => 'Unearned interest cleared'];
+                    $amounts['interest'] = round($amounts['interest'] - $cleared, 2);
+                    // The interest line above credits the full receivable; the expense covers only what was earned.
+                    $amounts['unearned_cleared'] = $cleared;
+                }
+                $residual = round($unearned - $cleared, 2);
+                if ($residual > 0) {
+                    $unearnedLines[] = ['account' => $product->unearned_interest_account_id, 'debit' => $residual, 'description' => 'Collected interest earned'];
+                    $unearnedLines[] = ['account' => $product->interest_income_account_id, 'credit' => $residual, 'description' => 'Interest income'];
+                }
+            }
+
+            $total = round(array_sum([$amounts['principal'], $amounts['interest'], $amounts['fees'], $amounts['penalty']]), 2);
+            if ($total <= 0 && empty($amounts['unearned_cleared'])) {
                 throw ValidationException::withMessages([
                     'write_off' => 'There is nothing outstanding in the ledger to write off for this loan.',
                 ]);
             }
-            array_unshift($lines, ['account' => $product->write_off_expense_account_id, 'debit' => $total, 'description' => 'Loan written off']);
+            if ($total > 0) {
+                array_unshift($lines, ['account' => $product->write_off_expense_account_id, 'debit' => $total, 'description' => 'Loan written off']);
+            }
+            $lines = array_merge($lines, $unearnedLines);
 
             $entry = $this->postEntry([
                 'posting_key' => 'loan_write_off:' . $loan->id,
@@ -434,7 +607,7 @@ class JournalPostingService
                 'loan_id' => $loan->id,
             ], $lines);
 
-            return ['entry' => $entry] + $amounts;
+            return ['entry' => $entry, 'principal' => $amounts['principal'], 'interest' => $amounts['interest'], 'fees' => $amounts['fees'], 'penalty' => $amounts['penalty']];
         });
     }
 
@@ -777,7 +950,7 @@ class JournalPostingService
     public function subledgerControlledAccountIds(): array
     {
         $ids = ChartOfAccount::where('config_key', 'individual_savings_register')->pluck('id')->all();
-        foreach (['loan_principal_account_id', 'interest_receivable_account_id', 'fee_receivable_account_id', 'penalty_receivable_account_id'] as $column) {
+        foreach (['loan_principal_account_id', 'interest_receivable_account_id', 'fee_receivable_account_id', 'penalty_receivable_account_id', 'unearned_interest_account_id'] as $column) {
             $ids = array_merge($ids, DB::table('loan_products')->whereNotNull($column)->pluck($column)->all());
         }
         $ids = array_merge($ids, DB::table('share_products')->whereNotNull('share_capital_account_id')->pluck('share_capital_account_id')->all());
