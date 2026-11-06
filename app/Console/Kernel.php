@@ -19,6 +19,12 @@ class Kernel extends ConsoleKernel
         $schedule->command('savings:credit-interest')->dailyAt('00:30')->withoutOverlapping();
         // Marks overdue installments, refreshes loan arrears and assesses penalties.
         $schedule->command('loans:assess-penalties')->dailyAt('01:00')->withoutOverlapping();
+
+        // Demo copies only: wipes the demo data each night. Off unless DEMO_RESET_ENABLED=true.
+        if (config('demo.reset_enabled')) {
+            $schedule->command('demo:reset --force')->dailyAt(config('demo.reset_time'))
+                ->environments(config('demo.allowed_environments'))->withoutOverlapping();
+        }
     }
 
     /**
