@@ -30,7 +30,8 @@ class JournalPostingService
      *   Cr  Cash / bank account chosen on the disbursement  amount paid out
      *       (member savings control for account_credit)
      *   Cr  Interest income                                 interest charged on the loan
-     *   Cr  Processing fee income                           fees capitalised into the loan
+     *   Cr  Processing fee income                           fees capitalised into the loan, less insurance
+     *   Cr  Insurance payable                               insurance part of the fees (when the product has the account)
      *
      * Fees are recognised in full when the loan is disbursed. Interest is too,
      * unless the product has an unearned interest account: then the credit goes
@@ -98,8 +99,15 @@ class JournalPostingService
                     : ['account' => $product->interest_income_account_id, 'credit' => $interest, 'description' => 'Interest income'];
             }
             if ($fees > 0) {
+                // Insurance is collected for the insurer, so with an insurance payable account it is a liability, not income.
+                $insurance = $product->insurance_payable_account_id ? min($fees, max(0.0, round((float) $loan->insurance_due, 2))) : 0.0;
                 $lines[] = ['account' => $product->fee_receivable_account_id, 'debit' => $fees, 'description' => 'Fees capitalised'];
-                $lines[] = ['account' => $product->processing_fee_income_account_id, 'credit' => $fees, 'description' => 'Fee income'];
+                if ($insurance > 0) {
+                    $lines[] = ['account' => $product->insurance_payable_account_id, 'credit' => $insurance, 'description' => 'Insurance payable'];
+                }
+                if (round($fees - $insurance, 2) > 0) {
+                    $lines[] = ['account' => $product->processing_fee_income_account_id, 'credit' => round($fees - $insurance, 2), 'description' => 'Fee income'];
+                }
             }
 
             $entry = $this->postEntry([

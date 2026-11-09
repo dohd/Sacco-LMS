@@ -248,6 +248,22 @@
                     </div>
                     <div class="col-md-6 mb-3">
                         <label class="form-label">
+                            Insurance Payable Account
+                        </label>
+                        <select name="insurance_payable_account_id" class="form-select @error('insurance_payable_account_id') is-invalid @enderror">
+                            <option value="">-- Book insurance as fee income --</option>
+                            @foreach($liabilityAccounts as $account)
+                                <option value="{{ $account->id }}"
+                                    {{ old('insurance_payable_account_id', $loanProduct->insurance_payable_account_id ?? '') == $account->id ? 'selected' : '' }}>
+                                    {{ $account->code }} - {{ $account->name }}
+                                </option>
+                            @endforeach
+                        </select>
+                        @error('insurance_payable_account_id')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="form-text">When set, the insurance fee is held here for the insurer instead of being booked as income. Applies to loans approved from now on.</div>
+                    </div>
+                    <div class="col-md-6 mb-3">
+                        <label class="form-label">
                             Processing Fee Income Account
                             <span class="text-danger">*</span>
                         </label>

@@ -569,6 +569,7 @@ class LoanApplicationsController extends Controller
                     'payment_mode' => $lockedApp->payment_mode,
                     'status' => 'active',
                     'fees_due' => $feesDue,
+                    'insurance_due' => round($percInsuranceFees, 2),
                     'principal_balance' => $principalBal,
                     'interest_balance' => $interestEstimate,
                     'total_outstanding_balance' => $totalBal,

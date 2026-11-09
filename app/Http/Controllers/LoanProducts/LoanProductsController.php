@@ -121,6 +121,7 @@ class LoanProductsController extends Controller
             ],
             'write_off_expense_account_id' => ['nullable', 'integer', $this->postableAccountRule('expense')],
             'unearned_interest_account_id' => ['nullable', 'integer', $this->postableAccountRule('liability')],
+            'insurance_payable_account_id' => ['nullable', 'integer', $this->postableAccountRule('liability'), 'different:unearned_interest_account_id'],
 
             'is_active' => ['nullable', 'boolean'],
             'effective_from' => ['nullable', 'date'],
@@ -236,6 +237,7 @@ class LoanProductsController extends Controller
                     'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'] ?? null,
                     'write_off_expense_account_id' => $validated['write_off_expense_account_id'] ?? null,
                     'unearned_interest_account_id' => $validated['unearned_interest_account_id'] ?? null,
+                    'insurance_payable_account_id' => $validated['insurance_payable_account_id'] ?? null,
 
                     'is_active' => $request->boolean('is_active', true),
                     'effective_from' => $validated['effective_from'] ?? null,
@@ -370,6 +372,7 @@ class LoanProductsController extends Controller
             ],
             'write_off_expense_account_id' => ['nullable', 'integer', $this->postableAccountRule('expense')],
             'unearned_interest_account_id' => ['nullable', 'integer', $this->postableAccountRule('liability')],
+            'insurance_payable_account_id' => ['nullable', 'integer', $this->postableAccountRule('liability'), 'different:unearned_interest_account_id'],
 
             'is_active' => ['nullable', 'boolean'],
             'effective_from' => ['nullable', 'date'],
@@ -485,6 +488,7 @@ class LoanProductsController extends Controller
                     'penalty_receivable_account_id' => $validated['penalty_receivable_account_id'] ?? null,
                     'write_off_expense_account_id' => $validated['write_off_expense_account_id'] ?? null,
                     'unearned_interest_account_id' => $validated['unearned_interest_account_id'] ?? null,
+                    'insurance_payable_account_id' => $validated['insurance_payable_account_id'] ?? null,
 
                     'is_active' => $request->boolean('is_active', $loanProduct->is_active),
                     'effective_from' => $validated['effective_from'] ?? null,
