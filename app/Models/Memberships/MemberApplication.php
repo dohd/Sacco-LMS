@@ -58,7 +58,8 @@ class MemberApplication extends Model
 
     public function getKycStatusAttribute()
     {
-        return in_array($this->status, ['draft', 'pending'])? 'pending' : 'verified';
+        if (isset($this->attributes['kyc_status'])) return $this->attributes['kyc_status'];
+        return in_array($this->status, ['draft', 'pending'])? 'pending' : 'complete';
     }
 
 

@@ -19,6 +19,10 @@
     </li>
     @endif
 
+    @if(userCan('view-members'))
+    <li class="nav-item"><a class="nav-link collapsed" href="{{ route('pilot_imports.index') }}"><i class="bi bi-upload"></i><span>Pilot Data Import</span></a></li>
+    @endif
+
     @if(userCan(['view-members', 'approve-loan', 'view-own-loan']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#loans" data-bs-toggle="collapse" href="#">      

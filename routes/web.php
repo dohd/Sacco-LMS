@@ -5,6 +5,7 @@ use App\Http\Controllers\Auth\LoginController;
 use App\Http\Controllers\ChartOfAccounts\ChartOfAccountsController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\Documents\DocumentsController;
+use App\Http\Controllers\PilotImports\PilotImportsController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JournalEntries\JournalEntriesController;
 use App\Http\Controllers\LoanApplications\LoanApplicationsController;
@@ -47,6 +48,11 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Private documents (authorised per record)
     Route::get('documents', [DocumentsController::class, 'show'])->name('documents.show');
+
+    // Pilot data is validated against existing members and products before load.
+    Route::get('pilot-imports', [PilotImportsController::class, 'index'])->name('pilot_imports.index');
+    Route::post('pilot-imports/preview', [PilotImportsController::class, 'preview'])->name('pilot_imports.preview');
+    Route::post('pilot-imports/commit', [PilotImportsController::class, 'commit'])->name('pilot_imports.commit');
 
     // Memberships
     Route::patch('memberships/approve/{membership}', [MembershipsController::class, 'approve'])->name('memberships.approve');
