@@ -51,6 +51,7 @@ Route::group(['middleware' => 'auth'], function() {
 
     // Pilot data is validated against existing members and products before load.
     Route::get('pilot-imports', [PilotImportsController::class, 'index'])->name('pilot_imports.index');
+    Route::get('pilot-imports/template', [PilotImportsController::class, 'template'])->name('pilot_imports.template');
     Route::post('pilot-imports/preview', [PilotImportsController::class, 'preview'])->name('pilot_imports.preview');
     Route::post('pilot-imports/commit', [PilotImportsController::class, 'commit'])->name('pilot_imports.commit');
 

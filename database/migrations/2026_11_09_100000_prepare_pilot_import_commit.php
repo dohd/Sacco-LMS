@@ -46,6 +46,7 @@ class PreparePilotImportCommit extends Migration
             $table->unsignedBigInteger('user_id');
             $table->string('status')->default('previewed');
             $table->string('membership_path');
+            $table->date('opening_date');
             $table->unsignedBigInteger('savings_product_id');
             $table->unsignedBigInteger('share_product_id');
             $table->unsignedBigInteger('loan_product_id');

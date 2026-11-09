@@ -30,14 +30,6 @@ use Maatwebsite\Excel\Facades\Excel;
 /** Validation and one-time commit for the pilot's opening member balances. */
 class PilotImportService
 {
-    private const OPENING_DATE = '2025-12-31';
-    private const EXPECTED_TOTALS = [
-        'shares' => 193600.00,
-        'deposit_balance' => 7350406.34,
-        'loan_balance' => 7416754.92,
-        'interest_accrued' => 840233.79,
-    ];
-
     public function products(): array
     {
         return [
@@ -48,9 +40,13 @@ class PilotImportService
         ];
     }
 
-    public function preview($file, array $ids): array
+    public function preview($file, array $ids, string $openingDate): array
     {
         $errors = [];
+        $parsedOpeningDate = \DateTime::createFromFormat('!Y-m-d', $openingDate);
+        if (!$parsedOpeningDate || $parsedOpeningDate->format('Y-m-d') !== $openingDate) {
+            $errors[] = 'Choose a valid opening balance date.';
+        }
         $rows = $this->readMembership($file, $errors);
         $products = $this->products();
         $selected = [];
@@ -59,14 +55,14 @@ class PilotImportService
             if (!$selected[$key]) $errors[] = 'Choose an active ' . ($key === 'opening_equity' ? 'postable equity ledger account' : 'product') . '.';
         }
 
-        $totals = array_fill_keys(array_keys(self::EXPECTED_TOTALS), 0.0);
+        $totals = ['shares' => 0.0, 'deposit_balance' => 0.0, 'loan_balance' => 0.0, 'interest_accrued' => 0.0];
         $seenNumbers = $seenIds = $seenEmails = [];
+        $newMemberCount = 0;
         foreach ($rows as $index => $row) {
             $line = $index + 2;
-            $number = strtoupper(trim((string) ($row['membership_number'] ?? '')));
+            $number = strtoupper(trim((string) ($row['import_membership_number'] ?? '')));
             if ($number === '' && strtoupper(trim((string) ($row['comments'] ?? ''))) === 'NEW') $number = 'NEW';
-            if ($number === '') $errors[] = "Membership row $line: membership_number is required; use NEW for a number to be issued by the system.";
-            elseif ($number !== 'NEW' && isset($seenNumbers[$number])) $errors[] = "Membership row $line: duplicate membership_number $number.";
+            if ($number !== 'NEW' && $number !== '' && isset($seenNumbers[$number])) $errors[] = "Membership row $line: duplicate import_membership_number $number.";
             elseif ($number !== 'NEW') $seenNumbers[$number] = true;
 
             foreach (['first_name', 'last_name', 'date_of_birth', 'national_id', 'phone', 'email', 'admission_date', 'shares', 'deposit_balance', 'loan_balance', 'interest_accrued'] as $field) {
@@ -97,20 +93,21 @@ class PilotImportService
             if ($selected['shares'] && (float) $selected['shares']->unit_value > 0 && round(fmod((float) ($row['shares'] ?? 0), (float) $selected['shares']->unit_value), 2) !== 0.0) $errors[] = "Membership row $line: shares must be an exact multiple of the selected product's unit value.";
         }
 
-        if (count($rows) !== 225) $errors[] = 'Membership workbook has ' . count($rows) . ' rows; the cleansing directive expects 225 members.';
-        foreach (self::EXPECTED_TOTALS as $key => $expected) {
-            if (round($totals[$key], 2) !== $expected) $errors[] = 'Membership reconciliation: ' . $key . ' totals ' . number_format($totals[$key], 2, '.', '') . ', expected ' . number_format($expected, 2, '.', '') . '.';
+        $this->checkSelectedLedgers($selected, $errors);
+        if ($parsedOpeningDate && $parsedOpeningDate->format('Y-m-d') === $openingDate) {
+            $period = AccountingPeriod::whereDate('start_date', '<=', $openingDate)->whereDate('end_date', '>=', $openingDate)->where('status', 'open')->first();
+            if (!$period) $errors[] = 'An open accounting period must contain ' . $parsedOpeningDate->format('d/m/Y') . ' for opening balance journal postings.';
         }
 
-        $this->checkSelectedLedgers($selected, $errors);
-        $period = AccountingPeriod::whereDate('start_date', '<=', self::OPENING_DATE)->whereDate('end_date', '>=', self::OPENING_DATE)->first();
-        if (!$period || $period->status !== 'open') $errors[] = 'The accounting period containing 31/12/2025 must be open for the opening balance journal postings.';
-
         foreach ($rows as $index => $row) {
-            $number = strtoupper(trim((string) ($row['membership_number'] ?? '')));
+            $number = strtoupper(trim((string) ($row['import_membership_number'] ?? '')));
             if ($number === '' && strtoupper(trim((string) ($row['comments'] ?? ''))) === 'NEW') $number = 'NEW';
-            if ($number !== 'NEW' && Member::where('membership_number', $number)->exists()) {
-                $member = Member::where('membership_number', $number)->first();
+            $member = $number !== '' && $number !== 'NEW'
+                ? Member::where('import_membership_number', $number)->first()
+                : null;
+            // Older workbooks used membership_number for the source identifier.
+            if (!$member && $number !== '' && $number !== 'NEW') $member = Member::where('membership_number', $number)->first();
+            if ($member) {
                 $incomingId = trim((string) ($row['national_id'] ?? ''));
                 if ($incomingId !== '' && strtoupper($incomingId) !== 'MISSING' && $member->national_id !== $incomingId) $errors[] = 'Membership row ' . ($index + 2) . ": membership number $number belongs to a different national_id.";
                 $incomingName = trim(implode(' ', array_filter([$row['first_name'] ?? '', $row['middle_name'] ?? '', $row['last_name'] ?? ''])));
@@ -120,12 +117,13 @@ class PilotImportService
                     Loan::where('member_id', $member->id)->exists()) {
                     $errors[] = 'Membership row ' . ($index + 2) . ": member $number already has a pilot balance account; refusing to duplicate opening balances.";
                 }
-            }
+            } else $newMemberCount++;
         }
 
         return [
+            'opening_date' => $openingDate,
             'errors' => array_values(array_unique($errors)),
-            'counts' => ['members' => count($rows), 'new_members' => count(array_filter($rows, function ($r) { return strtoupper(trim((string) ($r['membership_number'] ?? ''))) === 'NEW' || (trim((string) ($r['membership_number'] ?? '')) === '' && strtoupper(trim((string) ($r['comments'] ?? ''))) === 'NEW'); })), 'kyc_pending' => count(array_filter($rows, function ($r) { foreach (['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'] as $f) if (strtoupper(trim((string) ($r[$f] ?? ''))) === 'MISSING') return true; return false; }))],
+            'counts' => ['members' => count($rows), 'new_members' => $newMemberCount, 'kyc_pending' => count(array_filter($rows, function ($r) { foreach (['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'] as $f) if (strtoupper(trim((string) ($r[$f] ?? ''))) === 'MISSING') return true; return false; }))],
             'totals' => $totals,
             'products' => [
                 'savings' => $this->productLabel($selected['savings']), 'shares' => $this->productLabel($selected['shares']),
@@ -138,13 +136,14 @@ class PilotImportService
         ];
     }
 
-    public function stage($file, array $ids, int $userId): \stdClass
+    public function stage($file, array $ids, int $userId, string $openingDate): \stdClass
     {
         $token = (string) Str::uuid();
         $extension = strtolower($file->getClientOriginalExtension());
         $path = $file->storeAs('pilot-imports', $token . '.' . $extension, 'local');
         $id = DB::table('pilot_import_batches')->insertGetId([
             'token' => $token, 'user_id' => $userId, 'status' => 'previewed', 'membership_path' => $path,
+            'opening_date' => $openingDate,
             'savings_product_id' => $ids['savings_product_id'], 'share_product_id' => $ids['shares_product_id'],
             'loan_product_id' => $ids['loans_product_id'], 'opening_equity_account_id' => $ids['opening_equity_account_id'],
             'created_at' => now(), 'updated_at' => now(),
@@ -162,7 +161,7 @@ class PilotImportService
         $path = Storage::disk('local')->path($batch->membership_path);
         if (!file_exists($path)) throw ValidationException::withMessages(['batch' => 'The staged workbook has expired. Upload and preview it again.']);
         $ids = ['savings_product_id' => $batch->savings_product_id, 'shares_product_id' => $batch->share_product_id, 'loans_product_id' => $batch->loan_product_id, 'opening_equity_account_id' => $batch->opening_equity_account_id];
-        $report = $this->preview(new \Illuminate\Http\UploadedFile($path, basename($path), null, null, true), $ids);
+        $report = $this->preview(new \Illuminate\Http\UploadedFile($path, basename($path), null, null, true), $ids, $batch->opening_date);
         if ($report['errors']) throw ValidationException::withMessages(['batch' => 'The batch no longer passes validation. Preview it again to review current errors.']);
 
         return DB::transaction(function () use ($batch, $path, $ids, $report, $userId) {
@@ -175,14 +174,14 @@ class PilotImportService
             $rows = $this->readMembership((new \Illuminate\Http\UploadedFile($path, basename($path), null, null, true)), $readErrors);
             if ($readErrors) throw ValidationException::withMessages(['batch' => implode(' ', $readErrors)]);
 
-            $result = ['created_members' => 0, 'existing_members' => 0, 'savings_accounts' => 0, 'share_accounts' => 0, 'opening_loans' => 0, 'membership_numbers' => []];
+            $result = ['opening_date' => $locked->opening_date, 'created_members' => 0, 'existing_members' => 0, 'savings_accounts' => 0, 'share_accounts' => 0, 'opening_loans' => 0, 'membership_numbers' => []];
             foreach ($rows as $i => $row) {
-                $member = $this->resolveMember($row, $i + 2, $batch, $userId, $result);
-                $this->createOpeningShare($member, $row, $shareProduct, $openingAccount, $batch, $userId, $i + 2, $result);
-                $this->createOpeningSavings($member, $row, $savingsProduct, $openingAccount, $batch, $userId, $i + 2, $result);
-                $this->createOpeningLoan($member, $row, $loanProduct, $batch, $userId, $i + 2, $result);
+                $member = $this->resolveMember($row, $i + 2, $batch, $userId, $result, $locked->opening_date);
+                $this->createOpeningShare($member, $row, $shareProduct, $openingAccount, $batch, $userId, $i + 2, $result, $locked->opening_date);
+                $this->createOpeningSavings($member, $row, $savingsProduct, $openingAccount, $batch, $userId, $i + 2, $result, $locked->opening_date);
+                $this->createOpeningLoan($member, $row, $loanProduct, $batch, $userId, $i + 2, $result, $locked->opening_date);
             }
-            $this->postOpeningLoanJournal($batch, $loanProduct, $openingAccount, $userId);
+            $this->postOpeningLoanJournal($batch, $loanProduct, $openingAccount, $userId, $locked->opening_date);
             unset($result['_loan_journal_lines']);
 
             $locked->update(['status' => 'committed', 'result' => $result, 'committed_at' => now()]);
@@ -215,10 +214,12 @@ class PilotImportService
 
     private function normalizeHeader($value): string
     {
+        $value = preg_replace('/^\xEF\xBB\xBF/', '', (string) $value);
         $key = trim(trim(preg_replace('/[^a-z0-9]+/', '_', strtolower(trim((string) $value))), '_'));
         $aliases = [
-            'membership_no' => 'membership_number', 'member_no' => 'membership_number', 'member_number' => 'membership_number',
-            'member_id' => 'membership_number',
+            'membership_no' => 'import_membership_number', 'member_no' => 'import_membership_number', 'member_number' => 'import_membership_number',
+            'membership_number' => 'import_membership_number', 'user_membership_number' => 'import_membership_number',
+            'user_defined_membership_number' => 'import_membership_number', 'legacy_membership_number' => 'import_membership_number', 'member_id' => 'import_membership_number',
             'name' => 'member_name', 'full_name' => 'member_name', 'member' => 'member_name',
             'share_balance' => 'shares', 'share_capital' => 'shares', 'share_contribution' => 'shares',
             'deposits' => 'deposit_balance', 'savings_balance' => 'deposit_balance', 'deposit' => 'deposit_balance',
@@ -251,13 +252,16 @@ class PilotImportService
         }
     }
 
-    private function resolveMember(array $row, int $line, $batch, int $userId, array &$result): Member
+    private function resolveMember(array $row, int $line, $batch, int $userId, array &$result, string $openingDate): Member
     {
-        $number = strtoupper(trim((string) ($row['membership_number'] ?? '')));
+        $number = strtoupper(trim((string) ($row['import_membership_number'] ?? '')));
         if ($number === '' && strtoupper(trim((string) ($row['comments'] ?? ''))) === 'NEW') $number = 'NEW';
         if ($number !== 'NEW') {
-            $existing = Member::where('membership_number', $number)->first();
+            $existing = $number === '' ? null : Member::where('import_membership_number', $number)->first();
+            // Keep imports made with the previous membership_number header compatible.
+            if (!$existing && $number !== '') $existing = Member::where('membership_number', $number)->first();
             if ($existing) {
+                if (!$existing->import_membership_number && $number !== '') $existing->import_membership_number = $number;
                 $sourceStatus = strtolower(trim((string) ($row['status'] ?? '')));
                 $remarks = trim((string) ($row['remarks'] ?? $row['comments'] ?? ''));
                 if (in_array($sourceStatus, ['defaulter', 'defaulted'], true)) $remarks = trim($remarks . ' Legacy status: ' . $sourceStatus . '.');
@@ -271,7 +275,9 @@ class PilotImportService
                 $result['existing_members']++;
                 return $existing;
             }
-        } else $number = $this->nextMembershipNumber();
+        }
+        $importMembershipNumber = $number === 'NEW' ? null : ($number !== '' ? $number : null);
+        $number = $this->nextMembershipNumber();
 
         $missing = function ($field) use ($row) { return strtoupper(trim((string) ($row[$field] ?? ''))) === 'MISSING'; };
         $kyc = (in_array(true, array_map($missing, ['date_of_birth', 'national_id', 'phone', 'email', 'admission_date']), true)) ? 'pending' : 'complete';
@@ -294,10 +300,10 @@ class PilotImportService
             'next_of_kin_name' => $this->nullableValue($row['next_of_kin_name'] ?? null), 'next_of_kin_id' => $this->nullableValue($row['next_of_kin_id'] ?? null),
             'next_of_kin_relationship' => $this->nullableValue($row['next_of_kin_relationship'] ?? null), 'monthly_contribution' => 0,
             'contribution_start_date' => null, 'status' => 'approved', 'approved_by' => $userId, 'approved_at' => now(),
-            'application_date' => self::OPENING_DATE, 'kyc_status' => $kyc, 'review_notes' => 'Directly approved through pilot import batch ' . $batch->token,
+            'application_date' => $openingDate, 'kyc_status' => $kyc, 'review_notes' => 'Directly approved through pilot import batch ' . $batch->token,
         ]);
         $member = Member::create([
-            'member_application_id' => $application->id, 'membership_number' => $number, 'first_name' => $application->first_name,
+            'member_application_id' => $application->id, 'membership_number' => $number, 'import_membership_number' => $importMembershipNumber, 'first_name' => $application->first_name,
             'middle_name' => $application->middle_name, 'last_name' => $application->last_name, 'date_of_birth' => $application->date_of_birth,
             'place_of_birth' => $application->place_of_birth, 'national_id' => $nationalId, 'phone' => $phone, 'email' => $email,
             'current_address' => $application->current_address, 'residential_address' => $application->residential_address,
@@ -309,41 +315,41 @@ class PilotImportService
         return $member;
     }
 
-    private function createOpeningShare(Member $member, array $row, ShareProduct $product, ChartOfAccount $offset, $batch, int $userId, int $line, array &$result): void
+    private function createOpeningShare(Member $member, array $row, ShareProduct $product, ChartOfAccount $offset, $batch, int $userId, int $line, array &$result, string $openingDate): void
     {
         $amount = round((float) $row['shares'], 2);
         $account = ShareAccount::create(['member_id' => $member->id, 'share_product_id' => $product->id,
             'account_number' => 'SHR-' . $member->membership_number, 'total_units' => (int) round($amount / (float) $product->unit_value),
-            'share_balance' => $amount, 'held_amount' => 0, 'available_amount' => $amount, 'opened_date' => self::OPENING_DATE, 'status' => $member->status === 'closed' ? 'closed' : 'active', 'closed_date' => $member->status === 'closed' ? self::OPENING_DATE : null]);
+            'share_balance' => $amount, 'held_amount' => 0, 'available_amount' => $amount, 'opened_date' => $openingDate, 'status' => $member->status === 'closed' ? 'closed' : 'active', 'closed_date' => $member->status === 'closed' ? $openingDate : null]);
         $result['share_accounts']++;
         if ($amount <= 0) return;
         $transaction = ShareTransaction::create(['share_account_id' => $account->id, 'transaction_number' => 'PILOT-SH-' . $batch->id . '-' . $line,
             'transaction_type' => 'adjustment', 'direction' => 'credit', 'units' => (int) round($amount / (float) $product->unit_value),
             'unit_value' => $product->unit_value, 'amount' => $amount, 'running_units' => $account->total_units, 'running_balance' => $amount,
-            'transaction_date' => self::OPENING_DATE, 'value_date' => self::OPENING_DATE, 'payment_method' => 'system',
+            'transaction_date' => $openingDate, 'value_date' => $openingDate, 'payment_method' => 'system',
             'ledger_account_id' => $offset->id, 'status' => 'confirmed', 'recorded_by' => $userId,
             'description' => 'Pilot opening share balance. Source row ' . $line . '; batch ' . $batch->token]);
         app(JournalPostingService::class)->postShareTransaction($transaction);
     }
 
-    private function createOpeningSavings(Member $member, array $row, SavingsProduct $product, ChartOfAccount $offset, $batch, int $userId, int $line, array &$result): void
+    private function createOpeningSavings(Member $member, array $row, SavingsProduct $product, ChartOfAccount $offset, $batch, int $userId, int $line, array &$result, string $openingDate): void
     {
         $amount = round((float) $row['deposit_balance'], 2);
         $account = SavingsAccount::create(['member_id' => $member->id, 'savings_product_id' => $product->id,
             'account_number' => 'SAV-' . $member->membership_number, 'ledger_balance' => $amount, 'held_balance' => 0,
-            'available_balance' => $amount, 'opened_date' => self::OPENING_DATE, 'opened_by' => $userId,
-            'last_transaction_date' => $amount > 0 ? self::OPENING_DATE : null, 'status' => $member->status === 'closed' ? 'closed' : 'active', 'closed_date' => $member->status === 'closed' ? self::OPENING_DATE : null]);
+            'available_balance' => $amount, 'opened_date' => $openingDate, 'opened_by' => $userId,
+            'last_transaction_date' => $amount > 0 ? $openingDate : null, 'status' => $member->status === 'closed' ? 'closed' : 'active', 'closed_date' => $member->status === 'closed' ? $openingDate : null]);
         $result['savings_accounts']++;
         if ($amount <= 0) return;
         $transaction = SavingsTransaction::create(['savings_account_id' => $account->id, 'transaction_number' => 'PILOT-SV-' . $batch->id . '-' . $line,
             'transaction_type' => 'adjustment', 'direction' => 'credit', 'amount' => $amount, 'running_balance' => $amount,
-            'transaction_date' => self::OPENING_DATE, 'value_date' => self::OPENING_DATE, 'payment_method' => 'system',
+            'transaction_date' => $openingDate, 'value_date' => $openingDate, 'payment_method' => 'system',
             'offset_account_id' => $offset->id, 'status' => 'confirmed', 'recorded_by' => $userId, 'confirmed_by' => $userId,
             'confirmed_at' => now(), 'description' => 'Pilot non-withdrawable deposit opening balance. Source row ' . $line . '; batch ' . $batch->token]);
         app(JournalPostingService::class)->postSavingsMovement($transaction);
     }
 
-    private function createOpeningLoan(Member $member, array $row, LoanProduct $product, $batch, int $userId, int $line, array &$result): void
+    private function createOpeningLoan(Member $member, array $row, LoanProduct $product, $batch, int $userId, int $line, array &$result, string $openingDate): void
     {
         $principal = round((float) $row['loan_balance'], 2);
         $interest = round((float) $row['interest_accrued'], 2);
@@ -360,7 +366,7 @@ class PilotImportService
             'reason' => 'Technical approval record required to attach the legacy opening loan. No new credit decision was made.']);
         $sourceStatus = strtolower(trim((string) ($row['loan_status'] ?? $row['status'] ?? 'active')));
         $loanStatus = in_array($sourceStatus, ['defaulter', 'defaulted', 'in_arrears'], true) ? 'in_arrears' : (in_array($sourceStatus, ['exited', 'dormant'], true) ? 'closed' : ($sourceStatus === 'cleared' ? 'fully_paid' : 'active'));
-        $remarks = 'Legacy opening loan imported at 31/12/2025. Original status: ' . $sourceStatus . '. ' . trim((string) ($row['interest_period_covered'] ?? '')) . ' ' . trim((string) ($row['remarks'] ?? ''));
+        $remarks = 'Legacy opening loan imported at ' . date('d/m/Y', strtotime($openingDate)) . '. Original status: ' . $sourceStatus . '. ' . trim((string) ($row['interest_period_covered'] ?? '')) . ' ' . trim((string) ($row['remarks'] ?? ''));
         $loan = Loan::create(['loan_application_id' => $application->id, 'member_id' => $member->id, 'loan_approval_id' => $approval->id,
             'loan_number' => 'PILOT-LN-' . $batch->id . '-' . $line, 'approved_amount' => $principal, 'amount_disbursed' => 0,
             'repayment_period_months' => 0, 'interest_rate' => $product->interest_rate, 'monthly_installment' => 0,
@@ -371,15 +377,15 @@ class PilotImportService
         $result['_loan_journal_lines'][] = ['member_id' => $member->id, 'loan_id' => $loan->id, 'principal' => $principal, 'interest' => $interest];
     }
 
-    private function postOpeningLoanJournal($batch, LoanProduct $product, ChartOfAccount $offset, int $userId): void
+    private function postOpeningLoanJournal($batch, LoanProduct $product, ChartOfAccount $offset, int $userId, string $openingDate): void
     {
         $lines = DB::table('loans')->join('loan_applications', 'loans.loan_application_id', '=', 'loan_applications.id')
             ->where('loan_applications.application_number', 'like', 'PILOT-LOAN-' . $batch->id . '-%')
             ->select('loans.id', 'loans.member_id', 'loans.principal_balance', 'loans.interest_balance')->get();
         if ($lines->isEmpty()) return;
-        $period = AccountingPeriod::whereDate('start_date', '<=', self::OPENING_DATE)->whereDate('end_date', '>=', self::OPENING_DATE)->where('status', 'open')->firstOrFail();
+        $period = AccountingPeriod::whereDate('start_date', '<=', $openingDate)->whereDate('end_date', '>=', $openingDate)->where('status', 'open')->firstOrFail();
         $entry = JournalEntry::create(['accounting_period_id' => $period->id, 'entry_number' => app(JournalPostingService::class)->generateJournalEntryNumber(),
-            'posting_key' => 'pilot_opening_loans:' . $batch->id, 'transaction_date' => self::OPENING_DATE, 'posting_date' => self::OPENING_DATE,
+            'posting_key' => 'pilot_opening_loans:' . $batch->id, 'transaction_date' => $openingDate, 'posting_date' => $openingDate,
             'reference_number' => $batch->token, 'event_type' => 'pilot_opening_loans', 'source_type' => PilotImportBatch::class, 'source_id' => $batch->id,
             'description' => 'Pilot opening loan balances for import batch ' . $batch->token, 'status' => 'posted', 'created_by' => $userId, 'posted_by' => $userId, 'posted_at' => now()]);
         foreach ($lines as $loan) {
