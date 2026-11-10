@@ -17,11 +17,7 @@
         <li><a href="{{ route('nominations.index') }}"><i class="bi bi-circle"></i><span>Member Nominations</span></a></li>
       </ul>
     </li>
-    @endif
-
-    @if(userCan('view-members'))
-    <li class="nav-item"><a class="nav-link collapsed" href="{{ route('pilot_imports.index') }}"><i class="bi bi-upload"></i><span>Pilot Data Import</span></a></li>
-    @endif
+    @endif    
 
     @if(userCan(['view-members', 'approve-loan', 'view-own-loan']))
     <li class="nav-item">
@@ -104,6 +100,39 @@
     </li>
     @endif
 
+    <li class="nav-heading">Reports</li>
+    <li class="nav-item">
+      <a class="nav-link collapsed" data-bs-target="#financialReports" data-bs-toggle="collapse" href="#">      
+        <i class="bi bi-journal-bookmark"></i><span>Financial Reports</span><i class="bi bi-chevron-down ms-auto"></i>        
+      </a>
+      <ul id="financialReports" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+        <li><a href="#"><i class="bi bi-circle"></i><span>Trial Balance</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Daily Transaction Log</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Balance Sheet</span></a></li>
+      </ul>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link collapsed" data-bs-target="#memberReports" data-bs-toggle="collapse" href="#">      
+        <i class="bi bi-journal-bookmark"></i><span>Member Reports</span><i class="bi bi-chevron-down ms-auto"></i>        
+      </a>
+      <ul id="memberReports" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+        <li><a href="#"><i class="bi bi-circle"></i><span>Member Statement</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Member Listing</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Product-Wise Savings Summary</span></a></li>
+      </ul>
+    </li>
+    <li class="nav-item">
+      <a class="nav-link collapsed" data-bs-target="#loanReports" data-bs-toggle="collapse" href="#">      
+        <i class="bi bi-journal-bookmark"></i><span>Loan Portfolio Reports</span><i class="bi bi-chevron-down ms-auto"></i>        
+      </a>
+      <ul id="loanReports" class="nav-content collapse" data-bs-parent="#sidebar-nav">
+        <li><a href="#"><i class="bi bi-circle"></i><span>Loan Disbursal Report</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Loan Aging</span></a></li>
+        <li><a href="#"><i class="bi bi-circle"></i><span>Repayment Schedule vs. Actual</span></a></li>
+      </ul>
+    </li>
+
+
     <li class="nav-heading">Settings</li>
     <!-- user management -->
     @if(userCan('manage-users'))
@@ -113,6 +142,10 @@
       </a>
     </li>
     @endif
+    @if(userCan('view-members'))
+    <li class="nav-item"><a class="nav-link collapsed" href="{{ route('pilot_imports.index') }}"><i class="bi bi-upload"></i><span>Members Data Import</span></a></li>
+    @endif
+
     <li class="nav-item">
       <a class="nav-link collapsed" href="#">
         {{-- <i class="bi bi-gear-wide-connected"></i>General<span class="text-danger">*</span> --}}

@@ -52,11 +52,11 @@
                   <form action="{{ route('login') }}" method="POST" class="row g-3 needs-validation" novalidate>
                     @csrf
                     <div class="col-12">
-                      <label for="email" class="form-label">Email</label>
+                      <label for="email" class="form-label">Email or import membership number</label>
                       <div class="input-group has-validation">
                         <span class="input-group-text" id="inputGroupPrepend">@</span>
-                        <input type="text" name="email" class="form-control" id="yourUsername" required>
-                        <div class="invalid-feedback">Please enter valid email!</div>
+                        <input type="text" name="email" class="form-control" id="yourUsername" autocomplete="username" required>
+                        <div class="invalid-feedback">Please enter your email or import membership number.</div>
                       </div>
                     </div>
   

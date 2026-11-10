@@ -2,6 +2,8 @@
 
 use App\Http\Controllers\AccountingPeriods\AccountingPeriodsController;
 use App\Http\Controllers\Auth\LoginController;
+use App\Http\Controllers\Auth\MemberCredentialSetupController;
+use App\Http\Controllers\Memberships\MemberKycController;
 use App\Http\Controllers\ChartOfAccounts\ChartOfAccountsController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\Documents\DocumentsController;
@@ -42,7 +44,14 @@ use Illuminate\Support\Facades\Route;
 Auth::routes();
 Route::get('/', [LoginController::class, 'index']);
 Route::get('logout', [LoginController::class, 'logout']);
-Route::group(['middleware' => 'auth'], function() {
+Route::middleware('auth')->group(function () {
+    Route::get('member/complete-setup', [MemberCredentialSetupController::class, 'show'])->name('member.credentials.show');
+    Route::post('member/complete-setup', [MemberCredentialSetupController::class, 'update'])->name('member.credentials.update');
+    Route::get('member/kyc', [MemberKycController::class, 'show'])->name('member.kyc.show');
+    Route::post('member/kyc', [MemberKycController::class, 'store'])->name('member.kyc.store');
+    Route::get('member/kyc-pending', [MemberKycController::class, 'pending'])->name('member.kyc.pending');
+});
+Route::group(['middleware' => ['auth', 'member.credentials']], function() {
     // Dashboard
     Route::get('dashboard', [HomeController::class, 'index'])->name('home');
 
@@ -59,6 +68,7 @@ Route::group(['middleware' => 'auth'], function() {
     Route::patch('memberships/approve/{membership}', [MembershipsController::class, 'approve'])->name('memberships.approve');
     Route::patch('memberships/reject/{membership}', [MembershipsController::class, 'reject'])->name('memberships.reject');
     Route::patch('memberships/review/{membership}', [MembershipsController::class, 'review'])->name('memberships.review');
+    Route::patch('memberships/{membership}/verify-kyc', [MembershipsController::class, 'verifyKyc'])->name('memberships.verify_kyc');
     Route::resource('memberships', MembershipsController::class);
 
     Route::patch('nominations/approve/{nomination}', [NominationsController::class, 'approve'])->name('nominations.approve');

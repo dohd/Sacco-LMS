@@ -20,12 +20,14 @@ use App\Models\Savings\SavingsTransaction;
 use App\Models\Shares\ShareAccount;
 use App\Models\Shares\ShareProduct;
 use App\Models\Shares\ShareTransaction;
+use App\Models\User;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Maatwebsite\Excel\Facades\Excel;
+use Spatie\Permission\Models\Role;
 
 /** Validation and one-time commit for the pilot's opening member balances. */
 class PilotImportService
@@ -174,7 +176,7 @@ class PilotImportService
             $rows = $this->readMembership((new \Illuminate\Http\UploadedFile($path, basename($path), null, null, true)), $readErrors);
             if ($readErrors) throw ValidationException::withMessages(['batch' => implode(' ', $readErrors)]);
 
-            $result = ['opening_date' => $locked->opening_date, 'created_members' => 0, 'existing_members' => 0, 'savings_accounts' => 0, 'share_accounts' => 0, 'opening_loans' => 0, 'membership_numbers' => []];
+            $result = ['opening_date' => $locked->opening_date, 'created_members' => 0, 'existing_members' => 0, 'member_logins_created' => 0, 'savings_accounts' => 0, 'share_accounts' => 0, 'opening_loans' => 0, 'membership_numbers' => []];
             foreach ($rows as $i => $row) {
                 $member = $this->resolveMember($row, $i + 2, $batch, $userId, $result, $locked->opening_date);
                 $this->createOpeningShare($member, $row, $shareProduct, $openingAccount, $batch, $userId, $i + 2, $result, $locked->opening_date);
@@ -272,15 +274,21 @@ class PilotImportService
                     $changes['is_active'] = $status !== 'closed';
                 }
                 $existing->update($changes);
+                if ($this->ensureImportedMemberLogin($existing)) {
+                    $result['member_logins_created']++;
+                    $result['membership_numbers'][] = ['row' => $line, 'member' => trim($existing->full_name), 'membership_number' => $existing->membership_number, 'import_membership_number' => $existing->import_membership_number, 'kyc_status' => $existing->kyc_status];
+                }
                 $result['existing_members']++;
                 return $existing;
             }
         }
         $importMembershipNumber = $number === 'NEW' ? null : ($number !== '' ? $number : null);
         $number = $this->nextMembershipNumber();
+        if (!$importMembershipNumber) $importMembershipNumber = $number;
 
         $missing = function ($field) use ($row) { return strtoupper(trim((string) ($row[$field] ?? ''))) === 'MISSING'; };
-        $kyc = (in_array(true, array_map($missing, ['date_of_birth', 'national_id', 'phone', 'email', 'admission_date']), true)) ? 'pending' : 'complete';
+        // Imported identity records remain unverified until an administrator completes KYC.
+        $kyc = 'pending';
         $nationalId = $missing('national_id') ? 'PILOT-PENDING-' . $batch->id . '-' . $line : trim((string) $row['national_id']);
         $email = in_array(strtoupper(trim((string) $row['email'])), ['NONE', 'MISSING'], true) ? 'pilot-' . $batch->id . '-' . $line . '@upenyo.invalid' : trim((string) $row['email']);
         $phone = $missing('phone') ? 'PILOT-PENDING-' . $batch->id . '-' . $line : trim((string) $row['phone']);
@@ -288,7 +296,10 @@ class PilotImportService
         $memberStatus = $statusSource === 'exited' ? 'closed' : ($statusSource === 'dormant' ? 'dormant' : 'active');
         $remarks = trim((string) ($row['remarks'] ?? $row['comments'] ?? ''));
         if (in_array($statusSource, ['defaulter', 'defaulted'], true)) $remarks = trim($remarks . ' Legacy status: ' . $statusSource . '.');
-        if ($kyc === 'pending') $remarks = trim($remarks . ' KYC pending: one or more required details were marked MISSING.');
+        $missingKycDetails = array_filter(['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'], $missing);
+        $remarks = trim($remarks . (count($missingKycDetails)
+            ? ' KYC pending: one or more required details were marked MISSING.'
+            : ' KYC pending: administrator verification is required.'));
         $application = MemberApplication::create([
             'application_number' => 'PILOT-' . $batch->id . '-' . str_pad((string) $line, 4, '0', STR_PAD_LEFT),
             'application_channel' => 'import', 'first_name' => trim((string) $row['first_name']),
@@ -310,9 +321,30 @@ class PilotImportService
             'admission_date' => $missing('admission_date') ? null : $this->parseDate($row['admission_date']), 'approved_by' => $userId,
             'approved_at' => now(), 'status' => $memberStatus, 'is_active' => $memberStatus !== 'closed', 'remarks' => $remarks, 'kyc_status' => $kyc,
         ]);
+        if ($this->ensureImportedMemberLogin($member)) $result['member_logins_created']++;
         $result['created_members']++;
-        $result['membership_numbers'][] = ['row' => $line, 'member' => trim($member->full_name), 'membership_number' => $number, 'kyc_status' => $kyc];
+        $result['membership_numbers'][] = ['row' => $line, 'member' => trim($member->full_name), 'membership_number' => $number, 'import_membership_number' => $member->import_membership_number, 'kyc_status' => $kyc];
         return $member;
+    }
+
+    private function ensureImportedMemberLogin(Member $member): bool
+    {
+        if ($member->user_id) return false;
+
+        $role = Role::where('key_name', 'member')->orWhere('name', 'member')->first();
+        if (!$role) throw ValidationException::withMessages(['member_login' => 'The member role must exist before imported member logins can be created.']);
+
+        $loginIdentifier = trim((string) ($member->import_membership_number ?: $member->membership_number));
+        $user = User::create([
+            'name' => trim($member->full_name),
+            'email' => 'member-import-' . $member->id . '@upenyo.invalid',
+            'password' => $loginIdentifier,
+            'is_active' => (bool) $member->is_active,
+            'member_login_setup_required' => true,
+        ]);
+        $user->roles()->syncWithoutDetaching([$role->id]);
+        $member->update(['user_id' => $user->id]);
+        return true;
     }
 
     private function createOpeningShare(Member $member, array $row, ShareProduct $product, ChartOfAccount $offset, $batch, int $userId, int $line, array &$result, string $openingDate): void

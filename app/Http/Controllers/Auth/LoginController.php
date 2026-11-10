@@ -7,6 +7,7 @@ use App\Providers\RouteServiceProvider;
 use Illuminate\Foundation\Auth\AuthenticatesUsers;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use App\Models\Memberships\Member;
 
 class LoginController extends Controller
 {
@@ -47,7 +48,15 @@ class LoginController extends Controller
      */
     protected function credentials(Request $request)
     {
-        return array_merge($request->only('email', 'password'), ['is_active' => 1]);
+        $identifier = trim((string) $request->input('email'));
+        $member = Member::whereRaw('UPPER(import_membership_number) = ?', [strtoupper($identifier)])
+            ->whereNotNull('user_id')->first();
+
+        if ($member && $member->user_id && \App\Models\User::whereKey($member->user_id)->where('member_login_setup_required', true)->exists()) {
+            return ['id' => $member->user_id, 'password' => $request->input('password'), 'is_active' => 1];
+        }
+
+        return array_merge(['email' => $identifier, 'password' => $request->input('password')], ['is_active' => 1]);
     }
 
     /**
@@ -88,6 +97,10 @@ class LoginController extends Controller
             'last_login_at' => now(),
             'last_login_ip' => $request->ip(),
         ]);
+
+        if ($user->member_login_setup_required) {
+            return redirect()->route('member.credentials.show');
+        }
 
         // Return null or nothing to let the default redirect handle things
     }

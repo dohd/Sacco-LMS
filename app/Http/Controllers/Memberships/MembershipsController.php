@@ -481,6 +481,32 @@ class MembershipsController extends Controller
             ->with('success', 'The application has been placed under review.');
     }
 
+    public function verifyKyc(MemberApplication $membership)
+    {
+        $this->requireSaccoPermission('approve-membership');
+        $member = $membership->member;
+        abort_unless($member, 404);
+        abort_if($member->kyc_status === 'complete' || !$member->kyc_submitted_at, 403);
+
+        $missing = [];
+        foreach (['date_of_birth', 'place_of_birth', 'national_id', 'phone', 'email', 'residential_address'] as $field) {
+            $value = trim((string) ($member->{$field} ?? ''));
+            if ($value === '' || strpos($value, 'PILOT-PENDING-') === 0 || strpos($value, '@upenyo.invalid') !== false) $missing[] = $field;
+        }
+        foreach (['next_of_kin_name', 'next_of_kin_id', 'next_of_kin_relationship', 'national_id_front', 'national_id_back'] as $field) {
+            if (trim((string) ($membership->{$field} ?? '')) === '') $missing[] = $field;
+        }
+        if (!$member->kyc_submitted_at) $missing[] = 'member KYC submission';
+        if ($missing) throw ValidationException::withMessages(['kyc' => 'KYC cannot be verified until all required details and both ID documents are submitted. Missing: ' . implode(', ', $missing) . '.']);
+
+        DB::transaction(function () use ($membership, $member) {
+            $member->update(['kyc_status' => 'complete', 'kyc_verified_at' => now(), 'kyc_verified_by' => auth()->id()]);
+            $membership->update(['kyc_status' => 'complete']);
+        });
+
+        return redirect()->route('memberships.show', $membership)->with('success', 'Member KYC has been verified. The member can now access member workflows.');
+    }
+
 
     private function normalizeApplicationData(array $payload): array
     {

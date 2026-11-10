@@ -11,6 +11,11 @@ class Member extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'kyc_submitted_at' => 'datetime',
+        'kyc_verified_at' => 'datetime',
+    ];
+
     /**
      * Getters
      * */

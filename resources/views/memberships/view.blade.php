@@ -420,6 +420,23 @@
 
                     <div class="card-body d-grid gap-2">
 
+                        @if($application->member)
+                            <div class="alert {{ $application->member->kyc_status === 'complete' ? 'alert-success' : 'alert-warning' }} mb-1">
+                                KYC status: <strong>{{ ucfirst($application->member->kyc_status ?? 'pending') }}</strong>
+                                @if($application->member->kyc_submitted_at)
+                                    <br><small>Submitted {{ $application->member->kyc_submitted_at->format('d M Y H:i') }}</small>
+                                @endif
+                            </div>
+                        @endif
+
+                        @if(userCan('approve-membership') && $application->member && $application->member->kyc_status !== 'complete' && $application->member->kyc_submitted_at)
+                            <form method="POST" action="{{ route('memberships.verify_kyc', $application->id) }}" onsubmit="return confirm('Verify these member identity details and enable member workflows?');">
+                                @csrf
+                                @method('PATCH')
+                                <button type="submit" class="btn btn-success w-100">Verify Member KYC</button>
+                            </form>
+                        @endif
+
                         <a href="{{ route('memberships.index') }}"
                            class="btn btn-light">
                             Back to Applications

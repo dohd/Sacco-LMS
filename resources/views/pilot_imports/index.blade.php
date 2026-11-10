@@ -18,9 +18,9 @@
     @php($result = session('pilot_import_result'))
     <div class="card"><div class="card-body pt-3">
         <h5 class="card-title">Committed batch</h5>
-        <p>Opening date: {{ \Carbon\Carbon::parse($result['opening_date'])->format('d/m/Y') }}. Created {{ $result['created_members'] }} member records; matched {{ $result['existing_members'] }} existing members; opened {{ $result['share_accounts'] }} share accounts, {{ $result['savings_accounts'] }} savings accounts, and {{ $result['opening_loans'] }} opening loans.</p>
+        <p>Opening date: {{ \Carbon\Carbon::parse($result['opening_date'])->format('d/m/Y') }}. Created {{ $result['created_members'] }} member records and {{ $result['member_logins_created'] ?? 0 }} first-login accounts; matched {{ $result['existing_members'] }} existing members; opened {{ $result['share_accounts'] }} share accounts, {{ $result['savings_accounts'] }} savings accounts, and {{ $result['opening_loans'] }} opening loans.</p>
         @if (!empty($result['membership_numbers']))
-            <details><summary>New membership numbers</summary><div class="table-responsive mt-2"><table class="table table-sm table-bordered"><thead><tr><th>Source row</th><th>Member</th><th>Membership number</th><th>KYC</th></tr></thead><tbody>@foreach ($result['membership_numbers'] as $entry)<tr><td>{{ $entry['row'] }}</td><td>{{ $entry['member'] }}</td><td>{{ $entry['membership_number'] }}</td><td>{{ $entry['kyc_status'] }}</td></tr>@endforeach</tbody></table></div></details>
+            <details><summary>New membership numbers</summary><div class="table-responsive mt-2"><table class="table table-sm table-bordered"><thead><tr><th>Source row</th><th>Member</th><th>System membership number</th><th>First login username and password</th><th>KYC</th></tr></thead><tbody>@foreach ($result['membership_numbers'] as $entry)<tr><td>{{ $entry['row'] }}</td><td>{{ $entry['member'] }}</td><td>{{ $entry['membership_number'] }}</td><td>{{ $entry['import_membership_number'] ?? '—' }}</td><td>{{ $entry['kyc_status'] }}</td></tr>@endforeach</tbody></table></div><small class="text-muted">Give each member their first-login identifier. It is used as both username and temporary password; they must set an email and new password immediately after login.</small></details>
         @endif
     </div></div>
 @endif
