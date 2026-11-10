@@ -35,9 +35,9 @@ class PilotImportService
     public function products(): array
     {
         return [
-            'savings' => SavingsProduct::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
-            'shares' => ShareProduct::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'unit_value']),
-            'loans' => LoanProduct::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name']),
+            'savings' => SavingsProduct::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'savings_control_account_id']),
+            'shares' => ShareProduct::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'unit_value', 'share_capital_account_id']),
+            'loans' => LoanProduct::where('is_active', true)->orderBy('name')->get(['id', 'code', 'name', 'loan_principal_account_id', 'interest_receivable_account_id']),
             'opening_accounts' => ChartOfAccount::where('account_type', 'equity')->where('is_active', true)->where('is_postable', true)->where('is_control_account', false)->orderBy('code')->get(['id', 'code', 'name']),
         ];
     }
@@ -69,8 +69,10 @@ class PilotImportService
 
             foreach (['first_name', 'last_name', 'date_of_birth', 'national_id', 'phone', 'email', 'admission_date', 'shares', 'deposit_balance', 'loan_balance', 'interest_accrued'] as $field) {
                 $value = trim((string) ($row[$field] ?? ''));
-                if ($value === '') $errors[] = "Membership row $line: $field is required; use MISSING for unavailable KYC details.";
-                if (strtoupper($value) === 'MISSING' && !in_array($field, ['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'], true)) $errors[] = "Membership row $line: $field cannot be MISSING.";
+                $mayBeNull = in_array($field, ['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'], true);
+                if ($value === '' || ($this->isNullMarker($value) && !$mayBeNull)) {
+                    $errors[] = "Membership row $line: $field is required" . ($mayBeNull ? '; enter NULL if unavailable for KYC.' : '.') ;
+                }
             }
             foreach (array_keys($totals) as $field) {
                 $value = $row[$field] ?? null;
@@ -78,15 +80,15 @@ class PilotImportService
                 else $totals[$field] += (float) $value;
             }
             foreach (['date_of_birth', 'admission_date'] as $field) {
-                if (strtoupper(trim((string) ($row[$field] ?? ''))) !== 'MISSING' && !$this->parseDate($row[$field] ?? null)) $errors[] = "Membership row $line: $field must be a real Excel date or dd/mm/yyyy.";
+                if (!$this->isNullMarker($row[$field] ?? null) && !$this->parseDate($row[$field] ?? null)) $errors[] = "Membership row $line: $field must be a real Excel date or dd/mm/yyyy, or NULL if unavailable.";
             }
             $idNumber = strtoupper(trim((string) ($row['national_id'] ?? '')));
-            if ($idNumber !== '' && $idNumber !== 'MISSING') {
+            if ($idNumber !== '' && !$this->isNullMarker($idNumber)) {
                 if (isset($seenIds[$idNumber])) $errors[] = "Membership row $line: duplicate national_id $idNumber.";
                 $seenIds[$idNumber] = true;
             }
             $email = strtolower(trim((string) ($row['email'] ?? '')));
-            if ($email !== '' && !in_array($email, ['none', 'missing'], true)) {
+            if ($email !== '' && !in_array($email, ['none', 'null'], true)) {
                 if (isset($seenEmails[$email])) $errors[] = "Membership row $line: duplicate email $email.";
                 $seenEmails[$email] = true;
             }
@@ -111,7 +113,7 @@ class PilotImportService
             if (!$member && $number !== '' && $number !== 'NEW') $member = Member::where('membership_number', $number)->first();
             if ($member) {
                 $incomingId = trim((string) ($row['national_id'] ?? ''));
-                if ($incomingId !== '' && strtoupper($incomingId) !== 'MISSING' && $member->national_id !== $incomingId) $errors[] = 'Membership row ' . ($index + 2) . ": membership number $number belongs to a different national_id.";
+                if ($incomingId !== '' && !$this->isNullMarker($incomingId) && $member->national_id !== $incomingId) $errors[] = 'Membership row ' . ($index + 2) . ": membership number $number belongs to a different national_id.";
                 $incomingName = trim(implode(' ', array_filter([$row['first_name'] ?? '', $row['middle_name'] ?? '', $row['last_name'] ?? ''])));
                 if (strcasecmp(preg_replace('/\\s+/', ' ', $incomingName), preg_replace('/\\s+/', ' ', trim($member->full_name))) !== 0) $errors[] = 'Membership row ' . ($index + 2) . ": membership number $number belongs to a different member name.";
                 if (SavingsAccount::where('member_id', $member->id)->where('savings_product_id', optional($selected['savings'])->id)->exists() ||
@@ -125,7 +127,7 @@ class PilotImportService
         return [
             'opening_date' => $openingDate,
             'errors' => array_values(array_unique($errors)),
-            'counts' => ['members' => count($rows), 'new_members' => $newMemberCount, 'kyc_pending' => count(array_filter($rows, function ($r) { foreach (['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'] as $f) if (strtoupper(trim((string) ($r[$f] ?? ''))) === 'MISSING') return true; return false; }))],
+            'counts' => ['members' => count($rows), 'new_members' => $newMemberCount, 'kyc_pending' => count(array_filter($rows, function ($r) { foreach (['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'] as $f) if ($this->isNullMarker($r[$f] ?? null)) return true; return false; }))],
             'totals' => $totals,
             'products' => [
                 'savings' => $this->productLabel($selected['savings']), 'shares' => $this->productLabel($selected['shares']),
@@ -173,6 +175,7 @@ class PilotImportService
             $shareProduct = ShareProduct::findOrFail($ids['shares_product_id']);
             $loanProduct = LoanProduct::findOrFail($ids['loans_product_id']);
             $openingAccount = ChartOfAccount::findOrFail($ids['opening_equity_account_id']);
+            $readErrors = [];
             $rows = $this->readMembership((new \Illuminate\Http\UploadedFile($path, basename($path), null, null, true)), $readErrors);
             if ($readErrors) throw ValidationException::withMessages(['batch' => implode(' ', $readErrors)]);
 
@@ -286,11 +289,11 @@ class PilotImportService
         $number = $this->nextMembershipNumber();
         if (!$importMembershipNumber) $importMembershipNumber = $number;
 
-        $missing = function ($field) use ($row) { return strtoupper(trim((string) ($row[$field] ?? ''))) === 'MISSING'; };
+        $missing = function ($field) use ($row) { return $this->isNullMarker($row[$field] ?? null); };
         // Imported identity records remain unverified until an administrator completes KYC.
         $kyc = 'pending';
         $nationalId = $missing('national_id') ? 'PILOT-PENDING-' . $batch->id . '-' . $line : trim((string) $row['national_id']);
-        $email = in_array(strtoupper(trim((string) $row['email'])), ['NONE', 'MISSING'], true) ? 'pilot-' . $batch->id . '-' . $line . '@upenyo.invalid' : trim((string) $row['email']);
+        $email = in_array(strtoupper(trim((string) $row['email'])), ['NONE', 'NULL'], true) ? 'pilot-' . $batch->id . '-' . $line . '@upenyo.invalid' : trim((string) $row['email']);
         $phone = $missing('phone') ? 'PILOT-PENDING-' . $batch->id . '-' . $line : trim((string) $row['phone']);
         $statusSource = strtolower(trim((string) ($row['status'] ?? 'active')));
         $memberStatus = $statusSource === 'exited' ? 'closed' : ($statusSource === 'dormant' ? 'dormant' : 'active');
@@ -298,7 +301,7 @@ class PilotImportService
         if (in_array($statusSource, ['defaulter', 'defaulted'], true)) $remarks = trim($remarks . ' Legacy status: ' . $statusSource . '.');
         $missingKycDetails = array_filter(['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'], $missing);
         $remarks = trim($remarks . (count($missingKycDetails)
-            ? ' KYC pending: one or more required details were marked MISSING.'
+            ? ' KYC pending: one or more required details were marked NULL.'
             : ' KYC pending: administrator verification is required.'));
         $application = MemberApplication::create([
             'application_number' => 'PILOT-' . $batch->id . '-' . str_pad((string) $line, 4, '0', STR_PAD_LEFT),
@@ -443,7 +446,7 @@ class PilotImportService
     private function parseDate($value): ?string
     {
         if ($value instanceof \DateTimeInterface) return $value->format('Y-m-d');
-        if ($value === null || trim((string) $value) === '' || strtoupper(trim((string) $value)) === 'MISSING') return null;
+        if ($value === null || trim((string) $value) === '' || $this->isNullMarker($value)) return null;
         if (is_numeric($value) && (float) $value > 20000 && (float) $value < 80000) return \PhpOffice\PhpSpreadsheet\Shared\Date::excelToDateTimeObject((float) $value)->format('Y-m-d');
         foreach (['d/m/Y', 'Y-m-d', 'd-m-Y'] as $format) {
             $date = \DateTime::createFromFormat($format, trim((string) $value));
@@ -452,6 +455,7 @@ class PilotImportService
         return null;
     }
 
-    private function nullableValue($value): ?string { $value = trim((string) $value); return $value === '' || strtoupper($value) === 'MISSING' ? null : $value; }
+    private function nullableValue($value): ?string { $value = trim((string) $value); return $value === '' || $this->isNullMarker($value) ? null : $value; }
+    private function isNullMarker($value): bool { return is_string($value) && strtoupper(trim($value)) === 'NULL'; }
     private function productLabel($product): string { return $product ? $product->name . ' (' . $product->code . ')' : 'Not selected'; }
 }
