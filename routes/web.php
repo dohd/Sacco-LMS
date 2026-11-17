@@ -20,6 +20,7 @@ use App\Http\Controllers\LoanRepayments\LoanRepaymentsController;
 use App\Http\Controllers\LoanRepaymentSchedules\LoanRepaymentSchedulesController;
 use App\Http\Controllers\Loans\LoansController;
 use App\Http\Controllers\Memberships\MembershipsController;
+use App\Http\Controllers\Reports\ReportsController;
 use App\Http\Controllers\Nominations\NominationsController;
 use App\Http\Controllers\SavingsAccounts\SavingsAccountsController;
 use App\Http\Controllers\SavingsProducts\SavingsProductsController;
@@ -60,6 +61,19 @@ Route::group(['middleware' => ['auth', 'member.credentials']], function() {
 
     // Private documents (authorised per record)
     Route::get('documents', [DocumentsController::class, 'show'])->name('documents.show');
+
+    // MVP operational and financial reports.
+    Route::prefix('reports')->name('reports.')->group(function () {
+        Route::get('trial-balance', [ReportsController::class, 'trialBalance'])->name('trial_balance');
+        Route::get('daily-transactions', [ReportsController::class, 'dailyTransactionLog'])->name('daily_transactions');
+        Route::get('balance-sheet', [ReportsController::class, 'balanceSheet'])->name('balance_sheet');
+        Route::get('member-statement', [ReportsController::class, 'memberStatement'])->name('member_statement');
+        Route::get('member-listing', [ReportsController::class, 'memberListing'])->name('member_listing');
+        Route::get('savings-summary', [ReportsController::class, 'savingsSummary'])->name('savings_summary');
+        Route::get('loan-disbursals', [ReportsController::class, 'loanDisbursals'])->name('loan_disbursals');
+        Route::get('loan-aging', [ReportsController::class, 'loanAging'])->name('loan_aging');
+        Route::get('repayment-schedule-vs-actual', [ReportsController::class, 'repaymentScheduleVsActual'])->name('repayment_vs_actual');
+    });
 
     // Pilot data is validated against existing members and products before load.
     Route::get('pilot-imports', [PilotImportsController::class, 'index'])->name('pilot_imports.index');

@@ -93,22 +93,25 @@
         <li><a href="{{ route('share_accounts.index') }}"><i class="bi bi-circle"></i><span>Share Accounts</span></a></li>
         {{-- <li><a href="#"><i class="bi bi-circle"></i><span>Share Hold</span></a></li> --}}
         <li><a href="{{ route('share_transactions.index') }}"><i class="bi bi-circle"></i><span>Share Transactions</span></a></li>
-        {{-- <li><a href="#"><i class="bi bi-circle"></i>Dividend Runs<span class="text-danger">*</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i>Dividend Allocations<span class="text-danger">*</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i>Dividend Deductions<span class="text-danger">*</span></a></li> --}}
+        @if(userCan('manage-dividends'))
+          <li><a href="{{ route('dividend_runs.index') }}"><i class="bi bi-circle"></i><span>Dividend Runs</span></a></li>
+          <li><a href="{{ route('dividend_allocations.index') }}"><i class="bi bi-circle"></i><span>Dividend Allocations</span></a></li>
+          <li><a href="{{ route('dividend_deductions.index') }}"><i class="bi bi-circle"></i><span>Dividend Deductions</span></a></li>
+        @endif
       </ul>
     </li>
     @endif
 
+    @if(userCan('view-reports'))
     <li class="nav-heading">Reports</li>
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#financialReports" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-journal-bookmark"></i><span>Financial Reports</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="financialReports" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="#"><i class="bi bi-circle"></i><span>Trial Balance</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Daily Transaction Log</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Balance Sheet</span></a></li>
+        <li><a href="{{ route('reports.trial_balance') }}"><i class="bi bi-circle"></i><span>Trial Balance</span></a></li>
+        <li><a href="{{ route('reports.daily_transactions') }}"><i class="bi bi-circle"></i><span>Daily Transaction Log</span></a></li>
+        <li><a href="{{ route('reports.balance_sheet') }}"><i class="bi bi-circle"></i><span>Balance Sheet</span></a></li>
       </ul>
     </li>
     <li class="nav-item">
@@ -116,9 +119,9 @@
         <i class="bi bi-journal-bookmark"></i><span>Member Reports</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="memberReports" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="#"><i class="bi bi-circle"></i><span>Member Statement</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Member Listing</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Product-Wise Savings Summary</span></a></li>
+        <li><a href="{{ route('reports.member_statement') }}"><i class="bi bi-circle"></i><span>Member Statement</span></a></li>
+        <li><a href="{{ route('reports.member_listing') }}"><i class="bi bi-circle"></i><span>Member Listing</span></a></li>
+        <li><a href="{{ route('reports.savings_summary') }}"><i class="bi bi-circle"></i><span>Product-Wise Savings Summary</span></a></li>
       </ul>
     </li>
     <li class="nav-item">
@@ -126,11 +129,12 @@
         <i class="bi bi-journal-bookmark"></i><span>Loan Portfolio Reports</span><i class="bi bi-chevron-down ms-auto"></i>        
       </a>
       <ul id="loanReports" class="nav-content collapse" data-bs-parent="#sidebar-nav">
-        <li><a href="#"><i class="bi bi-circle"></i><span>Loan Disbursal Report</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Loan Aging</span></a></li>
-        <li><a href="#"><i class="bi bi-circle"></i><span>Repayment Schedule vs. Actual</span></a></li>
+        <li><a href="{{ route('reports.loan_disbursals') }}"><i class="bi bi-circle"></i><span>Loan Disbursal Report</span></a></li>
+        <li><a href="{{ route('reports.loan_aging') }}"><i class="bi bi-circle"></i><span>Loan Aging</span></a></li>
+        <li><a href="{{ route('reports.repayment_vs_actual') }}"><i class="bi bi-circle"></i><span>Repayment Schedule vs. Actual</span></a></li>
       </ul>
     </li>
+    @endif
 
 
     <li class="nav-heading">Settings</li>
