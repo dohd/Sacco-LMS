@@ -1,6 +1,6 @@
 <div class="tab-pane fade pt-3" id="profile-change-password">
     <!-- Change Password Form -->
-    {{ Form::open(['route' => array('users.update_active_profile', $user_profile), 'method' => 'POST']) }}
+    {{ Form::open(['route' => array('users.update_active_profile', $user), 'method' => 'POST']) }}
       <div class="row mb-3">
         <label for="currentPassword" class="col-md-4 col-lg-3 col-form-label" style="color:rgba(1, 41, 112, 0.6); font-weight:600">Current Password<span class="text-danger">*</span></label>
         <div class="col-md-8 col-lg-9">

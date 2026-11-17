@@ -1,8 +1,10 @@
 <header id="header" class="header fixed-top d-flex align-items-center">
   <div class="d-flex align-items-center justify-content-between">
     <a href="{{ route('home') }}" class="logo d-flex align-items-center">
-      <!-- <img src="{{ asset('img/mwis-logo.png') }}" alt="logo" /> -->
-      <span class="d-none d-lg-block">{{ config('app.name') }}</span>
+      @if (saccoSetting('SACCO_LOGO'))
+        <img src="{{ asset('storage/' . saccoSetting('SACCO_LOGO')) }}" alt="SACCO logo">
+      @endif
+      <span class="d-none d-lg-block">{{ saccoSetting('SACCO_NAME', config('app.name')) }}</span>
     </a>
     <i class="bi bi-list toggle-sidebar-btn"></i>
   </div>

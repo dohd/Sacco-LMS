@@ -4,7 +4,7 @@
 @section('content')
     @include('share_products.partial.header')    
     @php
-        $currency  = config('app.currency', 'KES');
+        $currency  = saccoSetting('SACCO_CURRENCY', config('app.currency', 'KES'));
         $money     = fn ($v) => $currency . ' ' . number_format((float) $v, 2);
         $minInvest = $shareProduct->unit_value * $shareProduct->minimum_units;
         $maxInvest = $shareProduct->maximum_units ? $shareProduct->unit_value * $shareProduct->maximum_units : null;

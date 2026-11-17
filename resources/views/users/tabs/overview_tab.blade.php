@@ -2,12 +2,11 @@
   {{-- <h5 class="card-title">Details</h5> --}}
   @php
     $details = [
-      'Full Name' => $user_profile->name,
-      'Company' => @$user_profile->tenant->name,
+      'Full Name' => $user->name,
+      'Company' => @$user->tenant->name,
       'Role' => $role->name,
-      'Username' => $user_profile->username,
-      'Phone' => $user_profile->phone,
-      'Email' => $user_profile->email,
+      'Email' => $user->email,
+      'Phone' => $user->phone,
     ];
   @endphp
   @foreach ($details as $key => $value)

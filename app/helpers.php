@@ -2,6 +2,19 @@
 
 use Illuminate\Support\Facades\Gate;
 
+if (!function_exists('saccoSetting')) {
+    function saccoSetting(string $key, $default = null)
+    {
+        $settings = app('cache')->rememberForever('sacco.settings.values', function () {
+            return \App\Models\Settings\Setting::pluck('value', 'key')->all();
+        });
+
+        return array_key_exists($key, $settings) && $settings[$key] !== null
+            ? $settings[$key]
+            : $default;
+    }
+}
+
 if (!function_exists('successFlashMessage')) {
     function successFlashMessage() {
         return '<div class="alert alert-success alert-dismissible fade show" role="alert">

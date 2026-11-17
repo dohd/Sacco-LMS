@@ -83,7 +83,7 @@
     </li>
     @endif
 
-    @if(userCan(['view-own-shares', 'manage-share-products', 'confirm-share-transaction']))
+    @if(userCan(['view-own-shares', 'manage-share-products', 'confirm-share-transaction', 'manage-dividends']))
     <li class="nav-item">
       <a class="nav-link collapsed" data-bs-target="#shares" data-bs-toggle="collapse" href="#">      
         <i class="bi bi-graph-up"></i><span>Shares & Dividends</span><i class="bi bi-chevron-down ms-auto"></i>        
@@ -150,10 +150,8 @@
     <li class="nav-item"><a class="nav-link collapsed" href="{{ route('pilot_imports.index') }}"><i class="bi bi-upload"></i><span>Members Data Import</span></a></li>
     @endif
 
-    <li class="nav-item">
-      <a class="nav-link collapsed" href="#">
-        {{-- <i class="bi bi-gear-wide-connected"></i>General<span class="text-danger">*</span> --}}
-      </a>
-    </li>
+    @if(userCan('manage-settings'))
+    <li class="nav-item"><a class="nav-link collapsed" href="{{ route('settings.create') }}"><i class="bi bi-gear-wide-connected"></i><span>General Settings</span></a></li>
+    @endif
   </ul>
 </aside>

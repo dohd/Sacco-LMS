@@ -20,18 +20,18 @@
           <div class="card-body profile-card pt-4 d-flex flex-column align-items-center">
             <div>
               <img 
-                src="{{-- route('storage.file_render', 'images,user_profiles,' . $user_profile->profile_pic) --}}" 
+                src="{{ $user->profile_pic ? asset('storage/images/users/' . $user->profile_pic) : asset('img/profile-img.jpeg') }}"
                 onerror="this.onerror=null; this.src='{{ asset('img/profile-img.jpeg') }}'"
                 alt="profile-picture" 
                 class="rounded-circle"
               >
-              @if ($user_profile->profile_pic)
+              @if ($user->profile_pic)
                 <span class="float-end del" style="cursor: pointer;" data-toggle="tooltip" title="Remove profile picture">
                   <i class="bi bi-trash text-danger icon-xs"></i>
                 </span>
               @endif
-              <h2>{{ $user_profile->username }}</h2>
-              <h3>{{ $role->name }}</h3>
+              <h2>{{ $user->name }}</h2>
+              <h3>{{ $role->name ?? '' }}</h3>
             </div>
           </div>
         </div>
@@ -75,7 +75,7 @@
 <script>
   $(document).on('click', '.del', function() {
     if (confirm('Are you sure?')) {
-      $.post("{{ route('users.delete_profile_pic', $user_profile) }}")
+      $.post("{{ route('users.delete_profile_pic', $user) }}")
       .done((data) => flashMessage(data))
       .catch((data) => flashMessage(data));
     }

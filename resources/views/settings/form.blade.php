@@ -1,124 +1,119 @@
 <div class="container">
     <div class="row justify-content-center">
         <div class="col-md-12">
-                <!-- Deluge Settings Card -->
                 <div class="card shadow-sm mb-4 border-0">
                     <div class="card-header bg-dark text-white py-3">
-                        <h5 class="mb-0"><i class="bi bi-shield-lock me-2"></i>Deluge Configuration</h5>
+                        <h5 class="mb-0"><i class="bi bi-building me-2"></i>SACCO Profile</h5>
                     </div>
                     <div class="card-body p-4">
-                        <div class="form-floating mb-3">
-                            <input type="text" class="form-control @error('DELUGE_AUTH') is-invalid @enderror" id="DELUGE_AUTH" name="DELUGE_AUTH" placeholder="Deluge Auth Token" value="{{ old('DELUGE_AUTH', $settings['DELUGE_AUTH'] ?? '') }}">
-                            <label for="DELUGE_AUTH">Deluge Auth Token (DELUGE_AUTH)</label>
-                            @error('DELUGE_AUTH')<div class="invalid-feedback">{{ $message }}</div>@enderror
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label" for="SACCO_NAME">SACCO name</label>
+                                <input class="form-control" id="SACCO_NAME" name="SACCO_NAME" required maxlength="255" value="{{ old('SACCO_NAME', $settings['SACCO_NAME'] ?? config('app.name')) }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="SACCO_REGISTRATION_NUMBER">Registration number</label>
+                                <input class="form-control" id="SACCO_REGISTRATION_NUMBER" name="SACCO_REGISTRATION_NUMBER" maxlength="100" value="{{ old('SACCO_REGISTRATION_NUMBER', $settings['SACCO_REGISTRATION_NUMBER'] ?? '') }}">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="SACCO_LOGO">SACCO logo</label>
+                                <input type="file" class="form-control" id="SACCO_LOGO" name="SACCO_LOGO" accept=".png,.jpg,.jpeg,.webp">
+                                <small class="text-muted">PNG, JPG, or WebP, up to 2 MB.</small>
+                            </div>
+                            @if (!empty($settings['SACCO_LOGO']))
+                                <div class="col-md-6 d-flex align-items-center">
+                                    <img src="{{ asset('storage/' . $settings['SACCO_LOGO']) }}" alt="Current SACCO logo" style="max-height: 64px; max-width: 220px;">
+                                </div>
+                            @endif
+                            <div class="col-md-4">
+                                <label class="form-label" for="SACCO_PHONE">Phone</label>
+                                <input class="form-control" id="SACCO_PHONE" name="SACCO_PHONE" value="{{ old('SACCO_PHONE', $settings['SACCO_PHONE'] ?? '') }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="SACCO_EMAIL">Email</label>
+                                <input type="email" class="form-control" id="SACCO_EMAIL" name="SACCO_EMAIL" value="{{ old('SACCO_EMAIL', $settings['SACCO_EMAIL'] ?? '') }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="SACCO_WEBSITE">Website</label>
+                                <input type="url" class="form-control" id="SACCO_WEBSITE" name="SACCO_WEBSITE" value="{{ old('SACCO_WEBSITE', $settings['SACCO_WEBSITE'] ?? '') }}">
+                            </div>
+                            <div class="col-md-8">
+                                <label class="form-label" for="SACCO_ADDRESS">Postal / physical address</label>
+                                <input class="form-control" id="SACCO_ADDRESS" name="SACCO_ADDRESS" maxlength="1000" value="{{ old('SACCO_ADDRESS', $settings['SACCO_ADDRESS'] ?? '') }}">
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="SACCO_CURRENCY">Currency code</label>
+                                <input class="form-control text-uppercase" id="SACCO_CURRENCY" name="SACCO_CURRENCY" maxlength="3" pattern="[A-Z]{3}" required value="{{ old('SACCO_CURRENCY', $settings['SACCO_CURRENCY'] ?? 'KES') }}">
+                                <small class="text-muted">Three-letter code, for example KES.</small>
+                            </div>
                         </div>
-                        <div class="form-floating mb-4">
-                            <input type="text" class="form-control @error('GOOGLE_REVIEW_LINK') is-invalid @enderror" id="GOOGLE_REVIEW_LINK" name="GOOGLE_REVIEW_LINK" placeholder="WhatsApp Number" value="{{ old('GOOGLE_REVIEW_LINK', $settings['GOOGLE_REVIEW_LINK'] ?? '') }}">
-                            <label for="GOOGLE_REVIEW_LINK">Goolge Review link (e.g., https://google.come/review/1234)</label>
-                            @error('GOOGLE_REVIEW_LINK') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>   
-
-                        <label class="form-label d-block fw-bold mb-2">Select Environment</label>
-                        <div class="btn-group mb-3" role="group" aria-label="Environment selection">
-                            <input type="radio" class="btn-check" name="ENVIRONMENT" id="env_prod" autocomplete="off" checked value="production">
-                            <label class="btn btn-outline-primary" for="env_prod">Production</label>
-
-                            <input type="radio" class="btn-check" name="ENVIRONMENT" id="env_test" autocomplete="off" value="test">
-                            <label class="btn btn-outline-primary" for="env_test">Test</label>
-                        </div>
-
-                        <div class="form-floating mb-4">
-                            <input type="text" class="form-control @error('TEST_WHATSAPP_NUMBER') is-invalid @enderror" id="TEST_WHATSAPP_NUMBER" name="TEST_WHATSAPP_NUMBER" placeholder="WhatsApp Number" value="{{ old('TEST_WHATSAPP_NUMBER', $settings['TEST_WHATSAPP_NUMBER'] ?? '') }}">
-                            <label for="TEST_WHATSAPP_NUMBER">Test WhatsApp Recipient Number (e.g., +14155238886)</label>
-                            @error('TEST_WHATSAPP_NUMBER') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>  
-
-                        <div class="form-floating mb-4">
-                            <input type="text" class="form-control @error('TEST_CALLBACK_URL') is-invalid @enderror" id="TEST_CALLBACK_URL" name="TEST_CALLBACK_URL" placeholder="WhatsApp Number" value="{{ old('TEST_CALLBACK_URL', $settings['TEST_CALLBACK_URL'] ?? '') }}">
-                            <label for="TEST_CALLBACK_URL">Test Callback Url (e.g., http://localhost/app/callback)</label>
-                            @error('TEST_CALLBACK_URL') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>  
-
-                        <div class="form-floating mb-4">
-                            <input type="text" class="form-control @error('PRODUCTION_CALLBACK_URL') is-invalid @enderror" id="PRODUCTION_CALLBACK_URL" name="PRODUCTION_CALLBACK_URL" placeholder="WhatsApp Number" value="{{ old('PRODUCTION_CALLBACK_URL', $settings['PRODUCTION_CALLBACK_URL'] ?? '') }}">
-                            <label for="PRODUCTION_CALLBACK_URL">Production Callback Url (e.g., https://app/callback)</label>
-                            @error('PRODUCTION_CALLBACK_URL') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>  
-
-                                           
                     </div>
                 </div>
 
-                <!-- Twilio Settings Card -->
                 <div class="card shadow-sm mb-4 border-0">
                     <div class="card-header bg-primary text-white py-3">
-                        <h5 class="mb-0"><i class="bi bi-chat-left-dots me-2"></i>Twilio Integration Settings</h5>
+                        <h5 class="mb-0"><i class="bi bi-people me-2"></i>Membership and Financial Year</h5>
                     </div>
                     <div class="card-body p-4">
-                        
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control @error('TWILIO_ACCOUNT_SID') is-invalid @enderror" id="TWILIO_ACCOUNT_SID" name="TWILIO_ACCOUNT_SID" placeholder="Account SID" value="{{ old('TWILIO_ACCOUNT_SID', $settings['TWILIO_ACCOUNT_SID'] ?? '') }}">
-                                    <label for="TWILIO_ACCOUNT_SID">Twilio Account SID</label>
-                                    @error('TWILIO_ACCOUNT_SID') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                </div>
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <label class="form-label" for="MEMBERSHIP_NUMBER_PREFIX">Membership number prefix</label>
+                                <input class="form-control text-uppercase" id="MEMBERSHIP_NUMBER_PREFIX" name="MEMBERSHIP_NUMBER_PREFIX" maxlength="12" pattern="[A-Za-z0-9]+(-[A-Za-z0-9]+)*" title="Use letters and numbers, with optional single hyphens between sections." required value="{{ old('MEMBERSHIP_NUMBER_PREFIX', $settings['MEMBERSHIP_NUMBER_PREFIX'] ?? 'MEM') }}">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control @error('TWILIO_COMPANY_NAME') is-invalid @enderror" id="TWILIO_COMPANY_NAME" name="TWILIO_COMPANY_NAME" placeholder="Company Name" value="{{ old('TWILIO_COMPANY_NAME', $settings['TWILIO_COMPANY_NAME'] ?? '') }}">
-                                    <label for="TWILIO_COMPANY_NAME">Twilio Company Name</label>
-                                    @error('TWILIO_COMPANY_NAME') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="MEMBERSHIP_NUMBER_SEQUENCE_LENGTH">Sequence digits</label>
+                                <input type="number" class="form-control" id="MEMBERSHIP_NUMBER_SEQUENCE_LENGTH" name="MEMBERSHIP_NUMBER_SEQUENCE_LENGTH" min="3" max="10" required value="{{ old('MEMBERSHIP_NUMBER_SEQUENCE_LENGTH', $settings['MEMBERSHIP_NUMBER_SEQUENCE_LENGTH'] ?? 6) }}">
                             </div>
-                        </div>
-
-                        <div class="row">
-                            <div class="col-md-6 mb-3">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control @error('TWILIO_API_KEY_SID') is-invalid @enderror" id="TWILIO_API_KEY_SID" name="TWILIO_API_KEY_SID" placeholder="API Key SID" value="{{ old('TWILIO_API_KEY_SID', $settings['TWILIO_API_KEY_SID'] ?? '') }}">
-                                    <label for="TWILIO_API_KEY_SID">API Key SID</label>
-                                    @error('TWILIO_API_KEY_SID') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                </div>
+                            <div class="col-md-4">
+                                <label class="form-label" for="PASSWORD_MIN_LENGTH">Minimum password length</label>
+                                <input type="number" class="form-control" id="PASSWORD_MIN_LENGTH" name="PASSWORD_MIN_LENGTH" min="8" max="64" required value="{{ old('PASSWORD_MIN_LENGTH', $settings['PASSWORD_MIN_LENGTH'] ?? 10) }}">
                             </div>
-                            <div class="col-md-6 mb-3">
-                                <div class="form-floating">
-                                    <input type="text" class="form-control @error('TWILIO_API_KEY_SECRET') is-invalid @enderror" id="TWILIO_API_KEY_SECRET" name="TWILIO_API_KEY_SECRET" placeholder="API Key Secret" value="{{ old('TWILIO_API_KEY_SECRET', $settings['TWILIO_API_KEY_SECRET'] ?? '') }}">
-                                    <label for="TWILIO_API_KEY_SECRET">API Key Secret</label>
-                                    @error('TWILIO_API_KEY_SECRET') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                                </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="FINANCIAL_YEAR_START_MONTH">Financial year start month</label>
+                                <select class="form-select" id="FINANCIAL_YEAR_START_MONTH" name="FINANCIAL_YEAR_START_MONTH" required>
+                                    @foreach (range(1, 12) as $month)
+                                        <option value="{{ $month }}" @selected((int) old('FINANCIAL_YEAR_START_MONTH', $settings['FINANCIAL_YEAR_START_MONTH'] ?? 1) === $month)>{{ \Carbon\Carbon::create()->month($month)->format('F') }}</option>
+                                    @endforeach
+                                </select>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label" for="FINANCIAL_YEAR_START_DAY">Financial year start day</label>
+                                <input type="number" class="form-control" id="FINANCIAL_YEAR_START_DAY" name="FINANCIAL_YEAR_START_DAY" min="1" max="31" required value="{{ old('FINANCIAL_YEAR_START_DAY', $settings['FINANCIAL_YEAR_START_DAY'] ?? 1) }}">
                             </div>
                         </div>
-
-                        <div class="form-floating mb-4">
-                            <input type="text" class="form-control @error('TWILIO_WHATSAPP_NUMBER') is-invalid @enderror" id="TWILIO_WHATSAPP_NUMBER" name="TWILIO_WHATSAPP_NUMBER" placeholder="WhatsApp Number" value="{{ old('TWILIO_WHATSAPP_NUMBER', $settings['TWILIO_WHATSAPP_NUMBER'] ?? '') }}">
-                            <label for="TWILIO_WHATSAPP_NUMBER">Twilio WhatsApp Sender Number (e.g., +14155238886)</label>
-                            @error('TWILIO_WHATSAPP_NUMBER') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-
-                        <h6 class="text-muted mb-1 mt-5 fw-bold small text-uppercase">WhatsApp Templates (SIDs)</h6>
-                        {{-- <hr class="mt-0 mb-3"> --}}
-
-                        <div class="form-floating mb-3">
-                            <input type="text" class="form-control @error('TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID') is-invalid @enderror" id="TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID" name="TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID" placeholder="Opt-Back Template" value="{{ old('TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID', $settings['TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID'] ?? '') }}">
-                            <label for="TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID">Customer Opt-Back Template SID</label>
-                            @error('TWILIO_WHATSAPP_CUSTOMER_OPTBACK_TEMPLATE_SID') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-
-                        <div class="form-floating mb-3">
-                            <input type="text" class="form-control @error('TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID') is-invalid @enderror" id="TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID" name="TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID" placeholder="Opt-Out Template" value="{{ old('TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID', $settings['TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID'] ?? '') }}">
-                            <label for="TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID">Customer Opt-Out Template SID</label>
-                            @error('TWILIO_WHATSAPP_CUSTOMER_OPTOUT_TEMPLATE_SID') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-
-                        <div class="form-floating mb-3">
-                            <input type="text" class="form-control @error('TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID') is-invalid @enderror" id="TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID" name="TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID" placeholder="Rating Template" value="{{ old('TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID', $settings['TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID'] ?? '') }}">
-                            <label for="TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID">Customer Rating Template SID</label>
-                            @error('TWILIO_WHATSAPP_CUSTOMER_RATING_TEMPLATE_SID') <div class="invalid-feedback">{{ $message }}</div> @enderror
-                        </div>
-
+                        <small class="text-muted d-block mt-3">The membership prefix and sequence length apply when a member application is approved and when an import creates a new member. New numbers use PREFIX-YEAR-SEQUENCE. Financial year settings prefill the start, end, and year on new accounting periods; existing periods are unchanged.</small>
                     </div>
                 </div>
+
+                <div class="card shadow-sm mb-4 border-0">
+                    <div class="card-header bg-success text-white py-3">
+                        <h5 class="mb-0"><i class="bi bi-journal-check me-2"></i>Accounting Defaults</h5>
+                    </div>
+                    <div class="card-body p-4">
+                        <div class="row g-3">
+                            @foreach ([
+                                'RETAINED_EARNINGS_ACCOUNT_ID' => ['Retained earnings', 'equity'],
+                                'OPENING_BALANCE_EQUITY_ACCOUNT_ID' => ['Opening balance equity', 'equity'],
+                                'DIVIDEND_PAYABLE_ACCOUNT_ID' => ['Dividend payable', 'liability'],
+                                'WITHHOLDING_TAX_ACCOUNT_ID' => ['Withholding tax payable', 'liability'],
+                            ] as $settingKey => $accountConfig)
+                                <div class="col-md-6">
+                                    <label class="form-label" for="{{ $settingKey }}">{{ $accountConfig[0] }}</label>
+                                    <select class="form-select" id="{{ $settingKey }}" name="{{ $settingKey }}">
+                                        <option value="">Not configured</option>
+                                        @foreach ($accounts->where('account_type', $accountConfig[1]) as $account)
+                                            <option value="{{ $account->id }}" @selected((string) old($settingKey, $settings[$settingKey] ?? '') === (string) $account->id)>
+                                                {{ $account->code }} — {{ $account->name }}
+                                            </option>
+                                        @endforeach
+                                    </select>
+                                </div>
+                            @endforeach
+                        </div>
+                        <small class="text-muted d-block mt-3">These defaults are offered to accounting workflows. Each posting still validates the selected ledger account.</small>
+                    </div>
+                </div>
+
 
                 <!-- Form Submission -->
                 {{-- <div class="d-flex justify-content-end gap-2">
@@ -130,13 +125,3 @@
         </div>
     </div>
 </div>
-
-@section('script')
-<script>
-    const settings = @json($settings);
-    if (settings['ENVIRONMENT'] === 'test') {
-        $('#env_prod').prop('checked', false);
-        $('#env_test').prop('checked', true);
-    } 
-</script>
-@endsection
