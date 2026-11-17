@@ -55,9 +55,9 @@ class CreateDividendRuns extends Migration
 
             $table->unsignedBigInteger('calculated_by');
 
-            $table->unsignedBigInteger('approved_by');
+            $table->unsignedBigInteger('approved_by')->nullable();
 
-            $table->unsignedBigInteger('posted_by');
+            $table->unsignedBigInteger('posted_by')->nullable();
 
             $table->timestamp('approved_at')->nullable();
             $table->timestamp('posted_at')->nullable();

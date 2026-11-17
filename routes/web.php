@@ -7,6 +7,9 @@ use App\Http\Controllers\Memberships\MemberKycController;
 use App\Http\Controllers\ChartOfAccounts\ChartOfAccountsController;
 use App\Http\Controllers\ConfigController;
 use App\Http\Controllers\Documents\DocumentsController;
+use App\Http\Controllers\Dividends\DividendAllocationsController;
+use App\Http\Controllers\Dividends\DividendDeductionsController;
+use App\Http\Controllers\Dividends\DividendRunsController;
 use App\Http\Controllers\PilotImports\PilotImportsController;
 use App\Http\Controllers\HomeController;
 use App\Http\Controllers\JournalEntries\JournalEntriesController;
@@ -142,6 +145,17 @@ Route::group(['middleware' => ['auth', 'member.credentials']], function() {
     Route::post('share_transactions/confirm/{id}', [ShareTransactionsController::class, 'confirm'])->name('share_transactions.confirm');
     Route::post('share_transactions/reverse/{id}', [ShareTransactionsController::class, 'reverse'])->name('share_transactions.reverse');
     Route::resource('share_transactions', ShareTransactionsController::class);
+
+    // Dividends
+    Route::resource('dividend_runs', DividendRunsController::class);
+    Route::post('dividend_runs/{dividend_run}/calculate', [DividendRunsController::class, 'calculate'])->name('dividend_runs.calculate');
+    Route::post('dividend_runs/{dividend_run}/approve', [DividendRunsController::class, 'approve'])->name('dividend_runs.approve');
+    Route::post('dividend_runs/{dividend_run}/post', [DividendRunsController::class, 'post'])->name('dividend_runs.post');
+    Route::post('dividend_runs/{dividend_run}/cancel', [DividendRunsController::class, 'cancel'])->name('dividend_runs.cancel');
+    Route::resource('dividend_allocations', DividendAllocationsController::class);
+    Route::post('dividend_allocations/{dividend_allocation}/pay', [DividendAllocationsController::class, 'pay'])->name('dividend_allocations.pay');
+    Route::post('dividend_allocations/{dividend_allocation}/reverse-payment', [DividendAllocationsController::class, 'reversePayment'])->name('dividend_allocations.reverse_payment');
+    Route::resource('dividend_deductions', DividendDeductionsController::class)->except(['show']);
 
     // User
     Route::post('users/activate/{id}', [UsersController::class, 'activate'])->name('users.activate');
