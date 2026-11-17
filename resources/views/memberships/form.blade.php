@@ -323,7 +323,7 @@
         <div class="card-header d-flex justify-content-between align-items-center">
             <h5 class="mb-0">
                 <span class="section-number">3</span>
-                Business Details
+                Business Details <span class="text-muted fw-normal">(Optional)</span>
             </h5>
             <div class="form-check form-switch">
                 <input
@@ -523,13 +523,13 @@
         <div class="card-header">
             <h5 class="mb-0">
                 <span class="section-number">5</span>
-                Contributions
+                Contributions <span class="text-muted fw-normal">(Optional)</span>
             </h5>
         </div>
         <div class="card-body">
             <div class="row g-3">
                 <div class="col-md-6">
-                    <label for="monthly_contribution" class="form-label required-label">
+                    <label for="monthly_contribution" class="form-label {{ ($memberKycMode ?? false) ? '' : 'required-label' }}">
                         Monthly Contribution
                     </label>
                     <div class="input-group">
@@ -542,7 +542,7 @@
                             min="0"
                             step="0.01"
                             class="form-control @error('monthly_contribution') is-invalid @enderror"
-                            required
+                            @unless($memberKycMode ?? false) required @endunless
                         >
                         @error('monthly_contribution')
                             <div class="invalid-feedback">{{ $message }}</div>
@@ -552,7 +552,7 @@
                 <div class="col-md-6">
                     <label
                         for="contribution_start_date"
-                        class="form-label required-label"
+                        class="form-label {{ ($memberKycMode ?? false) ? '' : 'required-label' }}"
                     >
                         Contribution Start Date
                     </label>
@@ -562,7 +562,7 @@
                         id="contribution_start_date"
                         value="{{ old('contribution_start_date')? dateFormat(old('contribution_start_date'), 'Y-m-d') : '' }}"
                         class="form-control @error('contribution_start_date') is-invalid @enderror"
-                        required
+                        @unless($memberKycMode ?? false) required @endunless
                     >
                     @error('contribution_start_date')
                         <div class="invalid-feedback">{{ $message }}</div>
@@ -571,7 +571,6 @@
             </div>
         </div>
     </div>
-
     <!-- Supporting Documents -->
     <div class="card form-card">
         <div class="card-header">
@@ -596,6 +595,7 @@
                         accept=".jpg,.jpeg,.png,.pdf"
                         data-preview="#nationalIdFrontPreview"
                         class="form-control document-input @error('national_id_front') is-invalid @enderror"
+                        @if(($memberKycMode ?? false) && empty($application->national_id_front)) required @endif
                     >
                     <img
                         id="nationalIdFrontPreview"
@@ -617,6 +617,7 @@
                         accept=".jpg,.jpeg,.png,.pdf"
                         data-preview="#nationalIdBackPreview"
                         class="form-control document-input @error('national_id_back') is-invalid @enderror"
+                        @if(($memberKycMode ?? false) && empty($application->national_id_back)) required @endif
                     >
                     <img
                         id="nationalIdBackPreview"
@@ -709,6 +710,7 @@
         </div>
     </div>
 
+    @unless($memberKycMode ?? false)
     <!-- Declaration -->
     <div class="card form-card">
         <div class="card-header">
@@ -763,11 +765,17 @@
             </div>
         </div>
     </div>
+    @endunless
 
     <!-- Workflow status is intentionally not editable by the applicant.
          Let the database use its default value: pending. -->
     <div class="submit-section">
         <div class="d-flex flex-column flex-md-row justify-content-end gap-2">
+            @if($memberKycMode ?? false)
+                <button type="submit" id="submitButton" class="btn btn-success px-5">
+                    {{ $member->kyc_submitted_at ? 'Save changes and resubmit for KYC review' : 'Submit details for KYC review' }}
+                </button>
+            @else
             {{ Form::hidden('submission_action', old('submission_action', 'draft'), ['id' => 'submission_action']) }} 
             <button type="reset" class="btn btn-outline-secondary px-4">
                 Clear Form
@@ -775,6 +783,7 @@
             <button type="submit" id="submitButton" class="btn btn-success px-5">
                 Submit Application
             </button>
+            @endif
         </div>
     </div>
-</div>    
+</div>
