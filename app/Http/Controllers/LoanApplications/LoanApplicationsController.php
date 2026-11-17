@@ -53,9 +53,10 @@ class LoanApplicationsController extends Controller
      */
     public function index()
     {
+        $currentMember = $this->currentMember();
         $loanApplications = LoanApplication::with(['member', 'loanProduct'])
-            ->latest()
-            ->get();
+            ->when($currentMember, fn ($query) => $query->where('member_id', $currentMember->id))
+            ->latest()->get();
 
         return view('loan_applications.index', compact('loanApplications'));
     }
@@ -69,9 +70,10 @@ class LoanApplicationsController extends Controller
     {
         $applicationNumber = $this->generateApplicationNumber();
         $members = $this->formMembers();
+        $currentMember = $this->currentMember();
         $loanProducts = LoanProduct::all();
 
-        return view('loan_applications.create', compact('applicationNumber', 'members', 'loanProducts'));
+        return view('loan_applications.create', compact('applicationNumber', 'members', 'currentMember', 'loanProducts'));
     }
 
     /**
@@ -160,6 +162,14 @@ class LoanApplicationsController extends Controller
 
     private function saveApplication(Request $request, LoanApplication $application)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) {
+            if ($application->exists) {
+                abort_unless((int) $application->member_id === (int) $currentMember->id, 403);
+            }
+            $request->merge(['member_id' => $currentMember->id]);
+        }
+
         $isDraft = $request->input('submission_action') === 'draft';
         $validated = $this->validateApplication($request, $isDraft, $application);
         $uploadedFiles = [];
@@ -293,6 +303,9 @@ class LoanApplicationsController extends Controller
      */
     public function show(LoanApplication $application)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) abort_unless((int) $application->member_id === (int) $currentMember->id, 403);
+
         $application->load(['member', 'loanProduct', 'guarantors', 'securities', 'witnesses']);
         $replacementMembers = $application->status === 'approved' && $this->hasSaccoPermission('manage-guarantors')
             ? Member::whereNull('deleted_at')->where('id', '!=', $application->member_id)->orderBy('first_name')->get()
@@ -308,6 +321,9 @@ class LoanApplicationsController extends Controller
      */
     public function edit(LoanApplication $application)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) abort_unless((int) $application->member_id === (int) $currentMember->id, 403);
+
         $this->requireStatus($application, ['draft', 'deferred']);
         $application->load(['guarantors', 'securities', 'witnesses']);
         if (!session()->hasOldInput()) {
@@ -318,8 +334,9 @@ class LoanApplicationsController extends Controller
             session()->flashInput($input);
         }
         $members = $this->formMembers();
+        $currentMember = $this->currentMember();
         $loanProducts = LoanProduct::all();
-        return view('loan_applications.edit', compact('application', 'members', 'loanProducts'));
+        return view('loan_applications.edit', compact('application', 'members', 'currentMember', 'loanProducts'));
     }
 
     public function update(Request $request, LoanApplication $application)
@@ -329,6 +346,9 @@ class LoanApplicationsController extends Controller
 
     public function destroy(LoanApplication $application)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) abort_unless((int) $application->member_id === (int) $currentMember->id, 403);
+
         $files = DB::transaction(function () use ($application) {
             $application = LoanApplication::whereKey($application->id)->lockForUpdate()->firstOrFail();
             $this->requireStatus($application, ['draft']);
@@ -346,6 +366,9 @@ class LoanApplicationsController extends Controller
 
     public function workflow(LoanApplication $application, Request $request)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) abort_unless((int) $application->member_id === (int) $currentMember->id, 403);
+
         if (in_array($request->input('action'), ['review', 'defer', 'reject'])) {
             $this->requireSaccoPermission('review-loan');
         }
@@ -881,6 +904,18 @@ class LoanApplicationsController extends Controller
                 $member->setAttribute($field, $value);
             }
         });
+    }
+
+    private function currentMember(): ?Member
+    {
+        if (!auth()->user()->hasRoleCode('member')) return null;
+
+        $member = Member::where('user_id', auth()->id())->firstOrFail();
+        foreach ($this->memberFinancials($member) as $field => $value) {
+            $member->setAttribute($field, $value);
+        }
+
+        return $member;
     }
 
     private function validateEligibility(array $data, ?LoanProduct $product, LoanApplication $application): void

@@ -67,11 +67,11 @@
 
                             @foreach($loans ?? [] as $loan)
 
-                                <option value="{{ $loan->id }}"
+                            <option value="{{ $loan->id }}"
                                     data-member-id="{{ $loan->member_id }}"
                                     data-member-name="{{ optional($loan->member)->full_name }}"
                                     data-balance="{{ $loan->total_outstanding_balance }}"
-                                    {{ old('loan_id') == $loan->id ? 'selected' : '' }}
+                                    {{ old('loan_id', request('loan_id')) == $loan->id ? 'selected' : '' }}
                                     data-approved-amount="{{ $loan->approved_amount }}"
                                     >
 

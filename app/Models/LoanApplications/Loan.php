@@ -18,6 +18,7 @@ class Loan extends Model
         'approved_amount' => 'decimal:2',
         'amount_disbursed' => 'decimal:2',
         'fees_due' => 'decimal:2',
+        'is_opening_balance' => 'boolean',
     ];
 
     /**
@@ -73,6 +74,11 @@ class Loan extends Model
     {
         return $this->hasMany(LoanRepaymentSchedule::class);
     }    
+
+    public function restructures()
+    {
+        return $this->hasMany(LoanRestructure::class);
+    }
 
     public function guarantors()
     {

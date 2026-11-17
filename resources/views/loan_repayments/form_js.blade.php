@@ -20,6 +20,10 @@ $(function () {
         );
     });
 
+    if ($('#loan_id').val()) {
+        $('#loan_id').trigger('change');
+    }
+
 
     /*
      * Account credit repayments post to the savings control account, so the

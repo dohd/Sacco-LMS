@@ -35,7 +35,7 @@ class LoanRepayment extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('loan_repayments.show', null),
+            $this->getViewButtonAttribute('loan_repayments.show', 'manage-repayments'),
             $this->status === 'pending' ? $this->getEditButtonAttribute('loan_repayments.edit', 'confirm-repayment') : null,
             null,
         );

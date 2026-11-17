@@ -74,13 +74,23 @@
                         <span class="badge bg-{{ $statusClass }} fs-6 px-3 py-2">
                             {{ ucwords(str_replace('_', ' ', $loan->status)) }}
                         </span>
-                        @if(in_array($loan->status, ['active', 'in_arrears']) && userCan('write-off-loan'))
-                            <div class="mt-2">
+                        <div class="d-flex flex-wrap justify-content-md-end gap-2 mt-2">
+                            @if(in_array($loan->status, ['active', 'in_arrears']) && userCan('write-off-loan'))
                                 <button type="button" class="btn btn-outline-danger btn-sm" data-bs-toggle="modal" data-bs-target="#writeOffModal">
                                     <i class="fa fa-ban me-1"></i> Write Off
                                 </button>
-                            </div>
-                        @endif
+                            @endif
+                            @if(in_array($loan->status, ['active', 'in_arrears', 'restructured']) && userCan('restructure-loan'))
+                                <button type="button" class="btn btn-outline-primary btn-sm" data-bs-toggle="modal" data-bs-target="#restructureLoanModal">
+                                    <i class="fa fa-calendar-alt me-1"></i> Reschedule Loan
+                                </button>
+                            @endif
+                            @if(auth()->user()->hasRoleCode('member') && in_array($loan->status, ['active', 'in_arrears', 'restructured']))
+                                <a class="btn btn-success btn-sm" href="{{ route('loan_repayments.create', ['loan_id' => $loan->id]) }}">
+                                    <i class="fa fa-credit-card me-1"></i> Submit Repayment
+                                </a>
+                            @endif
+                        </div>
                     </div>
                 </div>
             </div>
@@ -118,10 +128,10 @@
                 <div class="card shadow-sm h-100">
                     <div class="card-body">
                         <div class="text-muted small">
-                            Amount Disbursed
+                            {{ $loan->is_opening_balance ? 'Imported Opening Principal' : 'Amount Disbursed' }}
                         </div>
                         <h5 class="mb-0">
-                            {{ $money($loan->amount_disbursed) }}
+                            {{ $money($loan->is_opening_balance ? $loan->approved_amount : $loan->amount_disbursed) }}
                         </h5>
                     </div>
                 </div>
@@ -151,6 +161,29 @@
                 </div>
             </div>
         </div>
+
+        @if($loan->restructures->isNotEmpty())
+            <div class="card shadow-sm mb-4">
+                <div class="card-header bg-white"><h6 class="mb-0">Restructuring History</h6></div>
+                <div class="table-responsive">
+                    <table class="table table-sm mb-0">
+                        <thead><tr><th>Effective</th><th>First due</th><th>Months</th><th>Installment</th><th>Initiated by</th><th>Reason</th></tr></thead>
+                        <tbody>
+                            @foreach($loan->restructures->sortByDesc('created_at') as $restructure)
+                                <tr>
+                                    <td>{{ $date($restructure->effective_date) }}</td>
+                                    <td>{{ $date($restructure->first_repayment_date) }}</td>
+                                    <td>{{ $restructure->remaining_months }}</td>
+                                    <td>{{ $money($restructure->installment_amount) }}</td>
+                                    <td>{{ optional($restructure->performedBy)->name ?? 'User #'.$restructure->performed_by }}</td>
+                                    <td>{{ $restructure->reason }}</td>
+                                </tr>
+                            @endforeach
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        @endif
 
 
         {{-- =====================================================
@@ -776,6 +809,42 @@
                     <div class="modal-footer">
                         <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                         <button type="submit" class="btn btn-danger">Write Off</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    @endif
+
+    @if(in_array($loan->status, ['active', 'in_arrears', 'restructured']) && userCan('restructure-loan'))
+        <div class="modal fade" id="restructureLoanModal" tabindex="-1" aria-hidden="true">
+            <div class="modal-dialog modal-dialog-centered">
+                <form method="POST" action="{{ route('loans.restructure', $loan) }}" class="modal-content">
+                    @csrf
+                    <div class="modal-header">
+                        <h5 class="modal-title">Create Forward Schedule</h5>
+                        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                    </div>
+                    <div class="modal-body">
+                        <div class="alert alert-info small">
+                            The existing balances will be spread across equal monthly installments. No past installments,
+                            disbursement, or additional interest will be created. Current principal, interest, fees, and penalties stay unchanged.
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">Remaining monthly installments</label>
+                            <input type="number" name="remaining_months" class="form-control" min="1" max="120" value="{{ old('remaining_months', 12) }}" required>
+                        </div>
+                        <div class="mb-3">
+                            <label class="form-label">First repayment date</label>
+                            <input type="date" name="first_repayment_date" class="form-control" min="{{ today()->addDay()->toDateString() }}" value="{{ old('first_repayment_date', today()->addMonthNoOverflow()->toDateString()) }}" required>
+                        </div>
+                        <div class="mb-0">
+                            <label class="form-label">Restructuring reason</label>
+                            <textarea name="reason" class="form-control" rows="3" maxlength="1000" required>{{ old('reason') }}</textarea>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">Create Schedule</button>
                     </div>
                 </form>
             </div>

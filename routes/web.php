@@ -93,6 +93,7 @@ Route::group(['middleware' => ['auth', 'member.credentials']], function() {
 
     Route::post('loans/{loan}/guarantors/{guarantor}/invoke', [LoansController::class, 'invokeGuarantee'])->name('loans.guarantee_invoke');
     Route::post('loans/{loan}/write-off', [LoansController::class, 'writeOff'])->name('loans.write_off');
+    Route::post('loans/{loan}/restructure', [LoansController::class, 'restructure'])->name('loans.restructure');
     Route::resource('loans', LoansController::class);
 
     Route::post('loan_disbursements/reverse/{id}', [LoanDisbursementsController::class, 'reverse'])->name('loan_disbursements.reverse');

@@ -60,6 +60,7 @@ class LoansController extends Controller
             'loanApproval',
             'disbursements',
             'repaymentSchedules',
+            'restructures.performedBy',
         ]);
         
         return view('loans.view', compact('loan'));
@@ -156,6 +157,31 @@ class LoansController extends Controller
             return redirect()->route('loans.show', $id)->with('success', 'Loan written off.');
         } catch (\Exception $e) {
             return errorHandler('The loan could not be written off. Please try again.', $e);
+        }
+    }
+
+    /** Create a forward-only repayment plan for the loan's existing balances. */
+    public function restructure(Request $request, Loan $loan)
+    {
+        $this->requireSaccoPermission('restructure-loan');
+        $validated = $request->validate([
+            'remaining_months' => ['required', 'integer', 'between:1,120'],
+            'first_repayment_date' => ['required', 'date', 'after:today'],
+            'reason' => ['required', 'string', 'max:1000'],
+        ]);
+
+        try {
+            app(\App\Services\LoanRestructuringService::class)->restructure(
+                $loan,
+                (int) $validated['remaining_months'],
+                $validated['first_repayment_date'],
+                $validated['reason']
+            );
+            return redirect()->route('loans.show', $loan)->with('success', 'The forward repayment schedule was created without changing the outstanding balances.');
+        } catch (ValidationException $e) {
+            throw $e;
+        } catch (\Exception $e) {
+            return errorHandler('The loan could not be restructured. Please try again.', $e);
         }
     }
 

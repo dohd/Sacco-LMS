@@ -25,7 +25,10 @@ class LoanRepaymentsController extends Controller
     {
         $this->middleware(function ($request, $next) {
             $action = $request->route()->getActionMethod();
-            if (!in_array($action, ['index', 'show'], true)) {
+            $isMember = auth()->user()->hasRoleCode('member');
+            if ($isMember && in_array($action, ['create', 'store'], true)) {
+                $this->requireSaccoPermission('view-own-loan');
+            } elseif (!in_array($action, ['index', 'show'], true)) {
                 $this->requireSaccoPermission($action === 'reverse' ? 'reverse-repayment' : 'confirm-repayment');
             } elseif (!$this->hasSaccoPermission('confirm-repayment')) {
                 $this->requireSaccoPermission('view-own-repayment');
@@ -60,16 +63,22 @@ class LoanRepaymentsController extends Controller
      */
     public function create()
     {
-        $members = Member::all();
+        $members = auth()->user()->hasRoleCode('member')
+            ? Member::where('user_id', auth()->id())->get()
+            : Member::all();
+        $currentMemberId = auth()->user()->hasRoleCode('member')
+            ? $members->firstOrFail()->id
+            : null;
         $loans = Loan::with('member')
-            ->whereIn('status', ['active', 'in_arrears'])
+            ->whereIn('status', ['active', 'in_arrears', 'restructured'])
+            ->when($currentMemberId, fn ($query) => $query->where('member_id', $currentMemberId))
             ->orderBy('loan_number')
             ->get();
 
 
         $depositAccounts = $this->depositAccounts();
 
-        return view('loan_repayments.create', compact('members', 'loans', 'depositAccounts'));
+        return view('loan_repayments.create', compact('members', 'loans', 'depositAccounts', 'currentMemberId'));
     }
 
     /**
@@ -111,17 +120,20 @@ class LoanRepaymentsController extends Controller
                     ->lockForUpdate()
                     ->firstOrFail();
 
-                if ($loan->member_id != $validated['member_id']) {
+                if (auth()->user()->hasRoleCode('member')) {
+                    abort_unless($this->ownsMember($loan->member_id), 403);
+                    $validated['member_id'] = $loan->member_id;
+                } elseif ($loan->member_id != $validated['member_id']) {
                     throw ValidationException::withMessages([
                         'member_id' => 'The selected member does not belong to this loan.'
                     ]);
                 }
 
-                if ((float) $loan->amount_disbursed <= 0) {
+                if (!$loan->is_opening_balance && (float) $loan->amount_disbursed <= 0) {
                     throw ValidationException::withMessages(['loan_id' => 'The loan must be disbursed before accepting repayments.']);
                 }
 
-                if (!in_array($loan->status, ['active', 'in_arrears'])) {
+                if (!in_array($loan->status, ['active', 'in_arrears', 'restructured'])) {
                     throw ValidationException::withMessages([
                         'loan_id' => "Repayments cannot be posted to a {$loan->status} loan."
                     ]);
@@ -604,10 +616,13 @@ class LoanRepaymentsController extends Controller
                     ->where('status', 'overdue')
                     ->where('outstanding_amount', '>', 0)
                     ->exists();
+                $hasScheduleHistory = LoanRepaymentSchedule::where('loan_id', $loan->id)->exists();
 
                 $status = $totalOutstanding <= 0
                     ? 'fully_paid'
-                    : ($hasOverdue ? 'in_arrears' : 'active');
+                    : ($loan->is_opening_balance && !$hasScheduleHistory
+                        ? ($repayment->loan_status_before ?: 'active')
+                        : ($hasOverdue ? 'in_arrears' : ($loan->status === 'restructured' ? 'restructured' : 'active')));
 
                 $loan->update([
                     'principal_balance' => $principalBalance,

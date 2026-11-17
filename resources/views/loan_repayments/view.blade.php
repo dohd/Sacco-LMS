@@ -233,7 +233,11 @@
                     Repayment Allocation
                 </h6>
                 <span class="text-muted">
-                    {{ $loanRepayment->allocations->count() }} schedule(s)
+                    @if(optional($loanRepayment->loan)->is_opening_balance && $loanRepayment->allocations->isEmpty())
+                        Opening balance allocation
+                    @else
+                        {{ $loanRepayment->allocations->count() }} schedule(s)
+                    @endif
                 </span>
             </div>
             <div class="table-responsive">
@@ -292,7 +296,15 @@
                             <tr>
                                 <td colspan="8"
                                     class="text-center text-muted py-4">
-                                    No repayment allocations yet.
+                                    @if(optional($loanRepayment->loan)->is_opening_balance && $loanRepayment->allocations->isEmpty())
+                                        @if($loanRepayment->status === 'confirmed')
+                                            This opening balance repayment was allocated directly to the loan balances; no historical schedule was fabricated.
+                                        @else
+                                            When confirmed, this opening balance repayment will apply directly to the loan balances without a historical schedule.
+                                        @endif
+                                    @else
+                                        No repayment allocations yet.
+                                    @endif
                                 </td>
                             </tr>
                         @endforelse
