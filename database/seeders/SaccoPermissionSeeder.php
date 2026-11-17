@@ -18,12 +18,13 @@ class SaccoPermissionSeeder extends Seeder
             'create-loan-application', 'edit-own-loan-application', 'submit-loan-application',
             'view-own-loan', 'create-savings-transaction', 'request-savings-withdrawal',
             'view-own-savings', 'view-own-shares', 'view-own-repayment',
-            'view-members', 'approve-membership', 'review-loan', 'approve-loan',
+            'view-members', 'view-reports', 'approve-membership', 'review-loan', 'approve-loan',
             'verify-loan-security', 'manage-guarantors', 'process-disbursement', 'confirm-repayment',
-            'reverse-repayment', 'reverse-disbursement', 'write-off-loan', 'invoke-guarantee', 'manage-journals', 'post-journal', 'reverse-journal', 'manage-savings-products', 'manage-savings-accounts',
+            'reverse-repayment', 'reverse-disbursement', 'write-off-loan', 'invoke-guarantee', 'restructure-loan', 'manage-journals', 'post-journal', 'reverse-journal', 'manage-savings-products', 'manage-savings-accounts',
             'confirm-savings-transaction', 'reverse-savings-transaction',
             'approve-savings-withdrawal', 'pay-savings-withdrawal',
-            'manage-share-products', 'manage-share-accounts', 'confirm-share-transaction',
+            'manage-share-products', 'manage-share-accounts', 'manage-dividends', 'approve-dividend-runs',
+            'post-dividend-runs', 'pay-dividends', 'reverse-dividends', 'confirm-share-transaction',
             'reverse-share-transaction', 'manage-users', 'manage-roles', 'manage-settings',
         ];
 
@@ -36,13 +37,17 @@ class SaccoPermissionSeeder extends Seeder
                 || in_array($permission, ['view-dashboard', 'create-loan-application',
                     'edit-own-loan-application', 'submit-loan-application',
                     'create-savings-transaction', 'request-savings-withdrawal'])),
-            'credit_officer' => ['view-dashboard', 'view-members', 'approve-membership', 'review-loan',
-                'approve-loan', 'verify-loan-security', 'manage-guarantors', 'view-own-loan'],
-            'cashier' => ['view-dashboard', 'create-savings-transaction', 'confirm-savings-transaction',
+            'credit_officer' => ['view-dashboard', 'view-members', 'view-reports', 'approve-membership', 'review-loan',
+                'approve-loan', 'verify-loan-security', 'manage-guarantors', 'restructure-loan', 'view-own-loan'],
+            'cashier' => ['view-dashboard', 'view-reports', 'create-savings-transaction', 'confirm-savings-transaction',
                 'approve-savings-withdrawal', 'pay-savings-withdrawal', 'confirm-repayment'],
-            'accountant' => ['view-dashboard', 'write-off-loan', 'invoke-guarantee', 'manage-journals', 'post-journal', 'reverse-journal', 'reverse-repayment', 'reverse-savings-transaction',
-                'reverse-share-transaction'],
+            'accountant' => ['view-dashboard', 'view-reports', 'write-off-loan', 'invoke-guarantee', 'manage-journals', 'post-journal', 'reverse-journal', 'reverse-repayment', 'reverse-savings-transaction',
+                'reverse-share-transaction', 'manage-dividends', 'approve-dividend-runs',
+                'post-dividend-runs', 'pay-dividends', 'reverse-dividends'],
         ];
+
+        $memberPermissionNames = $rolePermissions['member'];
+        $staffPermissionNames = array_values(array_diff($permissions, $memberPermissionNames));
 
         foreach ($rolePermissions as $keyName => $rolePermissionNames) {
             $role = Role::where('name', $keyName)->where('guard_name', 'web')->first();
@@ -57,7 +62,21 @@ class SaccoPermissionSeeder extends Seeder
                 $role->update(['key_name' => $keyName, 'is_active' => true]);
             }
             $role->givePermissionTo($rolePermissionNames);
+            if ($keyName === 'member') {
+                $role->revokePermissionTo($staffPermissionNames);
+            }
         }
+
+        // Remove direct grants too; a member role must not inherit staff power
+        // from an earlier bootstrap or a previous manual permission change.
+        User::whereHas('roles', function ($query) use ($rolesHaveKeys) {
+            $query->where(function ($roleQuery) use ($rolesHaveKeys) {
+                $roleQuery->where('name', 'member');
+                if ($rolesHaveKeys) $roleQuery->orWhere('key_name', 'member');
+            });
+        })->get()->each(function (User $member) use ($staffPermissionNames) {
+            $member->revokePermissionTo($staffPermissionNames);
+        });
 
         $admin = Role::where('name', 'sacco_admin')->where('guard_name', 'web')->first();
         if (!$admin) {
@@ -76,7 +95,7 @@ class SaccoPermissionSeeder extends Seeder
         // installation has an immediately usable administrator. This writes
         // to model_has_permissions in addition to the role assignment.
         $firstUser = User::query()->orderBy('id')->first();
-        if ($firstUser) {
+        if ($firstUser && !$firstUser->hasRole('member')) {
             $firstUser->givePermissionTo(Permission::where('guard_name', 'web')
                 ->whereIn('name', $permissions)
                 ->get());
