@@ -268,7 +268,9 @@ class PilotImportService
             if ($existing) {
                 if (!$existing->import_membership_number && $number !== '') $existing->import_membership_number = $number;
                 $sourceStatus = strtolower(trim((string) ($row['status'] ?? '')));
-                $remarks = trim((string) ($row['remarks'] ?? $row['comments'] ?? ''));
+                $remarks = $this->nullableValue($row['remarks'] ?? null)
+                    ?? $this->nullableValue($row['comments'] ?? null)
+                    ?? '';
                 if (in_array($sourceStatus, ['defaulter', 'defaulted'], true)) $remarks = trim($remarks . ' Legacy status: ' . $sourceStatus . '.');
                 $changes = ['remarks' => $remarks ?: $existing->remarks];
                 if ($sourceStatus !== '') {
@@ -297,14 +299,16 @@ class PilotImportService
         $phone = $missing('phone') ? 'PILOT-PENDING-' . $batch->id . '-' . $line : trim((string) $row['phone']);
         $statusSource = strtolower(trim((string) ($row['status'] ?? 'active')));
         $memberStatus = $statusSource === 'exited' ? 'closed' : ($statusSource === 'dormant' ? 'dormant' : 'active');
-        $remarks = trim((string) ($row['remarks'] ?? $row['comments'] ?? ''));
+        $remarks = $this->nullableValue($row['remarks'] ?? null)
+            ?? $this->nullableValue($row['comments'] ?? null)
+            ?? '';
         if (in_array($statusSource, ['defaulter', 'defaulted'], true)) $remarks = trim($remarks . ' Legacy status: ' . $statusSource . '.');
         $missingKycDetails = array_filter(['date_of_birth', 'national_id', 'phone', 'email', 'admission_date'], $missing);
         $remarks = trim($remarks . (count($missingKycDetails)
             ? ' KYC pending: one or more required details were marked NULL.'
             : ' KYC pending: administrator verification is required.'));
         $application = MemberApplication::create([
-            'application_number' => 'PILOT-' . $batch->id . '-' . str_pad((string) $line, 4, '0', STR_PAD_LEFT),
+            'application_number' => $this->generateApplicationNumber(),
             'application_channel' => 'import', 'first_name' => trim((string) $row['first_name']),
             'middle_name' => $this->nullableValue($row['middle_name'] ?? null), 'last_name' => trim((string) $row['last_name']),
             'date_of_birth' => $missing('date_of_birth') ? null : $this->parseDate($row['date_of_birth']),
@@ -400,14 +404,24 @@ class PilotImportService
             'interest_rate' => $product->interest_rate, 'decision' => 'approved', 'approved_by' => $userId,
             'reason' => 'Technical approval record required to attach the legacy opening loan. No new credit decision was made.']);
         $sourceStatus = strtolower(trim((string) ($row['loan_status'] ?? $row['status'] ?? 'active')));
-        $loanStatus = in_array($sourceStatus, ['defaulter', 'defaulted', 'in_arrears'], true) ? 'in_arrears' : (in_array($sourceStatus, ['exited', 'dormant'], true) ? 'closed' : ($sourceStatus === 'cleared' ? 'fully_paid' : 'active'));
-        $remarks = 'Legacy opening loan imported at ' . date('d/m/Y', strtotime($openingDate)) . '. Original status: ' . $sourceStatus . '. ' . trim((string) ($row['interest_period_covered'] ?? '')) . ' ' . trim((string) ($row['remarks'] ?? ''));
+        // A positive imported balance must remain serviceable even when the
+        // source status is inconsistent (for example, "cleared" with a balance).
+        $loanStatus = in_array($sourceStatus, ['defaulter', 'defaulted', 'in_arrears'], true)
+            ? 'in_arrears'
+            : 'active';
+        $loanDetails = array_filter([
+            $this->nullableValue($row['interest_period_covered'] ?? null),
+            $this->nullableValue($row['remarks'] ?? null),
+        ]);
+        $remarks = 'Legacy opening loan imported at ' . date('d/m/Y', strtotime($openingDate))
+            . '. Original status: ' . $sourceStatus . '.'
+            . ($loanDetails ? ' ' . implode(' ', $loanDetails) : '');
         $loan = Loan::create(['loan_application_id' => $application->id, 'member_id' => $member->id, 'loan_approval_id' => $approval->id,
             'loan_number' => 'PILOT-LN-' . $batch->id . '-' . $line, 'approved_amount' => $principal, 'amount_disbursed' => 0,
             'repayment_period_months' => 0, 'interest_rate' => $product->interest_rate, 'monthly_installment' => 0,
             'interest_method' => $product->interest_method, 'disbursement_date' => null, 'payment_mode' => 'cash',
             'principal_balance' => $principal, 'interest_balance' => $interest, 'total_outstanding_balance' => $principal + $interest,
-            'status' => $loanStatus, 'remarks' => $remarks]);
+            'status' => $loanStatus, 'is_opening_balance' => true, 'remarks' => $remarks]);
         $result['opening_loans']++;
         $result['_loan_journal_lines'][] = ['member_id' => $member->id, 'loan_id' => $loan->id, 'principal' => $principal, 'interest' => $interest];
     }
@@ -439,8 +453,23 @@ class PilotImportService
     private function nextMembershipNumber(): string
     {
         $year = now()->format('Y');
-        $last = (int) Member::where('membership_number', 'like', 'MEM-' . $year . '-%')->lockForUpdate()->orderByDesc('id')->value(DB::raw('CAST(SUBSTRING(membership_number, -6) AS UNSIGNED)'));
-        return sprintf('MEM-%s-%06d', $year, $last + 1);
+        $prefix = strtoupper((string) saccoSetting('MEMBERSHIP_NUMBER_PREFIX', 'MEM'));
+        $sequenceLength = (int) saccoSetting('MEMBERSHIP_NUMBER_SEQUENCE_LENGTH', 6);
+        $lastMembershipNumber = Member::where('membership_number', 'like', $prefix . '-' . $year . '-%')
+            ->lockForUpdate()
+            ->orderByDesc('id')
+            ->value('membership_number');
+        $last = 0;
+        if ($lastMembershipNumber && preg_match('/-(\d+)$/', $lastMembershipNumber, $matches)) {
+            $last = (int) $matches[1];
+        }
+
+        return sprintf("{$prefix}-%s-%0{$sequenceLength}d", $year, $last + 1);
+    }
+
+    private function generateApplicationNumber(): string
+    {
+        return sprintf('MAPP-%s-%s', now()->format('Y'), strtoupper((string) Str::ulid()));
     }
 
     private function parseDate($value): ?string

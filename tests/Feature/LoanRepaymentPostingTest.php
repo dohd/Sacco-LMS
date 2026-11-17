@@ -8,6 +8,7 @@ use App\Models\LoanApplications\LoanApplication;
 use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanProduct;
 use App\Models\LoanApplications\LoanRepayment;
+use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Memberships\Member;
 use App\Models\User;
 use Illuminate\Support\Facades\Artisan;
@@ -173,6 +174,95 @@ class LoanRepaymentPostingTest extends TestCase
         $this->assertEquals((float) $loan->principal_balance, $this->balance('principal') + $this->balance('fees'), "$when: principal and fees receivable vs principal balance");
         $this->assertEquals((float) $loan->interest_balance, $this->balance('interest'), "$when: interest receivable vs interest balance");
         $this->assertEquals(0, round((float) DB::table('journal_entry_lines')->sum(DB::raw('debit - credit')), 2), "$when: trial balance");
+    }
+
+    public function test_imported_opening_loan_can_be_paid_without_disbursement_and_restructured_forward(): void
+    {
+        LoanRepaymentSchedule::where('loan_id', $this->loan->id)->delete();
+        LoanDisbursement::where('loan_id', $this->loan->id)->delete();
+        $this->loan->update([
+            'approved_amount' => 10000,
+            'amount_disbursed' => 0,
+            'principal_balance' => 10000,
+            'interest_balance' => 500,
+            'fees_balance' => 0,
+            'penalty_balance' => 0,
+            'total_outstanding_balance' => 10500,
+            'status' => 'in_arrears',
+            'is_opening_balance' => true,
+        ]);
+
+        $periodId = DB::table('accounting_periods')->value('id');
+        $openingEntryId = DB::table('journal_entries')->insertGetId([
+            'accounting_period_id' => $periodId,
+            'entry_number' => 'OPEN-LEGACY-TEST',
+            'posting_key' => 'opening_loan_test:' . $this->loan->id,
+            'transaction_date' => today()->toDateString(),
+            'posting_date' => today()->toDateString(),
+            'event_type' => 'pilot_opening_loans',
+            'description' => 'Opening balance test entry',
+            'status' => 'posted',
+            'created_by' => auth()->id(),
+            'posted_by' => auth()->id(),
+            'posted_at' => now(),
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+        DB::table('journal_entry_lines')->insert([
+            ['journal_entry_id' => $openingEntryId, 'chart_of_account_id' => $this->accounts['principal'], 'debit' => 10000, 'credit' => 0, 'description' => 'Opening principal', 'member_id' => $this->member->id, 'loan_id' => $this->loan->id, 'created_at' => now(), 'updated_at' => now()],
+            ['journal_entry_id' => $openingEntryId, 'chart_of_account_id' => $this->accounts['interest'], 'debit' => 500, 'credit' => 0, 'description' => 'Opening interest', 'member_id' => $this->member->id, 'loan_id' => $this->loan->id, 'created_at' => now(), 'updated_at' => now()],
+            ['journal_entry_id' => $openingEntryId, 'chart_of_account_id' => $this->accounts['capital'], 'debit' => 0, 'credit' => 10500, 'description' => 'Migration suspense offset', 'member_id' => null, 'loan_id' => null, 'created_at' => now(), 'updated_at' => now()],
+        ]);
+
+        // The member may submit a repayment request for their own loan; staff still confirm it.
+        $memberUserId = DB::table('users')->insertGetId([
+            'name' => 'Test Borrower', 'email' => 'member-repayment@example.test',
+            'password' => bcrypt('password'), 'member_login_setup_required' => 0,
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $memberRole = \Spatie\Permission\Models\Role::where('name', 'member')->firstOrFail();
+        DB::table('model_has_roles')->insert(['role_id' => $memberRole->id, 'model_type' => User::class, 'model_id' => $memberUserId]);
+        DB::table('members')->where('id', $this->member->id)->update([
+            'user_id' => $memberUserId, 'kyc_status' => 'complete', 'updated_at' => now(),
+        ]);
+        $this->actingAs(User::findOrFail($memberUserId));
+        $this->get(route('loan_repayments.create', ['loan_id' => $this->loan->id]))->assertOk();
+        $this->post(route('loan_repayments.store'), $this->payload(['amount_paid' => 1000]))->assertSessionHasNoErrors();
+        $repayment = LoanRepayment::latest('id')->firstOrFail();
+        $this->assertSame('pending', $repayment->status);
+        $this->get(route('loan_repayments.show', $repayment))->assertOk()
+            ->assertSee('When confirmed, this opening balance repayment will apply directly to the loan balances');
+        $this->post(route('loan_repayments.confirm', $repayment))->assertForbidden();
+
+        $this->actingAs(User::findOrFail(DB::table('model_has_roles')->where('model_type', User::class)->where('model_id', '!=', $memberUserId)->value('model_id')));
+        $this->post(route('loan_repayments.confirm', $repayment))->assertSessionHasNoErrors();
+        $this->assertEquals(500, $repayment->fresh()->interest_amount);
+        $this->assertEquals(500, $repayment->fresh()->principal_amount);
+        $this->assertEquals(9500, $this->loan->fresh()->principal_balance);
+        $this->assertEquals(0, $this->loan->fresh()->interest_balance);
+        $this->assertSame(0, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->count());
+        $this->assertSame(0, LoanDisbursement::where('loan_id', $this->loan->id)->count());
+        $this->assertSame(0, JournalEntry::where('event_type', 'loan_disbursement')->count());
+        $this->assertLedgerMatchesLoan('after schedule-free opening loan repayment');
+
+        $balanceBeforeRestructure = (float) $this->loan->fresh()->total_outstanding_balance;
+        $this->post(route('loans.restructure', $this->loan), [
+            'remaining_months' => 5,
+            'first_repayment_date' => today()->addMonthNoOverflow()->toDateString(),
+            'reason' => 'Set a forward payment plan for the imported loan.',
+        ])->assertSessionHasNoErrors();
+
+        $this->assertEquals($balanceBeforeRestructure, $this->loan->fresh()->total_outstanding_balance);
+        $this->assertSame('restructured', $this->loan->fresh()->status);
+        $this->assertSame(5, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->count());
+        $this->assertEquals($balanceBeforeRestructure, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->sum('total_due'));
+        $this->assertSame(1, DB::table('loan_restructures')->where('loan_id', $this->loan->id)->count());
+        $this->get(route('loans.show', $this->loan))->assertOk()->assertSee('Restructuring History')->assertSee('Create Forward Schedule');
+
+        $this->pay(1900);
+        $this->assertEquals(7600, $this->loan->fresh()->total_outstanding_balance);
+        $this->assertEquals(1900, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->where('status', 'paid')->value('total_paid'));
+        $this->assertLedgerMatchesLoan('after restructured schedule repayment');
     }
 
     public function test_ledger_account_is_required_validated_and_saved_on_the_repayment(): void

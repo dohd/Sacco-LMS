@@ -35,11 +35,11 @@ class LoanRepaymentConfirmationService
             ->lockForUpdate()
             ->firstOrFail();
 
-        if ((float) $loan->amount_disbursed <= 0) {
+        if (!$loan->is_opening_balance && (float) $loan->amount_disbursed <= 0) {
             throw ValidationException::withMessages(['loan_id' => 'The loan must be disbursed before accepting repayments.']);
         }
 
-        if (!in_array($loan->status, ['active', 'in_arrears'])) {
+        if (!in_array($loan->status, ['active', 'in_arrears', 'restructured'])) {
             throw ValidationException::withMessages([
                 'repayment' => "Repayments cannot be posted to a {$loan->status} loan."
             ]);
@@ -64,7 +64,31 @@ class LoanRepaymentConfirmationService
             ->lockForUpdate()
             ->get();
 
-        foreach ($schedules as $schedule) {
+        $scheduleFreeOpeningLoan = $loan->is_opening_balance
+            && !LoanRepaymentSchedule::where('loan_id', $loan->id)->exists();
+
+        if ($scheduleFreeOpeningLoan) {
+            // Legacy balances have no reliable historical schedule. Apply receipts
+            // directly to their carried balances: penalties, accrued interest,
+            // fees, then principal. No disbursement or schedule is fabricated.
+            $penaltyPaid = min($remaining, max(0, round((float) $loan->penalty_balance, 4)));
+            $remaining = round($remaining - $penaltyPaid, 4);
+            $penaltyAmount = round($penaltyAmount + $penaltyPaid, 4);
+
+            $interestPaid = min($remaining, max(0, round((float) $loan->interest_balance, 4)));
+            $remaining = round($remaining - $interestPaid, 4);
+            $interestAmount = round($interestAmount + $interestPaid, 4);
+
+            $feesPaid = min($remaining, max(0, round((float) $loan->fees_balance, 4)));
+            $remaining = round($remaining - $feesPaid, 4);
+            $feesAmount = round($feesAmount + $feesPaid, 4);
+
+            $principalPaid = min($remaining, max(0, round((float) $loan->principal_balance, 4)));
+            $remaining = round($remaining - $principalPaid, 4);
+            $principalAmount = round($principalAmount + $principalPaid, 4);
+        }
+
+        foreach (($scheduleFreeOpeningLoan ? [] : $schedules) as $schedule) {
 
             if ($remaining <= 0) {
                 // Unmodified schedules retain their existing state profiles
@@ -172,7 +196,11 @@ class LoanRepaymentConfirmationService
 
         // Deterministically deduce the target loan state matrix directly from active records
         $hasOverdue = in_array('overdue', $scheduleStatuses);
-        $loanStatus = $newTotalOutstanding <= 0 ? 'fully_paid' : ($hasOverdue ? 'in_arrears' : 'active');
+        $loanStatus = $newTotalOutstanding <= 0
+            ? 'fully_paid'
+            : ($scheduleFreeOpeningLoan
+                ? $loan->status
+                : ($hasOverdue ? 'in_arrears' : ($loan->status === 'restructured' ? 'restructured' : 'active')));
 
         /*
          * Persist transaction allocation detail records
@@ -197,6 +225,7 @@ class LoanRepaymentConfirmationService
          * Update the parent repayment execution entity ledger state
          */
         $repayment->update([
+            'loan_status_before' => $loan->status,
             'principal_amount' => round($principalAmount, 2),
             'interest_amount' => round($interestAmount, 2),
             'fees_amount' => round($feesAmount, 2),
