@@ -174,12 +174,10 @@ class ShareProductsController extends Controller
      */
     public function edit(ShareProduct $shareProduct)
     {
-        // Inject the key-value pair into the request payload
-        $payload = $shareProduct->toArray();
-        request()->merge($payload);
-
-        // Flash the modified request to the old input session store
-        request()->flash();
+        if (!request()->session()->hasOldInput()) {
+            request()->merge($shareProduct->toArray());
+            request()->flash();
+        }
 
         $accounts = ChartOfAccount::where('account_type', 'equity')
             ->where('is_active', 1)

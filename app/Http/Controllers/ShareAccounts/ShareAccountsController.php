@@ -131,12 +131,10 @@ class ShareAccountsController extends Controller
      */
     public function edit(ShareAccount $shareAccount)
     {
-        // Inject the key-value pair into the request payload
-        $payload = $shareAccount->toArray();
-        request()->merge($payload);
-
-        // Flash the modified request to the old input session store
-        request()->flash();
+        if (!request()->session()->hasOldInput()) {
+            request()->merge($shareAccount->toArray());
+            request()->flash();
+        }
 
         $members = Member::all();
         $shareProducts = ShareProduct::all();

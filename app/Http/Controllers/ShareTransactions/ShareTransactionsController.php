@@ -194,12 +194,10 @@ class ShareTransactionsController extends Controller
      */
     public function edit(ShareTransaction $shareTransaction)
     {
-        // Inject the key-value pair into the request payload
-        $payload = $shareTransaction->toArray();
-        request()->merge($payload);
-
-        // Flash the modified request to the old input session store
-        request()->flash();
+        if (!request()->session()->hasOldInput()) {
+            request()->merge($shareTransaction->toArray());
+            request()->flash();
+        }
 
         $shareAccounts = ShareAccount::all();
 

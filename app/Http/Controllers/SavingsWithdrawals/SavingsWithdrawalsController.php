@@ -248,12 +248,10 @@ class SavingsWithdrawalsController extends Controller
             return redirect()->back()->with('error', 'Only withdrawal requests with pending status can be edited');
         }
 
-        // Inject the key-value pair into the request payload
-        $payload = $savingsWithdrawal->toArray();
-        request()->merge($payload);
-
-        // Flash the modified request to the old input session store
-        request()->flash();
+        if (!request()->session()->hasOldInput()) {
+            request()->merge($savingsWithdrawal->toArray());
+            request()->flash();
+        }
 
         $savingsAccounts = $this->visibleAccounts()->where('status', 'active')->get();
 

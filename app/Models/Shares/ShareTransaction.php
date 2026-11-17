@@ -14,6 +14,8 @@ class ShareTransaction extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = ['transaction_date' => 'date', 'value_date' => 'date'];
+
     /**
      * The "booted" method of the model.
      */
