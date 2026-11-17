@@ -20,7 +20,9 @@ class NominationsController extends Controller
      */
     public function index()
     {
-        $nominations = Nomination::latest()->get();
+        $member = $this->currentMember();
+        $nominations = Nomination::when($member, fn ($query) => $query->where('member_id', $member->id))
+            ->latest()->get();
         return view('nominations.index', compact('nominations'));
     }
 
@@ -33,8 +35,10 @@ class NominationsController extends Controller
     {
         request()->session()->forget(['_old_input', 'errors']);
 
-        $members = Member::all();
-        return view('nominations.create', compact('members'));
+        $currentMember = $this->currentMember();
+        $members = $currentMember ? collect([$currentMember]) : Member::all();
+        $currentMemberId = $currentMember ? $currentMember->id : null;
+        return view('nominations.create', compact('members', 'currentMemberId'));
     }
 
     /**
@@ -45,6 +49,9 @@ class NominationsController extends Controller
      */
     public function store(Request $request)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) $request->merge(['member_id' => $currentMember->id]);
+
         $validated = $request->validate([
             'member_id' => ['required', 'integer', 'exists:members,id'],
             'special_instructions' => ['nullable', 'string'],
@@ -158,6 +165,9 @@ class NominationsController extends Controller
      */
     public function show(Nomination $nomination)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) abort_unless((int) $nomination->member_id === (int) $currentMember->id, 403);
+
         return view('nominations.view', compact('nomination'));
     }
 
@@ -169,17 +179,20 @@ class NominationsController extends Controller
      */
     public function edit(Nomination $nomination, Request $request)
     {
-        // Inject the key-value pair into the request payload
-        $payload = $nomination->toArray();
-        $payload['nominees'] = $nomination->nominees->toArray();
-        $payload['witnesses'] = $nomination->witnesses->toArray();
-        $request->merge($payload);
+        $currentMember = $this->currentMember();
+        if ($currentMember) abort_unless((int) $nomination->member_id === (int) $currentMember->id, 403);
 
-        // Flash the modified request to the old input session store
-        $request->flash();
+        if (!$request->session()->hasOldInput()) {
+            $payload = $nomination->toArray();
+            $payload['nominees'] = $nomination->nominees->toArray();
+            $payload['witnesses'] = $nomination->witnesses->toArray();
+            $request->merge($payload);
+            $request->flash();
+        }
 
-        $members = Member::all();
-        return view('nominations.edit', compact('nomination', 'members'));
+        $members = $currentMember ? collect([$currentMember]) : Member::all();
+        $currentMemberId = $currentMember ? $currentMember->id : null;
+        return view('nominations.edit', compact('nomination', 'members', 'currentMemberId'));
     }
 
     /**
@@ -191,6 +204,12 @@ class NominationsController extends Controller
      */
     public function update(Request $request, Nomination $nomination)
     {
+        $currentMember = $this->currentMember();
+        if ($currentMember) {
+            abort_unless((int) $nomination->member_id === (int) $currentMember->id, 403);
+            $request->merge(['member_id' => $currentMember->id]);
+        }
+
         $validated = $request->validate([
             'member_id' => ['required', 'integer', 'exists:members,id'],
             'special_instructions' => ['nullable', 'string'],
@@ -386,5 +405,12 @@ class NominationsController extends Controller
         } catch (Exception $e) {
             return errorHandler("Error saving rejection. Try again later", $e);
         }
+    }
+
+    private function currentMember(): ?Member
+    {
+        if (!auth()->user()->hasRoleCode('member')) return null;
+
+        return Member::where('user_id', auth()->id())->firstOrFail();
     }
 }

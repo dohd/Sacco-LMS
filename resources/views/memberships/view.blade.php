@@ -44,6 +44,15 @@
             </div>
         </div>
 
+        @if(auth()->user()->hasRoleCode('member') && $application->member && $application->member->kyc_submitted_at && $application->member->kyc_status !== 'complete')
+            <div class="alert alert-warning shadow-sm" role="status">
+                <h5 class="alert-heading">KYC verification in progress</h5>
+                <p class="mb-1">Your membership details were submitted on {{ $application->member->kyc_submitted_at->format('d M Y') }}.</p>
+                <p class="mb-0">An administrator must verify your details before member services become available.</p>
+                <a href="{{ route('member.kyc.show') }}" class="btn btn-sm btn-outline-dark mt-3">Edit my details</a>
+            </div>
+        @endif
+
         <div class="row">
 
             <!-- Main Column -->
@@ -95,6 +104,11 @@
                             <div class="col-md-4 mb-3">
                                 <small class="text-muted d-block">Email</small>
                                 <strong>{{ $application->email ?: '-' }}</strong>
+                            </div>
+
+                            <div class="col-md-4 mb-3">
+                                <small class="text-muted d-block">Import Membership Number</small>
+                                <strong>{{ optional($application->member)->import_membership_number ?: '-' }}</strong>
                             </div>
 
                             <div class="col-md-6 mb-3">
@@ -325,7 +339,8 @@
             <!-- Sidebar -->
             <div class="col-lg-3">
 
-                <!-- Workflow -->
+                @unless(auth()->user()->hasRoleCode('member'))
+                <!-- Staff Workflow -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header bg-dark text-white">
                         <h5 class="mb-0">Workflow</h5>
@@ -411,7 +426,23 @@
                         </div>
                     </div>
                 @endif
+                @else
+                    @if($application->member)
+                        <div class="card shadow-sm mb-4">
+                            <div class="card-header"><h5 class="mb-0">KYC status</h5></div>
+                            <div class="card-body">
+                                <span class="badge bg-{{ $application->member->kyc_status === 'complete' ? 'success' : 'warning text-dark' }}">
+                                    {{ ucfirst($application->member->kyc_status ?: 'pending') }}
+                                </span>
+                                @if($application->member->kyc_submitted_at)
+                                    <p class="small text-muted mt-2 mb-0">Submitted {{ $application->member->kyc_submitted_at->format('d M Y H:i') }}</p>
+                                @endif
+                            </div>
+                        </div>
+                    @endif
+                @endunless
 
+                @unless(auth()->user()->hasRoleCode('member'))
                 <!-- Actions -->
                 <div class="card shadow-sm mb-4">
                     <div class="card-header">
@@ -480,6 +511,7 @@
 
                     </div>
                 </div>
+                @endunless
 
             </div>
 
@@ -487,6 +519,7 @@
 
     </div>
 
+    @unless(auth()->user()->hasRoleCode('member'))
     <!-- Approve Modal -->
     <div class="modal fade" id="approveModal" tabindex="-1">
         <div class="modal-dialog">
@@ -596,4 +629,5 @@
             </form>
         </div>
     </div>
+    @endunless
 @stop

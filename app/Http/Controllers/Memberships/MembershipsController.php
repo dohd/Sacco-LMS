@@ -219,12 +219,10 @@ class MembershipsController extends Controller
      */
     public function edit(MemberApplication $membership, Request $request)
     {
-        // Inject the key-value pair into the request payload
-        $payload = $membership->toArray();
-        $request->merge($payload);
-
-        // Flash the modified request to the old input session store
-        $request->flash();
+        if (!$request->session()->hasOldInput()) {
+            $request->merge($membership->toArray());
+            $request->flash();
+        }
 
         return view('memberships.edit', compact('membership'));
     }
@@ -570,19 +568,22 @@ class MembershipsController extends Controller
     private function generateMembershipNumber(): string
     {
         $year = now()->format('Y');
+        $prefix = strtoupper((string) saccoSetting('MEMBERSHIP_NUMBER_PREFIX', 'MEM'));
+        $sequenceLength = (int) saccoSetting('MEMBERSHIP_NUMBER_SEQUENCE_LENGTH', 6);
 
-        $lastMember = Member::query()
-            ->where('membership_number', 'like', "MEM-{$year}-%")
+        $lastMembershipNumber = Member::query()
+            ->where('membership_number', 'like', "{$prefix}-{$year}-%")
             ->lockForUpdate()
             ->orderByDesc('id')
-            ->first();
+            ->value('membership_number');
 
-        $lastSequence = $lastMember
-            ? (int) substr($lastMember->membership_number, -6)
-            : 0;
+        $lastSequence = 0;
+        if ($lastMembershipNumber && preg_match('/-(\d+)$/', $lastMembershipNumber, $matches)) {
+            $lastSequence = (int) $matches[1];
+        }
 
         return sprintf(
-            'MEM-%s-%06d',
+            "{$prefix}-%s-%0{$sequenceLength}d",
             $year,
             $lastSequence + 1
         );

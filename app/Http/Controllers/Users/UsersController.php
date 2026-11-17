@@ -61,7 +61,7 @@ class UsersController extends Controller
             'email' => ['required', 'email', 'max:255', 'unique:users,email'],
             'phone' => ['nullable', 'string', 'max:255', 'unique:users,phone'],
             'employee_number' => ['nullable', 'string', 'max:255', 'unique:users,employee_number'],
-            'password' => ['required', 'string', 'min:8', 'confirmed'],
+            'password' => ['required', 'string', 'min:' . saccoSetting('PASSWORD_MIN_LENGTH', 10), 'confirmed'],
             'is_active' => ['nullable', 'boolean'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['integer', 'exists:roles,id'],
@@ -150,7 +150,7 @@ class UsersController extends Controller
                 'max:255',
                 Rule::unique('users', 'employee_number')->ignore($user->id),
             ],
-            'password' => ['nullable', 'string', 'min:8', 'confirmed'],
+            'password' => ['nullable', 'string', 'min:' . saccoSetting('PASSWORD_MIN_LENGTH', 10), 'confirmed'],
             'is_active' => ['nullable', 'boolean'],
             'roles' => ['required', 'array', 'min:1'],
             'roles.*' => ['integer', 'exists:roles,id'],
@@ -232,7 +232,7 @@ class UsersController extends Controller
     public function active_profile()
     {
         $user = User::with('roles')->find(auth()->id());
-        $role = optional($user->roles->first());
+        $role = optional($user ? $user->roles->first() : null);
 
         return view('users.active_profile', compact('user', 'role'));
     }
@@ -243,18 +243,19 @@ class UsersController extends Controller
     public function update_active_profile(Request $request, User $user)
     {
         abort_unless((int) $user->id === (int) auth()->id(), 403);
-        if ($request->password) {
+        if ($request->has('current_password') || $request->has('password') || $request->has('confirm_password')) {
             $request->validate([
                 'current_password' => 'required',
-                'password' => 'required|min:6',
+                'password' => 'required|string|min:' . saccoSetting('PASSWORD_MIN_LENGTH', 10),
                 'confirm_password' => 'required|same:password',
             ]);
-            $input = $request->except('_token');
-            $is_valid = password_verify($input['current_password'], auth()->user()->password);
-            if (!$is_valid) return errorHandler('Current password is invalid!');
+            $isValid = password_verify($request->input('current_password'), auth()->user()->password);
+            if (!$isValid) {
+                return errorHandler('Current password is invalid!');
+            }
 
             try {
-                $user->update(['password' => $input['password']]);
+                $user->update(['password' => $request->input('password')]);
                 return redirect()->back()->with(['success' => 'Password updated successfully']);
             } catch (\Throwable $th) {
                 return errorHandler('Error updating Password!', $th);
@@ -262,18 +263,34 @@ class UsersController extends Controller
         }
 
         $request->validate([
-            'username' => 'required',
-            'email' => 'required',
+            'email' => [
+                'required',
+                'email',
+                'max:255',
+                Rule::unique('users', 'email')->ignore($user->id),
+            ],
+            'phone' => [
+                'nullable',
+                'string',
+                'max:255',
+                Rule::unique('users', 'phone')->ignore($user->id),
+            ],
         ]);
-        $input = $request->only('username', 'email', 'phone');
-        // unset($input['email']);
+        $input = $request->only('email', 'phone');
 
         $validator = Validator::make($request->all(), [
-            'profile_pic' => $request->profile_pic? 'required|mimes:png,jpg,jpeg' : 'nullable',
+            'profile_pic' => $request->profile_pic
+                ? 'required|mimes:png,jpg,jpeg'
+                : 'nullable',
         ]);
-        if ($validator->fails()) return errorHandler('Unsupported image format! Use png, jpg or jpeg');
+        if ($validator->fails()) {
+            return errorHandler('Unsupported image format! Use png, jpg or jpeg');
+        }
+
         $file = $request->file('profile_pic');
-        if ($file) $input['profile_pic'] = $this->uploadFile($file);
+        if ($file) {
+            $input['profile_pic'] = $this->uploadFile($file);
+        }
 
         try {
             $user->update($input);

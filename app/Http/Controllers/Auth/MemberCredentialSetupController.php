@@ -32,7 +32,7 @@ class MemberCredentialSetupController extends Controller
                 Rule::unique('members', 'email')->ignore($member->id),
                 Rule::unique('member_applications', 'email')->ignore($applicationId),
             ],
-            'password' => 'required|string|min:10|confirmed',
+            'password' => 'required|string|min:' . saccoSetting('PASSWORD_MIN_LENGTH', 10) . '|confirmed',
         ]);
 
         DB::transaction(function () use ($request, $user, $member) {

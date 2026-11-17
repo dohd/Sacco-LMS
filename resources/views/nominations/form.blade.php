@@ -44,15 +44,19 @@
             <div class="row g-3">
                 <div class="col-md-6">
                     <label class="form-label">Member Name</label>
+                    @if($currentMemberId)
+                        <input type="hidden" name="member_id" value="{{ $currentMemberId }}">
+                    @endif
                     <select
-                        name="member_id"
+                        @unless($currentMemberId) name="member_id" @endunless
                         class="form-select member_id @error("member_id") is-invalid @enderror"
                         data-field="member_id"
+                        @if($currentMemberId) disabled @endif
                         required
                     >
                         <option value="">Select Member</option>
                         @foreach ($members as $member)
-                            <option value="{{ $member->id }}" @selected(old('member_id') === $member->id)>
+                            <option value="{{ $member->id }}" @selected($currentMemberId ? (int) $currentMemberId === (int) $member->id : (int) old('member_id') === (int) $member->id)>
                                 {{ $member->membership_number }} - {{ $member->full_name }}
                             </option>
                         @endforeach

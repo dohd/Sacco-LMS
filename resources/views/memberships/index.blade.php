@@ -39,8 +39,12 @@
                                                 'cancelled' => 'secondary',
                                             ];
                                         @endphp
-                                        <span class="badge bg-{{ $statusClasses[$appl->status] ?? 'secondary' }} fs-6">
+                                        <span class="badge bg-{{ $statusClasses[$appl->status] ?? 'secondary' }}">
                                             {{ ucfirst(str_replace('_', ' ', $appl->status)) }}
+                                        </span>
+                                        <br>
+                                        <span class="badge bg-{{ $appl->kyc_status === 'complete' ? 'primary' : 'warning' }} {{ $appl->kyc_status === 'complete' ? '' : 'text-dark' }} mt-1">
+                                            KYC: {{ ucfirst(str_replace('_', ' ', $appl->kyc_status)) }}
                                         </span>
                                     </td> 
                                     <td>{{ @$appl->member->membership_number }}</td>                                   
