@@ -9,6 +9,7 @@ $(function () {
             $('#is_control_account').change(Form.changeIsControlAccount);
 
             const data = @json(@$chartOfAccount);
+            Form.filterAccountDetails(false);
             if (data?.id) {
 
             } else {
@@ -36,6 +37,7 @@ $(function () {
         changeAccountType() {
             $('#code').val('');
             $('#parent_id').val('');
+            Form.filterAccountDetails(true);
 
             // Fetch account code
             $.get("{{ route('chart_of_accounts.account_code') }}", {
@@ -46,6 +48,24 @@ $(function () {
                 $('#code').val(code || '');
             })
             .fail((xhr, status, error) => console.log(error))
+        },
+
+        filterAccountDetails(clearSelection) {
+            const accountType = $('#account_type').val();
+            const $detail = $('#account_detail_id');
+            const selectedDetail = clearSelection ? '' : $detail.val();
+
+            $detail.find('option').each(function () {
+                const $option = $(this);
+                const matchesType = !$option.val() || $option.data('account-type') === accountType;
+                $option.prop('hidden', !matchesType).prop('disabled', !matchesType);
+            });
+
+            if (selectedDetail && $detail.find(`option[value="${selectedDetail}"]:not(:disabled)`).length) {
+                $detail.val(selectedDetail);
+            } else {
+                $detail.val('');
+            }
         },
 
         changeParentId() {

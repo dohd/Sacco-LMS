@@ -3,6 +3,7 @@
 namespace App\Http\Controllers\ChartOfAccounts;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accounting\AccountDetail;
 use App\Models\Accounting\ChartOfAccount;
 use Exception;
 use Illuminate\Http\Request;
@@ -35,7 +36,12 @@ class ChartOfAccountsController extends Controller
             ->orderBy('code') 
             ->get(); 
 
-        return view('chart_of_accounts.create', compact('parentAccounts'));
+        $accountDetails = AccountDetail::query()
+            ->orderBy('type')
+            ->orderBy('display_name')
+            ->get(['id', 'display_name', 'type', 'display_subtype']);
+
+        return view('chart_of_accounts.create', compact('parentAccounts', 'accountDetails'));
     }
 
     /**
@@ -51,6 +57,7 @@ class ChartOfAccountsController extends Controller
             'name'               => ['required', 'string', 'max:255', 'unique:chart_of_accounts,name'],
             'parent_id'          => ['nullable', 'integer', 'exists:chart_of_accounts,id'],
             'account_type'       => ['required', Rule::in(['asset', 'liability', 'equity', 'income', 'expense'])],
+            'account_detail_id'  => ['required', Rule::exists('account_details', 'id')->where('type', $request->input('account_type'))],
             'normal_balance'     => ['nullable', Rule::in(['debit', 'credit'])],
             'is_control_account' => ['sometimes', 'boolean'],
             'is_postable'        => ['sometimes', 'boolean'],
@@ -121,7 +128,12 @@ class ChartOfAccountsController extends Controller
             ->orderBy('code') 
             ->get(); 
 
-        return view('chart_of_accounts.edit', compact( 'chartOfAccount', 'parentAccounts' ));
+        $accountDetails = AccountDetail::query()
+            ->orderBy('type')
+            ->orderBy('display_name')
+            ->get(['id', 'display_name', 'type', 'display_subtype']);
+
+        return view('chart_of_accounts.edit', compact('chartOfAccount', 'parentAccounts', 'accountDetails'));
     }
 
     /**
@@ -138,6 +150,7 @@ class ChartOfAccountsController extends Controller
             'name'               => ['required', 'string', 'max:255', Rule::unique('chart_of_accounts', 'name')->ignore($chartOfAccount->id)],
             'parent_id'          => ['nullable', 'integer', 'exists:chart_of_accounts,id'],
             'account_type'       => ['required', Rule::in(['asset', 'liability', 'equity', 'income', 'expense'])],
+            'account_detail_id'  => ['required', Rule::exists('account_details', 'id')->where('type', $request->input('account_type'))],
             'normal_balance'     => ['nullable', Rule::in(['debit', 'credit'])],
             'is_control_account' => ['sometimes', 'boolean'],
             'is_postable'        => ['sometimes', 'boolean'],

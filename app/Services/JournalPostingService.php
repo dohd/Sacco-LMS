@@ -9,6 +9,8 @@ use App\Models\Accounting\JournalEntryLine;
 use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanRepayment;
+use App\Models\Dividends\DividendAllocation;
+use App\Models\Dividends\DividendRun;
 use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Savings\SavingsTransaction;
 use App\Models\Shares\ShareAccount;
@@ -21,6 +23,114 @@ use Illuminate\Validation\ValidationException;
 
 class JournalPostingService
 {
+    /**
+     * Declare approved member dividends: Dr retained earnings, Cr payable
+     * and deduction destination accounts.
+     */
+    public function postDividendRun(DividendRun $run): JournalEntry
+    {
+        return DB::transaction(function () use ($run) {
+            $run = DividendRun::with('allocations.deductions')->whereKey($run->id)->lockForUpdate()->firstOrFail();
+            if ($run->status !== 'approved' || !$run->allocations->count()) {
+                throw ValidationException::withMessages([
+                    'run' => 'Only an approved run with allocations can be posted.',
+                ]);
+            }
+            $gross = round((float) $run->gross_dividend_amount, 2);
+            if ($gross <= 0 || !$run->declaration_account_id || !$run->payable_account_id) {
+                throw ValidationException::withMessages([
+                    'run' => 'Configure the declaration and payable accounts and ensure the run has a positive total.',
+                ]);
+            }
+            $declarationAccount = ChartOfAccount::whereKey($run->declaration_account_id)
+                ->where('account_type', 'equity')
+                ->where('name', 'like', '%retained earnings%')
+                ->where('is_active', true)
+                ->where('is_postable', true)
+                ->where('is_control_account', false)
+                ->first();
+            $payableAccount = ChartOfAccount::whereKey($run->payable_account_id)
+                ->where('account_type', 'liability')
+                ->where('name', 'like', '%dividend%')
+                ->where('is_active', true)
+                ->where('is_postable', true)
+                ->where('is_control_account', false)
+                ->first();
+            if (!$declarationAccount || !$payableAccount) {
+                throw ValidationException::withMessages([
+                    'run' => 'Select the active Retained Earnings and Dividends liability accounts.',
+                ]);
+            }
+            $this->assertManualAccountsAllowed([$declarationAccount->id, $payableAccount->id]);
+            $lines = [[
+                'account' => $run->declaration_account_id,
+                'debit' => $gross,
+                'description' => 'Dividend declared from retained earnings',
+            ]];
+            $net = 0.0;
+            foreach ($run->allocations as $allocation) {
+                $net += (float) $allocation->net_dividend;
+                foreach ($allocation->deductions as $deduction) {
+                    if ($deduction->deduction_type === 'withholding_tax') {
+                        $taxAccount = $run->withholding_account_id ? ChartOfAccount::whereKey($run->withholding_account_id)->where('account_type', 'liability')->where('name', 'like', '%withholding%')->where('is_active', true)->where('is_postable', true)->where('is_control_account', false)->first() : null;
+                        if (!$taxAccount) throw ValidationException::withMessages(['withholding_account_id' => 'Select the active Withholding Tax liability account.']);
+                        $offsetAccount = $taxAccount->id;
+                    } else {
+                        if (in_array($deduction->deduction_type, ['loan_offset', 'contribution_arrears'], true)) throw ValidationException::withMessages(['deductions' => 'Loan offsets and contribution arrears require their subledger workflow and cannot be posted as a general ledger deduction.']);
+                        if (!$deduction->offset_account_id) throw ValidationException::withMessages(['deductions' => 'Select a destination ledger account for each non-tax deduction.']);
+                        $offsetAccount = $deduction->offset_account_id;
+                        $this->assertManualAccountsAllowed([$offsetAccount]);
+                    }
+                    $lines[] = ['account' => $offsetAccount, 'credit' => round((float) $deduction->amount, 2), 'description' => 'Dividend deduction: ' . str_replace('_', ' ', $deduction->deduction_type), 'member_id' => $allocation->member_id, 'share_account_id' => $allocation->share_account_id];
+                }
+            }
+            if ($net > 0) $lines[] = ['account' => $run->payable_account_id, 'credit' => round($net, 2), 'description' => 'Dividend payable'];
+            return $this->postEntry([
+                'posting_key' => 'dividend_run:' . $run->id . ':posted', 'event_type' => 'dividend_run', 'source' => $run,
+                'transaction_date' => $run->declaration_date ?: $run->period_end, 'posting_date' => $run->declaration_date ?: $run->period_end,
+                'reference_number' => $run->run_number, 'description' => 'Dividend declaration ' . $run->run_number . ' — ' . $run->name,
+                'created_by' => $run->approved_by ?: auth()->id(),
+            ], $lines);
+        });
+    }
+
+    /** Pay one approved allocation from a cash, bank, or mobile money ledger. */
+    public function postDividendPayment(DividendAllocation $allocation, int $paymentAccountId, string $paymentDate, ?string $reference = null): JournalEntry
+    {
+        return DB::transaction(function () use ($allocation, $paymentAccountId, $paymentDate, $reference) {
+            $allocation = DividendAllocation::with('run')->whereKey($allocation->id)->lockForUpdate()->firstOrFail();
+            if ($allocation->status !== 'approved' || $allocation->run->status !== 'posted') throw ValidationException::withMessages(['allocation' => 'Only approved allocations from a posted run can be paid.']);
+            $amount = round((float) $allocation->net_dividend, 2);
+            if ($amount <= 0) throw ValidationException::withMessages(['allocation' => 'This allocation has no net amount to pay.']);
+            $paymentAccount = ChartOfAccount::whereKey($paymentAccountId)->cashAndBank()
+                ->where(function ($query) { $query->where('name', 'like', '%cash%')->orWhere('name', 'like', '%bank%')->orWhere('name', 'like', '%mobile money%'); })
+                ->first();
+            if (!$paymentAccount) throw ValidationException::withMessages(['payment_account_id' => 'Choose an active cash, bank, or mobile money ledger account.']);
+            return $this->postEntry([
+                'posting_key' => 'dividend_allocation:' . $allocation->id . ':paid', 'event_type' => 'dividend_payment', 'source' => $allocation,
+                'transaction_date' => $paymentDate, 'posting_date' => $paymentDate, 'reference_number' => $reference,
+                'description' => 'Dividend payment for ' . $allocation->member->full_name . ' — run ' . $allocation->run->run_number,
+                'created_by' => auth()->id(), 'member_id' => $allocation->member_id, 'share_account_id' => $allocation->share_account_id,
+            ], [
+                ['account' => $allocation->run->payable_account_id, 'debit' => $amount, 'description' => 'Dividend payable settled', 'member_id' => $allocation->member_id, 'share_account_id' => $allocation->share_account_id],
+                ['account' => $paymentAccountId, 'credit' => $amount, 'description' => 'Dividend paid', 'member_id' => $allocation->member_id, 'share_account_id' => $allocation->share_account_id],
+            ]);
+        });
+    }
+
+    public function reverseDividendRun(DividendRun $run, string $reason): ?JournalEntry
+    {
+        if ($run->allocations()->where('status', 'paid')->exists()) {
+            throw ValidationException::withMessages(['run' => 'Reverse paid allocation entries before reversing the dividend declaration.']);
+        }
+        return $this->reverseEntry('dividend_run:' . $run->id . ':posted', 'dividend_run:' . $run->id . ':reversed', 'dividend_run_reversal', $run, $reason, 'Dividend run ' . $run->run_number);
+    }
+
+    public function reverseDividendPayment(DividendAllocation $allocation, string $reason): ?JournalEntry
+    {
+        return $this->reverseEntry('dividend_allocation:' . $allocation->id . ':paid', 'dividend_allocation:' . $allocation->id . ':reversed', 'dividend_payment_reversal', $allocation, $reason, 'Dividend payment allocation ' . $allocation->id);
+    }
+
     /**
      * Post a processed loan disbursement to the general ledger.
      *

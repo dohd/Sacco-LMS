@@ -29,6 +29,8 @@ class CreateChartOfAccounts extends Migration
                 'expense',
             ]);
 
+            $table->unsignedBigInteger('account_detail_id')->nullable();
+
             $table->enum('normal_balance', [
                 'debit',
                 'credit',

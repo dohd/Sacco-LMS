@@ -85,6 +85,31 @@
 
                     <div class="col-md-3">
                         <label class="form-label">
+                            Account Detail <span class="text-danger">*</span>
+                        </label>
+
+                        <select name="account_detail_id"
+                                id="account_detail_id"
+                                class="form-select"
+                                required>
+                            <option value="">-- Select account detail --</option>
+
+                            @foreach($accountDetails as $detail)
+                                <option value="{{ $detail->id }}"
+                                        data-account-type="{{ $detail->type }}"
+                                    @selected((string) old('account_detail_id', $chartOfAccount->account_detail_id ?? '') === (string) $detail->id)>
+                                    {{ $detail->display_name }} ({{ $detail->display_subtype }})
+                                </option>
+                            @endforeach
+                        </select>
+
+                        @error('account_detail_id')
+                            <div class="text-danger small mt-1">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <div class="col-md-3">
+                        <label class="form-label">
                             Normal Balance <span class="text-danger">*</span>
                         </label>
 

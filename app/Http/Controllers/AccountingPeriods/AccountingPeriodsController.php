@@ -31,7 +31,23 @@ class AccountingPeriodsController extends Controller
      */
     public function create()
     {
-        return view('accounting_periods.create');
+        $month = (int) saccoSetting('FINANCIAL_YEAR_START_MONTH', 1);
+        $day = (int) saccoSetting('FINANCIAL_YEAR_START_DAY', 1);
+        $start = \Carbon\Carbon::createFromDate(now()->year, $month, 1);
+        $start->day(min($day, $start->daysInMonth));
+
+        if ($start->gt(now())) {
+            $start->subYear();
+        }
+
+        $periodDefaults = [
+            'name' => 'FY ' . $start->year . '/' . $start->copy()->addYear()->format('Y'),
+            'financial_year' => $start->year,
+            'start_date' => $start->toDateString(),
+            'end_date' => $start->copy()->addYear()->subDay()->toDateString(),
+        ];
+
+        return view('accounting_periods.create', compact('periodDefaults'));
     }
 
     /**

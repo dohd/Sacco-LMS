@@ -31,7 +31,7 @@
                            'name',
                            $isEdit
                                ? $accountingPeriod->name
-                               : ''
+                               : ($periodDefaults['name'] ?? '')
                        ) }}">
 
             </div>
@@ -56,7 +56,7 @@
                            'financial_year',
                            $isEdit
                                ? $accountingPeriod->financial_year
-                               : now()->year
+                               : ($periodDefaults['financial_year'] ?? now()->year)
                        ) }}">
 
             </div>
@@ -79,7 +79,7 @@
                            'start_date',
                            $isEdit
                                ? $accountingPeriod->start_date
-                               : ''
+                               : ($periodDefaults['start_date'] ?? '')
                        ) }}">
 
             </div>
@@ -102,7 +102,7 @@
                            'end_date',
                            $isEdit
                                ? $accountingPeriod->end_date
-                               : ''
+                               : ($periodDefaults['end_date'] ?? '')
                        ) }}">
 
             </div>
