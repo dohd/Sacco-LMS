@@ -23,6 +23,24 @@
                 <div class="row">
                     <div class="col-lg-6 mb-3">
                         <label class="form-label">Member <span class="text-danger">*</span></label>
+                        @if($currentMember)
+                            @php
+                                $currentMemberName = $currentMember->full_name ?? trim(($currentMember->first_name ?? '') . ' ' . ($currentMember->last_name ?? ''));
+                            @endphp
+                            <select id="member_id" class="form-select" disabled required>
+                                <option value="{{ $currentMember->id }}"
+                                    data-name="{{ $currentMemberName }}"
+                                    data-number="{{ $currentMember->membership_number ?? '' }}"
+                                    data-national-id="{{ $currentMember->national_id ?? '' }}"
+                                    data-shares="{{ $currentMember->total_share_contribution ?? 0 }}"
+                                    data-outstanding="{{ $currentMember->outstanding_loan_balance ?? 0 }}"
+                                    data-monthly-contribution="{{ $currentMember->monthly_share_contribution ?? 0 }}"
+                                    selected>
+                                    {{ $currentMember->membership_number ?? $currentMember->id }} - {{ $currentMemberName }}
+                                </option>
+                            </select>
+                            <input type="hidden" name="member_id" value="{{ $currentMember->id }}">
+                        @else
                         <select name="member_id" id="member_id" class="form-select @error('member_id') is-invalid @enderror" required>
                             <option value="">Select Member</option>
 
@@ -40,6 +58,7 @@
                                 </option>
                             @endforeach
                         </select>
+                        @endif
                         @error('member_id')
                             <div class="invalid-feedback">{{ $message }}</div>
                         @enderror
