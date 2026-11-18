@@ -34,8 +34,9 @@ class LoanInterestReleaseService
         $today = $asOf->toDateString();
 
         $scheduleIds = LoanRepaymentSchedule::whereIn('loan_id', Loan::where('interest_deferred', true)
-                ->whereIn('status', ['active', 'in_arrears', 'fully_paid'])->select('id'))
+                ->whereIn('status', ['active', 'in_arrears', 'restructured', 'fully_paid'])->select('id'))
             ->whereNull('interest_released_on')
+            ->where('deferred_interest_due', '>', 0)
             ->whereDate('due_date', '<=', $today)
             ->where('status', '!=', 'waived')
             ->orderBy('due_date')->orderBy('id')
@@ -46,12 +47,12 @@ class LoanInterestReleaseService
                 $amount = DB::transaction(function () use ($scheduleId, $today) {
                     $schedule = LoanRepaymentSchedule::findOrFail($scheduleId);
                     $loan = Loan::whereKey($schedule->loan_id)->lockForUpdate()->firstOrFail();
-                    if (!$loan->interest_deferred || !in_array($loan->status, ['active', 'in_arrears', 'fully_paid'], true)) {
+                    if (!$loan->interest_deferred || !in_array($loan->status, ['active', 'in_arrears', 'restructured', 'fully_paid'], true)) {
                         return null;
                     }
                     $entry = $this->postingService->postLoanInterestRelease($schedule, $today);
 
-                    return $entry ? round((float) $schedule->interest_due, 2) : 0.0;
+                    return $entry ? round((float) $schedule->deferred_interest_due, 2) : 0.0;
                 });
                 if ($amount !== null) {
                     $result['released']++;

@@ -1016,6 +1016,9 @@ $(function () {
         const rate = parseFloat(option.data('interest-rate')) || 0;
         const method = option.data('interest-method');
         const frequency = option.data('interest-frequency');
+        const applicationFee = parseFloat(option.data('application-fee')) || 0;
+        const processingFeeRate = parseFloat(option.data('processing-fee')) || 0;
+        const insuranceFeeRate = parseFloat(option.data('insurance-fee')) || 0;
 
         if (!option.val() || amount <= 0 || months <= 0) {
             $('#monthly_installment').val('0.00');
@@ -1023,40 +1026,26 @@ $(function () {
             return;
         }
 
+        const roundMoney = value => Math.round((value + Number.EPSILON) * 100) / 100;
+        const splitFirst = value => {
+            const cents = Math.round(roundMoney(value) * 100);
+            return (Math.floor(cents / months) + (cents % months > 0 ? 1 : 0)) / 100;
+        };
+        const fees = roundMoney(applicationFee + amount * (processingFeeRate + insuranceFeeRate) / 100);
+        const financedAmount = roundMoney(amount + fees);
         let installment = 0;
 
-        if (method === 'flat_rate') {
-            let interest = 0;
-
-            if (frequency === 'annual') {
-                interest = amount * (rate / 100) * (months / 12);
-            } else if (frequency === 'monthly') {
-                interest = amount * (rate / 100) * months;
-            } else {
-                interest = amount * (rate / 100);
-            }
-
-            installment = (amount + interest) / months;
+        if (method === 'flat_rate' || frequency === 'one_time') {
+            const factor = frequency === 'annual' ? months / 12 : (frequency === 'monthly' ? months : 1);
+            const interest = roundMoney(financedAmount * (rate / 100) * factor);
+            installment = roundMoney(splitFirst(amount) + splitFirst(fees) + splitFirst(interest));
         } else {
-            let monthlyRate = 0;
-
-            if (frequency === 'annual') {
-                monthlyRate = (rate / 100) / 12;
-            } else if (frequency === 'monthly') {
-                monthlyRate = rate / 100;
-            } else if (frequency === 'one_time') {
-                const total = amount + (amount * rate / 100);
-                installment = total / months;
-            }
-
-            if (frequency !== 'one_time') {
-                if (monthlyRate > 0) {
-                    installment = amount * monthlyRate * Math.pow(1 + monthlyRate, months)
-                        / (Math.pow(1 + monthlyRate, months) - 1);
-                } else {
-                    installment = amount / months;
-                }
-            }
+            const monthlyRate = frequency === 'annual' ? (rate / 100) / 12 : (rate / 100);
+            installment = monthlyRate > 0
+                ? financedAmount * monthlyRate * Math.pow(1 + monthlyRate, months)
+                    / (Math.pow(1 + monthlyRate, months) - 1)
+                : financedAmount / months;
+            installment = roundMoney(installment);
         }
 
         $('#monthly_installment').val(installment.toFixed(2));

@@ -9,6 +9,7 @@ use App\Models\Accounting\JournalEntryLine;
 use App\Models\LoanApplications\Loan;
 use App\Models\LoanApplications\LoanDisbursement;
 use App\Models\LoanApplications\LoanRepayment;
+use App\Models\LoanApplications\LoanRestructure;
 use App\Models\Dividends\DividendAllocation;
 use App\Models\Dividends\DividendRun;
 use App\Models\LoanApplications\LoanRepaymentSchedule;
@@ -499,7 +500,7 @@ class JournalPostingService
             $due = \Carbon\Carbon::parse($schedule->due_date)->toDateString();
             $date = AccountingPeriod::where('status', 'open')->whereDate('start_date', '<=', $due)->whereDate('end_date', '>=', $due)->exists()
                 ? $due : $asOf;
-            $amount = round((float) $schedule->interest_due, 2);
+            $amount = round((float) $schedule->deferred_interest_due, 2);
 
             $entry = null;
             if ($amount > 0) {
@@ -510,7 +511,7 @@ class JournalPostingService
                     'transaction_date' => $date,
                     'posting_date' => $date,
                     'reference_number' => $loan->loan_number . '/' . $schedule->installment_number,
-                    'description' => 'Interest earned on installment ' . $schedule->installment_number . ' of loan ' . $loan->loan_number,
+                    'description' => 'Deferred interest earned on installment ' . $schedule->installment_number . ' of loan ' . $loan->loan_number,
                     'created_by' => $loan->disbursed_by,
                     'member_id' => $loan->member_id,
                     'loan_id' => $loan->id,
@@ -523,6 +524,68 @@ class JournalPostingService
 
             return $entry;
         });
+    }
+
+    /** Reconcile replaced forecast interest and book new interest on a restructure. */
+    public function postLoanRestructureInterest(
+        LoanRestructure $restructure,
+        float $oldDeferredInterest,
+        float $oldRecognizedInterest,
+        float $newFutureInterest,
+        string $effectiveDate
+    ): ?JournalEntry {
+        $restructure->loadMissing('loan.loanApplication.loanProduct');
+        $loan = $restructure->loan;
+        $product = optional(optional($loan)->loanApplication)->loanProduct;
+        if (!$loan || !$product) {
+            throw ValidationException::withMessages(['interest' => 'The loan product for this restructuring could not be found.']);
+        }
+
+        $oldDeferredInterest = round($oldDeferredInterest, 2);
+        $oldRecognizedInterest = round($oldRecognizedInterest, 2);
+        $newFutureInterest = round($newFutureInterest, 2);
+        if ($oldDeferredInterest + $oldRecognizedInterest + $newFutureInterest <= 0) {
+            return null;
+        }
+
+        $receivable = $product->interest_receivable_account_id;
+        $unearned = $product->unearned_interest_account_id;
+        $income = $product->interest_income_account_id;
+        if (!$receivable || (!$unearned && !$income)) {
+            throw ValidationException::withMessages(['interest' => 'Configure interest receivable and either unearned interest or interest income on the loan product before restructuring.']);
+        }
+        if ($oldDeferredInterest > 0 && !$unearned) {
+            throw ValidationException::withMessages(['interest' => 'The unearned interest account used by earlier loan periods is no longer configured on this product.']);
+        }
+
+        $lines = [];
+        if ($oldDeferredInterest > 0) {
+            $lines[] = ['account' => $unearned, 'debit' => $oldDeferredInterest, 'description' => 'Reverse replaced unearned interest forecast'];
+            $lines[] = ['account' => $receivable, 'credit' => $oldDeferredInterest, 'description' => 'Reverse replaced interest receivable'];
+        }
+        if ($oldRecognizedInterest > 0) {
+            $lines[] = ['account' => $income, 'debit' => $oldRecognizedInterest, 'description' => 'Reverse replaced future interest recognized in advance'];
+            $lines[] = ['account' => $receivable, 'credit' => $oldRecognizedInterest, 'description' => 'Reverse replaced interest receivable'];
+        }
+        if ($newFutureInterest > 0) {
+            $lines[] = ['account' => $receivable, 'debit' => $newFutureInterest, 'description' => 'Interest receivable under restructured terms'];
+            $lines[] = $unearned
+                ? ['account' => $unearned, 'credit' => $newFutureInterest, 'description' => 'Unearned interest under restructured terms']
+                : ['account' => $income, 'credit' => $newFutureInterest, 'description' => 'Interest income under restructured terms'];
+        }
+
+        return $this->postEntry([
+            'posting_key' => 'loan_restructure:' . $restructure->id . ':interest',
+            'event_type' => 'loan_restructure_interest',
+            'source' => $restructure,
+            'transaction_date' => $effectiveDate,
+            'posting_date' => $effectiveDate,
+            'reference_number' => $loan->loan_number,
+            'description' => 'Interest adjustment for loan restructuring ' . $loan->loan_number,
+            'created_by' => Auth::id(),
+            'member_id' => $loan->member_id,
+            'loan_id' => $loan->id,
+        ], $lines);
     }
 
     /**

@@ -3,10 +3,11 @@
 namespace App\Http\Controllers\LoanDisbursements;
 
 use App\Http\Controllers\Controller;
-use App\Models\LoanApplications\{Loan, LoanDisbursement, LoanRepayment};
+use App\Models\LoanApplications\{Loan, LoanDisbursement, LoanRepayment, LoanRepaymentSchedule};
 use App\Models\Accounting\ChartOfAccount;
 use App\Models\Memberships\Member;
 use App\Services\JournalPostingService;
+use Carbon\Carbon;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
@@ -123,10 +124,21 @@ class LoanDisbursementsController extends Controller
                 if ((float) $loan->amount_disbursed > 0) {
                     throw ValidationException::withMessages(['disbursement' => 'This loan already has a posted disbursement.']);
                 }
+                $firstDueDate = Carbon::parse($record->disbursement_date)->addMonthNoOverflow();
+                $schedules = LoanRepaymentSchedule::where('loan_id', $loan->id)
+                    ->orderBy('installment_number')
+                    ->lockForUpdate()
+                    ->get();
+                foreach ($schedules as $schedule) {
+                    $schedule->update(['due_date' => $firstDueDate->toDateString()]);
+                    $firstDueDate->addMonthNoOverflow();
+                }
                 $loan->update(['amount_disbursed' => $record->gross_amount,
                     'disbursement_method' => $record->disbursement_method,
                     'disbursement_reference' => $record->transaction_reference,
                     'disbursement_date' => $record->disbursement_date,
+                    'first_repayment_date' => $schedules->isNotEmpty() ? $schedules->first()->fresh()->due_date : null,
+                    'maturity_date' => $schedules->isNotEmpty() ? $schedules->last()->fresh()->due_date : null,
                     'disbursed_by' => auth()->id()]);
             }
             $record->update(['status' => $status, 'processed_by' => auth()->id(), 'processed_at' => now()]);

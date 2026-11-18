@@ -12,6 +12,7 @@ use App\Models\LoanApplications\LoanGuarantor;
 use App\Models\LoanApplications\LoanProduct;
 use App\Models\LoanApplications\LoanRepaymentSchedule;
 use App\Models\Memberships\Member;
+use App\Services\LoanAmortizationService;
 use App\Services\LoanGuarantorService;
 use Exception;
 use Illuminate\Http\Request;
@@ -499,7 +500,20 @@ class LoanApplicationsController extends Controller
                 );
                 $this->validateEligibility($eligibility, $product, $lockedApp);
 
-                $monthlyInstallment = $this->calculateMonthlyInstallment($approvedAmount, $repaymentMonths, $product);
+                $amortizationService = app(LoanAmortizationService::class);
+                $feesDue = $amortizationService->feesFor($product, $approvedAmount);
+                $insuranceDue = round($approvedAmount * (float) $product->insurance_fee_percentage / 100, 2);
+                $firstDueDate = now()->addMonthNoOverflow()->toDateString();
+                $schedule = $amortizationService->buildOriginationSchedule(
+                    $approvedAmount,
+                    $feesDue,
+                    $repaymentMonths,
+                    (float) $product->interest_rate,
+                    $product->interest_method,
+                    $product->interest_frequency,
+                    $firstDueDate
+                );
+                $monthlyInstallment = $schedule['monthly_installment'];
 
                 /*
                  * 1. Transition application status
@@ -544,39 +558,10 @@ class LoanApplicationsController extends Controller
                     'approved_by' => Auth::id(),
                 ]);
 
-                /*
-                 * 4. Capitalize upfront fees into the principal baseline
-                 */
-                $applFees = $product->application_fees;
-                $percProcessingFees = round($product->processing_fee_percentage * $approvedAmount / 100, 4);
-                $percInsuranceFees = round($product->insurance_fee_percentage * $approvedAmount / 100, 4);
-                $feesDue = $applFees + $percProcessingFees + $percInsuranceFees;
-
-                // Fees are added to the approved amount to create the starting liability balance
-                $principalBal = $approvedAmount + $feesDue;
-                $rawRate = $product->interest_rate / 100;
-                $interestEstimate = 0;
-
-                if ($product->interest_method == 'flat_rate') {
-                    if ($product->interest_frequency == 'annual') {
-                        $interestEstimate = round($principalBal * $rawRate * ($repaymentMonths / 12), 4);
-                    } elseif ($product->interest_frequency == 'monthly') {
-                        $interestEstimate = round($principalBal * $rawRate * $repaymentMonths, 4);
-                    } elseif ($product->interest_frequency == 'one_time') {
-                        $interestEstimate = round($principalBal * $rawRate, 4);
-                    }
-                } elseif ($product->interest_method == 'reducing_balance') {
-                    if ($product->interest_frequency == 'annual') {
-                        $monthlyRate = $rawRate / 12;
-                    } elseif ($product->interest_frequency == 'monthly') {
-                        $monthlyRate = $rawRate;
-                    } else {
-                        $monthlyRate = $rawRate / $repaymentMonths;
-                    }
-                    $interestEstimate = round((($repaymentMonths + 1) / 2) * $principalBal * $monthlyRate, 4);
-                }
-
-                $totalBal = $principalBal + $interestEstimate;
+                /* Fees are financed into the opening loan balance. */
+                $principalBal = round($approvedAmount + $feesDue, 2);
+                $interestEstimate = $schedule['interest_total'];
+                $totalBal = round($principalBal + $interestEstimate, 2);
 
                 $loan = Loan::create([
                     'loan_application_id' => $lockedApp->id,
@@ -590,9 +575,11 @@ class LoanApplicationsController extends Controller
                     'monthly_installment' => $monthlyInstallment,
                     'interest_method' => $product->interest_method,
                     'payment_mode' => $lockedApp->payment_mode,
+                    'first_repayment_date' => $firstDueDate,
+                    'maturity_date' => $schedule['maturity_date'],
                     'status' => 'active',
                     'fees_due' => $feesDue,
-                    'insurance_due' => round($percInsuranceFees, 2),
+                    'insurance_due' => $insuranceDue,
                     'principal_balance' => $principalBal,
                     'interest_balance' => $interestEstimate,
                     'total_outstanding_balance' => $totalBal,
@@ -606,56 +593,14 @@ class LoanApplicationsController extends Controller
                  */
                 app(LoanGuarantorService::class)->placeHolds($lockedApp, $loan);
 
-                /*
-                 * 4b. Generate Repayment Schedule Rows
-                 */
-                $remainingPrincipalTrack = $principalBal; // Initialized with capitalized fee compound
-                $monthlyPrincipalDue = round($approvedAmount / $repaymentMonths, 4);
-                $monthlyFeesDue = round($feesDue / $repaymentMonths, 4);
-                $monthlyInterestDue = round($interestEstimate / $repaymentMonths, 4);
-
-                $currentDueDate = now();
-
-                for ($i = 1; $i <= $repaymentMonths; $i++) {
-                    $opening = $remainingPrincipalTrack;
-
-                    if ($i === $repaymentMonths) {
-                        $principal = round($approvedAmount - ($monthlyPrincipalDue * ($repaymentMonths - 1)), 4);
-                        $fees = round($feesDue - ($monthlyFeesDue * ($repaymentMonths - 1)), 4);
-                        $interest = round($interestEstimate - ($monthlyInterestDue * ($repaymentMonths - 1)), 4);
-                        $closing = 0.0000;
-                    } else {
-                        $principal = $monthlyPrincipalDue;
-                        $fees = $monthlyFeesDue;
-                        $interest = $monthlyInterestDue;
-                        // Deduct both components to match the integrated opening principle track balance
-                        $closing = round($opening - ($principal + $fees), 4);
-                    }
-
-                    $penalty = 0.0000;
-                    $totalDue = round($principal + $interest + $fees + $penalty, 4);
-
-                    // Securely increments dates without day-of-month shifting overflows
-                    $currentDueDate = $currentDueDate->addMonthNoOverflow();
-
-                    LoanRepaymentSchedule::create([
-                        'loan_id' => $loan->id,
-                        'member_id' => $loan->member_id,
-                        'installment_number' => $i,
-                        'due_date' => $currentDueDate->toDateString(),
-                        'opening_principal_balance' => $opening,
-                        'principal_due' => $principal,
-                        'interest_due' => $interest,
-                        'fees_due' => $fees,
-                        'penalty_due' => $penalty,
-                        'total_due' => $totalDue,
-                        'closing_principal_balance' => $closing,
-                        'outstanding_amount' => $totalDue,
-                        'status' => 'pending',
-                        'remarks' => "Installment {$i} of {$repaymentMonths}",
-                    ]);
-
-                    $remainingPrincipalTrack = $closing;
+                /* Generate all installment rows from the same calculation used for the displayed installment. */
+                foreach ($schedule['rows'] as $row) {
+                    $row['loan_id'] = $loan->id;
+                    $row['member_id'] = $loan->member_id;
+                    $row['deferred_interest_due'] = $product->unearned_interest_account_id ? $row['interest_due'] : 0;
+                    $row['future_interest_due'] = null;
+                    $row['remarks'] = 'Installment ' . $row['installment_number'] . ' of ' . $repaymentMonths;
+                    LoanRepaymentSchedule::create($row);
                 }
 
                 /*
@@ -950,45 +895,8 @@ class LoanApplicationsController extends Controller
 
     private function calculateMonthlyInstallment($amount, $months, LoanProduct $product)
     {
-        $amount = (float) $amount;
-        $months = (int) $months;
-        $rate = (float) $product->interest_rate;
-
-        if ($amount <= 0 || $months <= 0) {
-            return 0;
-        }
-
-        if ($product->interest_method === 'flat_rate') {
-            if ($product->interest_frequency === 'annual') {
-                $interest = $amount * ($rate / 100) * ($months / 12);
-            } elseif ($product->interest_frequency === 'monthly') {
-                $interest = $amount * ($rate / 100) * $months;
-            } else {
-                $interest = $amount * ($rate / 100);
-            }
-
-            return round(($amount + $interest) / $months, 2);
-        }
-
-        if ($product->interest_frequency === 'one_time') {
-            return round(($amount + ($amount * ($rate / 100))) / $months, 2);
-        }
-
-        $monthlyRate = $product->interest_frequency === 'annual'
-            ? ($rate / 100) / 12
-            : ($rate / 100);
-
-        if ($monthlyRate <= 0) {
-            return round($amount / $months, 2);
-        }
-
-        return round(
-            $amount
-            * $monthlyRate
-            * pow(1 + $monthlyRate, $months)
-            / (pow(1 + $monthlyRate, $months) - 1),
-            2
-        );
+        return app(LoanAmortizationService::class)
+            ->estimateInstallment((float) $amount, (int) $months, $product);
     }
 
     private function validateGuarantors(array $validated, LoanProduct $loanProduct)

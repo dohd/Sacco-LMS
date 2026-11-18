@@ -826,8 +826,8 @@
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-info small">
-                            The existing balances will be spread across equal monthly installments. No past installments,
-                            disbursement, or additional interest will be created. Current principal, interest, fees, and penalties stay unchanged.
+                            The remaining principal will be amortized over the selected term using this loan product's current rate and method.
+                            Existing accrued interest, fees, and penalties are carried into the installments. No past installments or disbursement are created.
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Remaining monthly installments</label>
