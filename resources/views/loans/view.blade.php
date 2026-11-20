@@ -821,13 +821,18 @@
                 <form method="POST" action="{{ route('loans.restructure', $loan) }}" class="modal-content">
                     @csrf
                     <div class="modal-header">
-                        <h5 class="modal-title">Create Forward Schedule</h5>
+                        <h5 class="modal-title">Create Restructured Schedule</h5>
                         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                     </div>
                     <div class="modal-body">
                         <div class="alert alert-info small">
                             The remaining principal will be amortized over the selected term using this loan product's current rate and method.
-                            Existing accrued interest, fees, and penalties are carried into the installments. No past installments or disbursement are created.
+                            Existing accrued interest, fees, and penalties are carried into the installments. No disbursement is created.
+                            @if($loan->is_opening_balance)
+                                You may set a historical first repayment date to reflect the imported loan history. Past-due installments may be assessed penalties by the scheduled job.
+                            @else
+                                The first repayment date must be in the future.
+                            @endif
                         </div>
                         <div class="mb-3">
                             <label class="form-label">Remaining monthly installments</label>
@@ -835,7 +840,7 @@
                         </div>
                         <div class="mb-3">
                             <label class="form-label">First repayment date</label>
-                            <input type="date" name="first_repayment_date" class="form-control" min="{{ today()->addDay()->toDateString() }}" value="{{ old('first_repayment_date', today()->addMonthNoOverflow()->toDateString()) }}" required>
+                            <input type="date" name="first_repayment_date" class="form-control" @unless($loan->is_opening_balance) min="{{ today()->addDay()->toDateString() }}" @endunless value="{{ old('first_repayment_date', $loan->is_opening_balance && $loan->first_repayment_date ? \Carbon\Carbon::parse($loan->first_repayment_date)->toDateString() : today()->addMonthNoOverflow()->toDateString()) }}" required>
                         </div>
                         <div class="mb-0">
                             <label class="form-label">Restructuring reason</label>

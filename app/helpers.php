@@ -1,7 +1,5 @@
 <?php
 
-use Illuminate\Support\Facades\Gate;
-
 if (!function_exists('saccoSetting')) {
     function saccoSetting(string $key, $default = null)
     {
@@ -177,10 +175,8 @@ if (!function_exists('userCan')) {
     function userCan($permission): bool
     {
         try {
-            if (!auth()->check()) return false;
-            
-            return auth()->user()->canAny((array) $permission);   
-
+            if (!auth()->check()) return false;            
+            return auth()->user()->canAny((array) $permission); 
         } catch (\Throwable $exception) {
             return false;
         }
