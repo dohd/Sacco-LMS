@@ -367,13 +367,15 @@
                                 %
                             </span>
                         </div>
+                        <small class="text-muted">Applied per the frequency selected below.</small>
                     </div>
                     <div class="col-md-4 mb-3">
                         <label class="form-label">
                             Interest Method
                         </label>
                         <select name="interest_method"
-                                class="form-select">
+                                class="form-select"
+                                id="interest_method">
                             <option value="reducing_balance"
                                 {{ old('interest_method', $loanProduct->interest_method ?? '') == 'reducing_balance' ? 'selected' : '' }}>
                                 Reducing Balance
@@ -389,7 +391,8 @@
                             Interest Frequency
                         </label>
                         <select name="interest_frequency"
-                                class="form-select">
+                                class="form-select"
+                                id="interest_frequency">
                             <option value="annual"
                                 {{ old('interest_frequency', $loanProduct->interest_frequency ?? '') == 'annual' ? 'selected' : '' }}>
                                 Annual
@@ -400,15 +403,19 @@
                             </option>
                             <option value="one_time"
                                 {{ old('interest_frequency', $loanProduct->interest_frequency ?? '') == 'one_time' ? 'selected' : '' }}>
-                                One Time
+                                One Time (Flat Rate Only)
                             </option>
                         </select>
+                        <small class="text-muted">Monthly schedules use annual rates divided by 12 or monthly rates per installment. One-time interest is a single flat charge.</small>
+                        @error('interest_frequency')
+                            <div class="text-danger small">{{ $message }}</div>
+                        @enderror
                     </div>
                 </div>
                 <div class="row">
                     <div class="col-md-3 mb-3">
                         <label class="form-label">
-                            Grace Period (Days)
+                            Late Penalty Grace Period (Days)
                         </label>
                         <input type="number"
                                min="0"
@@ -757,3 +764,23 @@
         </div>
     </div>   
 </div>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function () {
+        const method = document.getElementById('interest_method');
+        const frequency = document.getElementById('interest_frequency');
+        const oneTime = frequency.querySelector('option[value="one_time"]');
+
+        function syncInterestFrequency() {
+            const reducing = method.value === 'reducing_balance';
+            oneTime.disabled = reducing;
+
+            if (reducing && frequency.value === 'one_time') {
+                frequency.value = 'annual';
+            }
+        }
+
+        method.addEventListener('change', syncInterestFrequency);
+        syncInterestFrequency();
+    });
+</script>

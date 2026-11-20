@@ -131,7 +131,7 @@
                         </div>
 
                         <div class="col-md-4 mb-3">
-                            <small class="text-muted d-block">Grace Period</small>
+                            <small class="text-muted d-block">Late Penalty Grace Period</small>
                             <strong>{{ $loanProduct->grace_period_days }} Days</strong>
                         </div>
                     </div>

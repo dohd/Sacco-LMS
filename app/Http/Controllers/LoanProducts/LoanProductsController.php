@@ -90,7 +90,11 @@ class LoanProductsController extends Controller
 
             'interest_rate' => ['required', 'numeric', 'min:0'],
             'interest_method' => ['required', Rule::in(['flat_rate', 'reducing_balance'])],
-            'interest_frequency' => ['required', Rule::in(['annual', 'monthly', 'one_time'])],
+            'interest_frequency' => ['required', Rule::in(
+                $request->input('interest_method') === 'reducing_balance'
+                    ? ['annual', 'monthly']
+                    : ['annual', 'monthly', 'one_time']
+            )],
 
             'requires_guarantors' => ['nullable', 'boolean'],
             'minimum_guarantors' => ['nullable', 'integer', 'min:0'],
@@ -341,7 +345,11 @@ class LoanProductsController extends Controller
 
             'interest_rate' => ['required', 'numeric', 'min:0'],
             'interest_method' => ['required', Rule::in(['flat_rate', 'reducing_balance'])],
-            'interest_frequency' => ['required', Rule::in(['annual', 'monthly', 'one_time'])],
+            'interest_frequency' => ['required', Rule::in(
+                $request->input('interest_method') === 'reducing_balance'
+                    ? ['annual', 'monthly']
+                    : ['annual', 'monthly', 'one_time']
+            )],
 
             'requires_guarantors' => ['nullable', 'boolean'],
             'minimum_guarantors' => ['nullable', 'integer', 'min:0'],
