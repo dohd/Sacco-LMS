@@ -37,7 +37,7 @@ class LoanPenaltyService
 
         // Loans with an installment past due, plus loans still flagged as in arrears
         // so that paid-up loans are cleared.
-        $loanIds = Loan::whereIn('status', ['active', 'in_arrears'])
+        $loanIds = Loan::whereIn('status', ['active', 'in_arrears', 'restructured'])
             ->where(function ($query) use ($today) {
                 $query->where('status', 'in_arrears')
                     ->orWhere('arrears_amount', '>', 0)
@@ -69,7 +69,7 @@ class LoanPenaltyService
         $today = $asOf->toDateString();
 
         $loan = Loan::with('loanApplication.loanProduct')->whereKey($loanId)->lockForUpdate()->firstOrFail();
-        if (!in_array($loan->status, ['active', 'in_arrears'], true)) {
+        if (!in_array($loan->status, ['active', 'in_arrears', 'restructured'], true)) {
             return $summary;
         }
 
@@ -146,10 +146,12 @@ class LoanPenaltyService
         $oldest = (clone $due)->min('due_date');
         $days = ($arrears > 0 && $oldest) ? Carbon::parse($oldest)->diffInDays($asOf) : 0;
 
+        $hasRestructureHistory = $loan->status === 'restructured' || $loan->restructures()->exists();
+
         $loan->update([
             'arrears_amount' => $arrears,
             'days_in_arrears' => $days,
-            'status' => $arrears > 0 ? 'in_arrears' : 'active',
+            'status' => $arrears > 0 ? 'in_arrears' : ($hasRestructureHistory ? 'restructured' : 'active'),
         ]);
     }
 }

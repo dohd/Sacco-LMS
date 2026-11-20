@@ -166,7 +166,9 @@ class LoansController extends Controller
         $this->requireSaccoPermission('restructure-loan');
         $validated = $request->validate([
             'remaining_months' => ['required', 'integer', 'between:1,120'],
-            'first_repayment_date' => ['required', 'date', 'after:today'],
+            'first_repayment_date' => $loan->is_opening_balance
+                ? ['required', 'date']
+                : ['required', 'date', 'after:today'],
             'reason' => ['required', 'string', 'max:1000'],
         ]);
 
