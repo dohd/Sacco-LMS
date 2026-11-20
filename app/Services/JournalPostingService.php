@@ -918,12 +918,16 @@ class JournalPostingService
                     ];
             }
 
+            $isFixedDepositMaturity = strpos((string) $transaction->external_reference, 'fixed-deposit-interest:') === 0;
+
             return $this->postEntry([
                 'posting_key' => 'savings_transaction:' . $transaction->id . ':confirmed',
                 'event_type' => 'savings_' . $type,
                 'source' => $transaction,
                 'transaction_date' => $transaction->transaction_date,
-                'posting_date' => $transaction->value_date ?: $transaction->transaction_date,
+                'posting_date' => $isFixedDepositMaturity
+                    ? $transaction->transaction_date
+                    : ($transaction->value_date ?: $transaction->transaction_date),
                 'reference_number' => $transaction->external_reference ?: $transaction->receipt_number ?: $transaction->transaction_number,
                 'description' => 'Savings ' . $type . ' ' . $transaction->transaction_number . ' on account ' . $account->account_number,
                 'created_by' => $transaction->confirmed_by ?: $transaction->recorded_by,
@@ -973,8 +977,13 @@ class JournalPostingService
             }
 
             $amount = round((float) $withdrawal->amount, 2);
+            $penalty = round((float) $withdrawal->penalty_amount, 2);
+            $payout = round($amount - $penalty, 2);
             if ($amount <= 0) {
                 throw ValidationException::withMessages(['withdrawal' => 'The withdrawal has no amount to post.']);
+            }
+            if ($penalty < 0 || $penalty >= $amount) {
+                throw ValidationException::withMessages(['withdrawal' => 'The fixed-deposit penalty must be less than the withdrawal amount.']);
             }
 
             $paidOn = optional($withdrawal->paid_at)->toDateString() ?: now()->toDateString();
@@ -990,10 +999,14 @@ class JournalPostingService
                 'created_by' => $withdrawal->paid_by ?: $withdrawal->approved_by,
                 'member_id' => $account->member_id,
                 'savings_account_id' => $account->id,
-            ], [
+            ], array_merge([
                 ['account' => $this->requireSavingsRegister()->id, 'debit' => $amount, 'description' => 'Member savings withdrawn'],
-                ['account' => $paidFrom->id, 'credit' => $amount, 'description' => 'Withdrawal paid out'],
-            ]);
+                ['account' => $paidFrom->id, 'credit' => $payout, 'description' => 'Withdrawal paid out'],
+            ], $penalty > 0 ? [[
+                'account' => $product->fee_income_account_id,
+                'credit' => $penalty,
+                'description' => 'Fixed-deposit premature withdrawal penalty',
+            ]] : []));
         });
     }
 
@@ -1171,9 +1184,9 @@ class JournalPostingService
             if ($period->status !== 'open') {
                 throw ValidationException::withMessages(['journal' => 'The accounting period is not open.']);
             }
-            $date = $entry->transaction_date->toDateString();
+            $date = $entry->posting_date->toDateString();
             if ($date < $period->start_date->toDateString() || $date > $period->end_date->toDateString()) {
-                throw ValidationException::withMessages(['journal' => 'Transaction date falls outside the accounting period.']);
+                throw ValidationException::withMessages(['journal' => 'Posting date falls outside the accounting period.']);
             }
 
             if ($entry->lines->count() < 2) {
@@ -1271,7 +1284,7 @@ class JournalPostingService
             return $existing;
         }
 
-        $period = $this->openPeriod($header['transaction_date']);
+        $period = $this->openPeriod($header['posting_date'] ?? $header['transaction_date']);
         $actor = Auth::id() ?: $header['created_by'];
 
         $entry = JournalEntry::create([

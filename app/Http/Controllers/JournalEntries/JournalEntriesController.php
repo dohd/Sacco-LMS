@@ -79,10 +79,10 @@ class JournalEntriesController extends Controller
                     ]);
                 }
 
-                if ($validated['transaction_date'] < $period->start_date ||
-                    $validated['transaction_date'] > $period->end_date) {
+                if ($validated['posting_date'] < $period->start_date ||
+                    $validated['posting_date'] > $period->end_date) {
                     throw ValidationException::withMessages([
-                        'transaction_date' => 'Transaction date must fall within the accounting period.',
+                        'posting_date' => 'Posting date must fall within the accounting period.',
                     ]);
                 }
 
@@ -259,12 +259,12 @@ class JournalEntriesController extends Controller
                 }
 
                 if (
-                    $validated['transaction_date'] < $period->start_date ||
-                    $validated['transaction_date'] > $period->end_date
+                    $validated['posting_date'] < $period->start_date ||
+                    $validated['posting_date'] > $period->end_date
                 ) {
                     throw ValidationException::withMessages([
-                        'transaction_date' =>
-                            'Transaction date must fall within the accounting period.',
+                        'posting_date' =>
+                            'Posting date must fall within the accounting period.',
                     ]);
                 }
 

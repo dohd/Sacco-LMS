@@ -37,10 +37,4 @@ class LoanRepaymentSchedulesController extends Controller
         }
         return view('loan_repayment_schedules.view', compact('schedule'));
     }
-
-    public function create() { abort(405); }
-    public function store() { abort(405); }
-    public function edit() { abort(405); }
-    public function update() { abort(405); }
-    public function destroy() { abort(405); }
 }
