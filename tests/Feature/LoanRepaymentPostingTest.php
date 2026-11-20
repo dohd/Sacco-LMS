@@ -252,16 +252,18 @@ class LoanRepaymentPostingTest extends TestCase
             'reason' => 'Set a forward payment plan for the imported loan.',
         ])->assertSessionHasNoErrors();
 
-        $this->assertEquals($balanceBeforeRestructure, $this->loan->fresh()->total_outstanding_balance);
+        $futureInterest = round($balanceBeforeRestructure * 0.12 * 5 / 12, 2);
+        $this->assertEquals($balanceBeforeRestructure + $futureInterest, $this->loan->fresh()->total_outstanding_balance);
+        $this->assertEquals($futureInterest, $this->loan->fresh()->interest_balance);
         $this->assertSame('restructured', $this->loan->fresh()->status);
         $this->assertSame(5, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->count());
-        $this->assertEquals($balanceBeforeRestructure, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->sum('total_due'));
+        $this->assertEquals($balanceBeforeRestructure + $futureInterest, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->sum('total_due'));
         $this->assertSame(1, DB::table('loan_restructures')->where('loan_id', $this->loan->id)->count());
-        $this->get(route('loans.show', $this->loan))->assertOk()->assertSee('Restructuring History')->assertSee('Create Forward Schedule');
+        $this->get(route('loans.show', $this->loan))->assertOk()->assertSee('Restructuring History')->assertSee('Create Restructured Schedule');
 
         $this->pay(1900);
-        $this->assertEquals(7600, $this->loan->fresh()->total_outstanding_balance);
-        $this->assertEquals(1900, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->where('status', 'paid')->value('total_paid'));
+        $this->assertEquals($balanceBeforeRestructure + $futureInterest - 1900, $this->loan->fresh()->total_outstanding_balance);
+        $this->assertEquals(1900, LoanRepaymentSchedule::where('loan_id', $this->loan->id)->where('status', 'partially_paid')->value('total_paid'));
         $this->assertLedgerMatchesLoan('after restructured schedule repayment');
     }
 
