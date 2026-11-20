@@ -34,7 +34,7 @@ class LoanRepaymentSchedule extends Model
     public function getActionButtonsAttribute()
     {
         return $this->getButtonWrapperAttribute(
-            $this->getViewButtonAttribute('loan_repayment_schedules.show', null),
+            $this->getViewButtonAttribute('loan_repayment_schedules.show', 'view-repayment-schedule'),
             null,
             null,
         );
