@@ -55,11 +55,12 @@ class SavingsInterestService
      *
      * @return array{credited:int, skipped:int, failed:int, total:float}
      */
-    public function run(Carbon $date, int $actorId): array
+    public function run(Carbon $date, int $actorId, ?Carbon $maturityAsOf = null): array
     {
         $result = ['credited' => 0, 'skipped' => 0, 'failed' => 0, 'total' => 0.0];
 
         $products = SavingsProduct::where('is_active', true)
+            ->where('product_type', '!=', 'fixed_deposit')
             ->where('interest_rate', '>', 0)
             ->whereIn('interest_frequency', array_keys(self::MONTHS))
             ->get();
@@ -91,6 +92,12 @@ class SavingsInterestService
                     }
                 });
         }
+
+        $maturities = app(SavingsFixedDepositService::class)->processMaturities($maturityAsOf ?: $date, $actorId);
+        $result['matured'] = $maturities['matured'];
+        $result['rolled_over'] = $maturities['rolled_over'];
+        $result['failed'] += $maturities['failed'];
+        $result['total'] = round($result['total'] + $maturities['interest'], 2);
 
         return $result;
     }
@@ -143,7 +150,7 @@ class SavingsInterestService
 
             $account->update([
                 'ledger_balance' => $newBalance,
-                'available_balance' => round($newBalance - (float) $account->held_balance, 2),
+                'available_balance' => max(0, round($newBalance - (float) $account->held_balance - (float) $account->fixed_deposit_locked_principal, 2)),
                 'last_transaction_date' => $end->toDateString(),
             ]);
 

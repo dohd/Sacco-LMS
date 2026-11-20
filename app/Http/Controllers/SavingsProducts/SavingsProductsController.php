@@ -5,9 +5,11 @@ namespace App\Http\Controllers\SavingsProducts;
 use App\Http\Controllers\Controller;
 use App\Models\Accounting\ChartOfAccount;
 use App\Models\Savings\SavingsProduct;
+use App\Models\Savings\SavingsAccount;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class SavingsProductsController extends Controller
 {
@@ -69,7 +71,7 @@ class SavingsProductsController extends Controller
             'minimum_term_months' => ['nullable', 'integer', 'min:0'],
             'maximum_term_months' => ['nullable', 'integer', 'gte:minimum_term_months'],
             'allows_premature_withdrawal' => ['nullable', 'boolean'],
-            'premature_withdrawal_penalty_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'premature_withdrawal_penalty_percentage' => ['nullable', 'numeric', 'min:0', 'lt:100'],
             'auto_rollover' => ['nullable', 'boolean'],
             'rollover_option' => ['nullable', Rule::in(['principal_only', 'principal_and_interest'])],
             'maximum_balance' => ['nullable', 'numeric', 'min:0'],
@@ -85,6 +87,12 @@ class SavingsProductsController extends Controller
         $validated['allows_premature_withdrawal'] = $validated['allows_premature_withdrawal'] ?? null;
         $validated['auto_rollover'] = $validated['auto_rollover'] ?? null;
 
+        if ($validated['product_type'] === 'fixed_deposit' && $validated['interest_frequency'] !== 'at_maturity') {
+            throw ValidationException::withMessages(['interest_frequency' => 'Fixed-deposit interest is calculated and credited at maturity.']);
+        }
+        if ($validated['product_type'] !== 'fixed_deposit' && $validated['interest_frequency'] === 'at_maturity') {
+            throw ValidationException::withMessages(['interest_frequency' => 'At-maturity interest is only available for fixed-deposit products.']);
+        }
         // Product-specific business rules
         if ($validated['allows_premature_withdrawal']) {
             if ((float) $validated['premature_withdrawal_penalty_percentage'] <= 0) {
@@ -259,7 +267,7 @@ class SavingsProductsController extends Controller
             'minimum_term_months' => ['nullable', 'integer', 'min:0'],
             'maximum_term_months' => ['nullable', 'integer', 'gte:minimum_term_months'],
             'allows_premature_withdrawal' => ['nullable', 'boolean'],
-            'premature_withdrawal_penalty_percentage' => ['nullable', 'numeric', 'min:0', 'max:100'],
+            'premature_withdrawal_penalty_percentage' => ['nullable', 'numeric', 'min:0', 'lt:100'],
             'auto_rollover' => ['nullable', 'boolean'],
             'rollover_option' => ['nullable', Rule::in(['principal_only', 'principal_and_interest'])],
             'maximum_balance' => ['nullable', 'numeric', 'min:0'],
@@ -271,6 +279,16 @@ class SavingsProductsController extends Controller
             'can_secure_loan' => ['nullable', 'boolean'],
             'is_active' => ['nullable', 'boolean'],
         ]);
+
+        if ($validated['product_type'] === 'fixed_deposit' && $validated['interest_frequency'] !== 'at_maturity') {
+            throw ValidationException::withMessages(['interest_frequency' => 'Fixed-deposit interest is calculated and credited at maturity.']);
+        }
+        if ($validated['product_type'] !== 'fixed_deposit' && $validated['interest_frequency'] === 'at_maturity') {
+            throw ValidationException::withMessages(['interest_frequency' => 'At-maturity interest is only available for fixed-deposit products.']);
+        }
+        if ($validated['product_type'] !== $savingsProduct->product_type && SavingsAccount::where('savings_product_id', $savingsProduct->id)->whereIn('status', ['active', 'frozen'])->exists()) {
+            throw ValidationException::withMessages(['product_type' => 'Product type cannot change while open savings accounts use this product.']);
+        }
 
         $validated['allows_premature_withdrawal'] = $validated['allows_premature_withdrawal'] ?? null;
         $validated['auto_rollover'] = $validated['auto_rollover'] ?? null;

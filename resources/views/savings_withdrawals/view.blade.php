@@ -119,11 +119,19 @@
                             </div>
                             <div class="col-md-4">
                                 <div class="text-muted small">
-                                    Amount
+                                    Amount Requested
                                 </div>
                                 <div class="fw-bold fs-5">
                                     KES {{ number_format($withdrawal->amount, 2) }}
                                 </div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted small">Premature Withdrawal Penalty</div>
+                                <div>KES {{ number_format($withdrawal->penalty_amount, 2) }}</div>
+                            </div>
+                            <div class="col-md-4">
+                                <div class="text-muted small">Net Payout</div>
+                                <div class="fw-bold">KES {{ number_format($withdrawal->amount - $withdrawal->penalty_amount, 2) }}</div>
                             </div>
                             <div class="col-md-4">
                                 <div class="text-muted small">

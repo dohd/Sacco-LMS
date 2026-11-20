@@ -12,6 +12,12 @@ $(function () {
         const isFixedDeposit = $('#product_type').val() === 'fixed_deposit';
 
         $('#fixedDepositSection').toggleClass('d-none', !isFixedDeposit);
+        $('#interest_frequency option[value="at_maturity"]').prop('disabled', !isFixedDeposit);
+        if (isFixedDeposit) {
+            $('#interest_frequency').val('at_maturity');
+        } else if ($('#interest_frequency').val() === 'at_maturity') {
+            $('#interest_frequency').val('monthly');
+        }
 
         $('#minimum_term_months, #maximum_term_months, #allows_premature_withdrawal, #auto_rollover, #allows_partial_withdrawals')
             .prop('disabled', !isFixedDeposit);
@@ -136,9 +142,9 @@ $(function () {
             if ($('#allows_premature_withdrawal').is(':checked')) {
                 const penalty = parseFloat($('#premature_withdrawal_penalty_percentage').val());
 
-                if (isNaN(penalty) || penalty <= 0 || penalty > 100) {
+                if (isNaN(penalty) || penalty <= 0 || penalty >= 100) {
                     showValidationError(
-                        'Premature withdrawal penalty must be greater than 0% and not exceed 100%.'
+                        'Premature withdrawal penalty must be greater than 0% and less than 100%.'
                     );
                     return false;
                 }
@@ -148,6 +154,11 @@ $(function () {
                 showValidationError('Please select a rollover option.');
                 return false;
             }
+        }
+
+        if ((productType === 'fixed_deposit') !== ($('#interest_frequency').val() === 'at_maturity')) {
+            showValidationError('Fixed deposits must earn interest at maturity; other products use periodic interest.');
+            return false;
         }
 
         const accountIds = [

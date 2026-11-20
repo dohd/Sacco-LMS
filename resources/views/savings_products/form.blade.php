@@ -184,7 +184,7 @@
 
             <div class="col-md-4 mb-3">
                 <label class="form-label">
-                    Interest Rate <span class="text-danger">*</span>
+                    Annual Interest Rate <span class="text-danger">*</span>
                 </label>
 
                 <div class="input-group">
@@ -203,6 +203,7 @@
                         <div class="invalid-feedback">{{ $message }}</div>
                     @enderror
                 </div>
+                <small class="text-muted">Annual rate. Interest frequency controls when interest is credited.</small>
             </div>
 
             <div class="col-md-4 mb-3">
@@ -222,7 +223,7 @@
                         'at_maturity' => 'At Maturity',
                     ] as $value => $label)
                         <option value="{{ $value }}"
-                            {{ old('interest_frequency', $savingsProduct->interest_frequency ?? 'at_maturity') === $value ? 'selected' : '' }}>
+                            {{ old('interest_frequency', $savingsProduct->interest_frequency ?? (($savingsProduct->product_type ?? '') === 'fixed_deposit' ? 'at_maturity' : 'monthly')) === $value ? 'selected' : '' }}>
                             {{ $label }}
                         </option>
                     @endforeach

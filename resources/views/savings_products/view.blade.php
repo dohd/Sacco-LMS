@@ -67,7 +67,7 @@
                     <div class="card-body">
                         <div class="row g-3">
                             <div class="col-sm-6">
-                                <div class="text-muted small">Interest Rate</div>
+                                <div class="text-muted small">Annual Interest Rate</div>
                                 <div class="fs-5 fw-semibold">
                                     {{ number_format($savingsProduct->interest_rate, 2) }}%
                                 </div>
@@ -331,7 +331,7 @@
                         <div class="row text-center g-3">
                             <div class="col-md-3 col-6">
                                 <div class="border rounded p-3 h-100">
-                                    <div class="text-muted small">Interest Rate</div>
+                                    <div class="text-muted small">Annual Interest Rate</div>
                                     <div class="fs-4 fw-bold">
                                         {{ number_format($savingsProduct->interest_rate, 2) }}%
                                     </div>

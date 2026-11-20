@@ -123,12 +123,6 @@ class SavingsWithdrawalsController extends Controller
                 $amount = round((float) $validated['amount'], 2);
                 $availableBalance = round((float) $account->available_balance, 2);
 
-                if ($amount > $availableBalance) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'Insufficient available savings balance. Available balance is KES ' . number_format($availableBalance, 2)
-                    ]);
-                }
-
                 $product = SavingsProduct::find($account->savings_product_id);
 
                 if (!$product) {
@@ -137,10 +131,24 @@ class SavingsWithdrawalsController extends Controller
                     ]);
                 }
 
-                if (!$product->allows_withdrawals) {
+                if (!$product->allows_withdrawals && $product->product_type !== 'fixed_deposit') {
                     throw ValidationException::withMessages([
                         'amount' => 'Withdrawals are not allowed for this savings product.'
                     ]);
+                }
+                $penaltyAmount = 0.0;
+                if ($product->product_type === 'fixed_deposit') {
+                    $penaltyAmount = app(\App\Services\SavingsWithdrawalPolicy::class)
+                        ->validate($product, now(), $account, $amount, false);
+                }
+                $totalAvailable = round((float) $account->ledger_balance - (float) $account->held_balance, 2);
+                if ($amount > $availableBalance && $product->product_type !== 'fixed_deposit') {
+                    throw ValidationException::withMessages([
+                        'amount' => 'Insufficient available savings balance. Available balance is KES ' . number_format($availableBalance, 2)
+                    ]);
+                }
+                if ($product->product_type === 'fixed_deposit' && $amount > $totalAvailable) {
+                    throw ValidationException::withMessages(['amount' => 'The withdrawal exceeds the fixed-deposit balance.']);
                 }
 
                 if (
@@ -196,6 +204,7 @@ class SavingsWithdrawalsController extends Controller
                     'savings_account_id' => $account->id,
                     'request_number' => $this->generateWithdrawalRequestNumber(),
                     'amount' => $amount,
+                    'penalty_amount' => $penaltyAmount,
                     'requested_date' => $validated['requested_date'],
                     'payment_method' => $validated['payment_method'],
                     'mobile_money_number' => $validated['mobile_money_number'] ?? null,
@@ -207,6 +216,18 @@ class SavingsWithdrawalsController extends Controller
                     'savings_transaction_id' => $transaction->id,
                     'reason' => $validated['reason'] ?? null,
                 ]);
+
+                if ($product->product_type === 'fixed_deposit' && $account->fixed_deposit_maturity_date &&
+                    \Carbon\Carbon::parse($account->fixed_deposit_maturity_date)->lte(today())) {
+                    app(\App\Services\SavingsFixedDepositService::class)
+                        ->processMaturities(\Carbon\Carbon::today(), (int) Auth::id());
+                    $account->refresh();
+                    if (!$product->allows_partial_withdrawals && $account->fixed_deposit_matured_at) {
+                        $amount = round((float) $account->available_balance, 2);
+                        $withdrawal->update(['amount' => $amount]);
+                        $transaction->update(['amount' => $amount, 'running_balance' => $account->ledger_balance]);
+                    }
+                }
 
                 return $withdrawal;
             });
@@ -317,18 +338,24 @@ class SavingsWithdrawalsController extends Controller
 
                 $amount = round((float) $validated['amount'], 2);
                 $availableBalance = round((float) $account->available_balance, 2);
-
-                if ($amount > $availableBalance) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'Insufficient available savings balance. Available balance is KES ' . number_format($availableBalance, 2)
-                    ]);
-                }
-
                 $product = SavingsProduct::find($account->savings_product_id);
 
-                if (!$product || !$product->allows_withdrawals) {
+                if (!$product || (!$product->allows_withdrawals && $product->product_type !== 'fixed_deposit')) {
                     throw ValidationException::withMessages([
                         'amount' => 'Withdrawals are not allowed for this savings product.'
+                    ]);
+                }
+                $penaltyAmount = 0.0;
+                if ($product->product_type === 'fixed_deposit') {
+                    $penaltyAmount = app(\App\Services\SavingsWithdrawalPolicy::class)
+                        ->validate($product, now(), $account, $amount, false);
+                    $totalAvailable = max(0, round((float) $account->ledger_balance - (float) $account->held_balance, 2));
+                    if ($amount > $totalAvailable) {
+                        throw ValidationException::withMessages(['amount' => 'The withdrawal exceeds the fixed-deposit balance.']);
+                    }
+                } elseif ($amount > $availableBalance) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'Insufficient available savings balance. Available balance is KES ' . number_format($availableBalance, 2)
                     ]);
                 }
 
@@ -383,6 +410,7 @@ class SavingsWithdrawalsController extends Controller
                  */
                 $withdrawal->update([
                     'amount' => $amount,
+                    'penalty_amount' => $penaltyAmount,
                     'requested_date' => $validated['requested_date'],
                     'payment_method' => $validated['payment_method'],
                     'mobile_money_number' => $validated['mobile_money_number'] ?? null,
@@ -427,6 +455,9 @@ class SavingsWithdrawalsController extends Controller
         try {
 
             $withdrawal = DB::transaction(function () use ($id) {
+
+                app(\App\Services\SavingsFixedDepositService::class)
+                    ->processMaturities(\Carbon\Carbon::today(), (int) Auth::id());
 
                 $withdrawal = SavingsWithdrawal::where('id', $id)
                     ->lockForUpdate()
@@ -489,7 +520,20 @@ class SavingsWithdrawalsController extends Controller
                 $amount = round((float) $withdrawal->amount, 2);
                 $ledgerBalance = round((float) $account->ledger_balance, 2);
                 $heldBalance = round((float) $account->held_balance, 2);
-                $availableBalance = round($ledgerBalance - $heldBalance, 2);
+                $availableBalance = round((float) $account->available_balance, 2);
+
+                $product = SavingsProduct::whereKey($account->savings_product_id)->lockForUpdate()->first();
+                if (!$product) {
+                    throw ValidationException::withMessages(['savings_account_id' => 'Savings product was not found.']);
+                }
+                $isFixedDeposit = $product->product_type === 'fixed_deposit';
+                $isMatured = $isFixedDeposit && ($account->fixed_deposit_matured_at ||
+                    ($account->fixed_deposit_maturity_date && \Carbon\Carbon::parse($account->fixed_deposit_maturity_date)->lte(today())));
+                if ($isMatured && !$product->allows_partial_withdrawals) {
+                    $amount = round((float) $account->available_balance, 2);
+                    $withdrawal->update(['amount' => $amount]);
+                    $transaction->update(['amount' => $amount, 'running_balance' => $ledgerBalance]);
+                }
 
                 /*
                  * Confirm that the withdrawal amount has not changed
@@ -501,35 +545,32 @@ class SavingsWithdrawalsController extends Controller
                     ]);
                 }
 
-                if ($amount > $availableBalance) {
+                $penaltyAmount = app(\App\Services\SavingsWithdrawalPolicy::class)
+                    ->validate($product, $withdrawal->created_at, $account, $amount);
+                $totalAvailable = max(0, round($ledgerBalance - $heldBalance, 2));
+                if ($amount > $totalAvailable || ($amount > $availableBalance && !$isFixedDeposit)) {
                     throw ValidationException::withMessages([
-                        'amount' => 'Insufficient available savings balance. Available balance is KES ' .
-                            number_format($availableBalance, 2)
+                        'amount' => 'Insufficient available savings balance. Available balance is KES ' . number_format($availableBalance, 2)
                     ]);
                 }
 
-                $newLedgerBalance = round(
-                    $ledgerBalance - $amount,
-                    2
-                );
-
-                $newAvailableBalance = round(
-                    $newLedgerBalance - $heldBalance,
-                    2
-                );
+                $newLedgerBalance = round($ledgerBalance - $amount, 2);
+                $lockedPrincipal = (float) $account->fixed_deposit_locked_principal;
+                if ($isFixedDeposit && $isMatured) {
+                    $lockedPrincipal = 0;
+                    $account->fixed_deposit_matured_at = $account->fixed_deposit_matured_at ?: $account->fixed_deposit_maturity_date;
+                } elseif ($isFixedDeposit && $penaltyAmount > 0) {
+                    $lockedPrincipal = max(0, min($lockedPrincipal, $newLedgerBalance - $heldBalance));
+                    if ($lockedPrincipal <= 0) {
+                        $account->fixed_deposit_terminated_at = today()->toDateString();
+                    }
+                }
+                $newAvailableBalance = round($newLedgerBalance - $heldBalance - $lockedPrincipal, 2);
 
                 if ($newAvailableBalance < 0) {
-                    throw ValidationException::withMessages([
-                        'amount' => 'The withdrawal would result in a negative available balance.'
-                    ]);
+                    throw ValidationException::withMessages(['amount' => 'The withdrawal would exceed available savings balance.']);
                 }
-
-                $product = SavingsProduct::whereKey($account->savings_product_id)->lockForUpdate()->first();
-                if (!$product) {
-                    throw ValidationException::withMessages(['savings_account_id' => 'Savings product was not found.']);
-                }
-                app(\App\Services\SavingsWithdrawalPolicy::class)->validate($product, $withdrawal->created_at);
-                if ($newAvailableBalance < round((float) $product->minimum_balance, 2)) {
+                if (!$isFixedDeposit && $newAvailableBalance < round((float) $product->minimum_balance, 2)) {
                     throw ValidationException::withMessages([
                         'amount' => 'The withdrawal would reduce available savings below the product minimum balance.'
                     ]);
@@ -556,6 +597,7 @@ class SavingsWithdrawalsController extends Controller
                 $account->update([
                     'ledger_balance' => $newLedgerBalance,
                     'available_balance' => $newAvailableBalance,
+                    'fixed_deposit_locked_principal' => $lockedPrincipal,
                     'last_transaction_date' => $transaction->transaction_date,
                 ]);
 
@@ -566,6 +608,7 @@ class SavingsWithdrawalsController extends Controller
                  */
                 $withdrawal->update([
                     'status' => 'approved',
+                    'penalty_amount' => $penaltyAmount,
                     'approved_by' => Auth::id(),
                     'approved_at' => $approvedAt,
                 ]);

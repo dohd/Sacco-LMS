@@ -3,14 +3,17 @@
 namespace App\Http\Controllers\SavingsAccounts;
 
 use App\Http\Controllers\Controller;
+use App\Models\Accounting\ChartOfAccount;
 use App\Models\Memberships\Member;
 use App\Models\Savings\SavingsAccount;
 use App\Models\Savings\SavingsProduct;
+use Carbon\Carbon;
 use Exception;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
+use Illuminate\Support\Str;
 
 class SavingsAccountsController extends Controller
 {
@@ -49,8 +52,9 @@ class SavingsAccountsController extends Controller
     {
         $members = Member::all();
         $savingsProducts = SavingsProduct::all();
+        $depositAccounts = ChartOfAccount::cashAndBank()->orderBy('code')->get();
 
-        return view('savings_accounts.create', compact('members', 'savingsProducts'));
+        return view('savings_accounts.create', compact('members', 'savingsProducts', 'depositAccounts'));
     }
 
     /**
@@ -65,6 +69,9 @@ class SavingsAccountsController extends Controller
             'member_id' => ['required', 'integer', 'exists:members,id'],
             'savings_product_id' => ['required', 'integer', 'exists:savings_products,id'],
             'opened_date' => ['required', 'date', 'before_or_equal:today'],
+            'fixed_deposit_term_months' => ['nullable', 'integer', 'min:1'],
+            'initial_deposit_amount' => ['nullable', 'numeric', 'gt:0', 'max:9999999999999.99'],
+            'deposit_account_id' => ['nullable', 'integer', 'exists:chart_of_accounts,id'],
         ]);
 
         try {
@@ -88,13 +95,28 @@ class SavingsAccountsController extends Controller
                     ]);
                 }
 
-                if ($product->product_type === 'fixed_deposit') {
-                    throw ValidationException::withMessages([
-                        'savings_product_id' => 'Fixed-deposit accounts are not available until maturity handling is implemented.'
-                    ]);
+                $isFixedDeposit = $product->product_type === 'fixed_deposit';
+                $termMonths = (int) ($validated['fixed_deposit_term_months'] ?? 0);
+                $initialDeposit = round((float) ($validated['initial_deposit_amount'] ?? 0), 2);
+                if ($isFixedDeposit) {
+                    if ($product->interest_frequency !== 'at_maturity') {
+                        throw ValidationException::withMessages(['savings_product_id' => 'Fixed-deposit products must calculate interest at maturity.']);
+                    }
+                    if ($termMonths < (int) $product->minimum_term_months ||
+                        ($product->maximum_term_months && $termMonths > (int) $product->maximum_term_months)) {
+                        throw ValidationException::withMessages(['fixed_deposit_term_months' => 'Select a term within the fixed-deposit product limits.']);
+                    }
+                    if ($initialDeposit < (float) $product->minimum_balance ||
+                        (!is_null($product->maximum_balance) && $initialDeposit > (float) $product->maximum_balance)) {
+                        throw ValidationException::withMessages(['initial_deposit_amount' => 'The opening deposit must be within the product balance limits.']);
+                    }
+                    $depositAccount = ChartOfAccount::cashAndBank()->whereKey($validated['deposit_account_id'] ?? null)->first();
+                    if (!$depositAccount) {
+                        throw ValidationException::withMessages(['deposit_account_id' => 'Select the cash or bank account that receives the opening deposit.']);
+                    }
                 }
 
-                $existingAccount = SavingsAccount::where('member_id', $member->id)
+                $existingAccount = !$isFixedDeposit && SavingsAccount::where('member_id', $member->id)
                     ->where('savings_product_id', $product->id)
                     ->whereIn('status', ['active', 'frozen'])
                     ->exists();
@@ -113,9 +135,46 @@ class SavingsAccountsController extends Controller
                     'held_balance' => 0,
                     'available_balance' => 0,
                     'opened_date' => $validated['opened_date'],
+                    'fixed_deposit_term_months' => $isFixedDeposit ? $termMonths : null,
+                    'fixed_deposit_locked_principal' => $isFixedDeposit ? $initialDeposit : 0,
+                    'fixed_deposit_interest_rate' => $isFixedDeposit ? $product->interest_rate : null,
+                    'fixed_deposit_calculation_method' => $isFixedDeposit ? $product->interest_calculation_method : null,
+                    'fixed_deposit_auto_rollover' => $isFixedDeposit ? (bool) $product->auto_rollover : null,
+                    'fixed_deposit_rollover_option' => $isFixedDeposit && $product->auto_rollover ? $product->rollover_option : null,
+                    'fixed_deposit_term_start_date' => $isFixedDeposit ? $validated['opened_date'] : null,
+                    'fixed_deposit_maturity_date' => $isFixedDeposit
+                        ? Carbon::parse($validated['opened_date'])->addMonthsNoOverflow($termMonths)->toDateString()
+                        : null,
                     'opened_by' => Auth::id(),
                     'status' => 'active',
                 ]);
+
+                if ($isFixedDeposit) {
+                    $transaction = \App\Models\Savings\SavingsTransaction::create([
+                        'savings_account_id' => $savingsAccount->id,
+                        'transaction_number' => 'SAV-TRX-' . now()->format('YmdHis') . '-' . strtoupper(Str::random(6)),
+                        'transaction_type' => 'deposit',
+                        'direction' => 'credit',
+                        'amount' => $initialDeposit,
+                        'running_balance' => $initialDeposit,
+                        'transaction_date' => $validated['opened_date'],
+                        'value_date' => $validated['opened_date'],
+                        'payment_method' => 'cash',
+                        'deposit_account_id' => $depositAccount->id,
+                        'external_reference' => 'fixed-deposit-opening:' . $savingsAccount->id,
+                        'status' => 'confirmed',
+                        'recorded_by' => Auth::id(),
+                        'confirmed_by' => Auth::id(),
+                        'confirmed_at' => now(),
+                        'description' => 'Opening funding for fixed deposit account ' . $savingsAccount->account_number,
+                    ]);
+                    $savingsAccount->update([
+                        'ledger_balance' => $initialDeposit,
+                        'available_balance' => 0,
+                        'last_transaction_date' => $validated['opened_date'],
+                    ]);
+                    app(\App\Services\JournalPostingService::class)->postSavingsDeposit($transaction);
+                }
 
                 return $savingsAccount;
             });
@@ -123,6 +182,8 @@ class SavingsAccountsController extends Controller
             return redirect()
                 ->route('savings_accounts.index')
                 ->with('success', 'Savings account opened successfully.');
+        } catch (ValidationException $e) {
+            return back()->withInput()->withErrors($e->errors());
         } catch (Exception $e) {
             return errorHandler("Error opening savings account. Please try again.", $e);
         }
@@ -189,10 +250,10 @@ class SavingsAccountsController extends Controller
                     ]);
                 }
 
-                if ($product->product_type === 'fixed_deposit' &&
+                if ($savingsAccount->savingsProduct && $savingsAccount->savingsProduct->product_type === 'fixed_deposit' &&
                     $savingsAccount->savings_product_id != $product->id) {
                     throw ValidationException::withMessages([
-                        'savings_product_id' => 'Accounts cannot be switched to a fixed-deposit product.'
+                        'savings_product_id' => 'A fixed-deposit account cannot be switched to another product.'
                     ]);
                 }
 

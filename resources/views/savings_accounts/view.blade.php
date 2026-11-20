@@ -32,11 +32,11 @@
             </div>
             <div class="d-flex gap-2 mt-2 mt-md-0">
                 @if($savingsAccount->status === 'active')
-                    <button type="button"
-                            class="btn btn-success btn-sm"
-                            id="depositBtn">
-                        <i class="fa fa-plus"></i> Deposit
-                    </button>
+                    @if(!$savingsAccount->savingsProduct || $savingsAccount->savingsProduct->product_type !== 'fixed_deposit')
+                        <button type="button" class="btn btn-success btn-sm" id="depositBtn">
+                            <i class="fa fa-plus"></i> Deposit
+                        </button>
+                    @endif
                     <button type="button"
                             class="btn btn-warning btn-sm"
                             id="withdrawBtn">
@@ -353,6 +353,45 @@
                 </div>
             @endif
         </div>
+
+        @if($savingsAccount->fixed_deposit_maturity_date)
+            <div class="card shadow-sm mt-3">
+                <div class="card-header bg-white"><strong>Fixed Deposit Contract</strong></div>
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-md-3"><div class="text-muted small">Term</div><strong>{{ $savingsAccount->fixed_deposit_term_months }} months</strong></div>
+                        <div class="col-md-3"><div class="text-muted small">Locked Principal</div><strong>KES {{ number_format($savingsAccount->fixed_deposit_locked_principal, 2) }}</strong></div>
+                        <div class="col-md-3"><div class="text-muted small">Contract Rate</div><strong>{{ number_format($savingsAccount->fixed_deposit_interest_rate, 2) }}%</strong></div>
+                        <div class="col-md-3"><div class="text-muted small">Maturity Date</div><strong>{{ \Carbon\Carbon::parse($savingsAccount->fixed_deposit_maturity_date)->format('d M Y') }}</strong></div>
+                        <div class="col-md-3"><div class="text-muted small">Calculation</div><strong>{{ ucfirst($savingsAccount->fixed_deposit_calculation_method) }}</strong></div>
+                        <div class="col-md-3"><div class="text-muted small">Rollover</div><strong>{{ $savingsAccount->fixed_deposit_auto_rollover ? ucwords(str_replace('_', ' ', $savingsAccount->fixed_deposit_rollover_option)) : 'No' }}</strong></div>
+                        @if($savingsAccount->fixed_deposit_matured_at)
+                            <div class="col-md-3"><div class="text-muted small">Matured</div><strong>{{ \Carbon\Carbon::parse($savingsAccount->fixed_deposit_matured_at)->format('d M Y') }}</strong></div>
+                        @endif
+                    </div>
+                    @if($savingsAccount->fixedDepositMaturities->isNotEmpty())
+                        <div class="table-responsive mt-3">
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light"><tr><th>Maturity</th><th class="text-end">Principal</th><th class="text-end">Interest</th><th>Rollover</th><th class="text-end">Rolled</th><th class="text-end">Available</th><th>Next Maturity</th></tr></thead>
+                                <tbody>
+                                    @foreach($savingsAccount->fixedDepositMaturities as $cycle)
+                                        <tr>
+                                            <td>{{ optional($cycle->maturity_date)->format('d M Y') }}</td>
+                                            <td class="text-end">{{ number_format($cycle->principal_amount, 2) }}</td>
+                                            <td class="text-end">{{ number_format($cycle->interest_amount, 2) }}</td>
+                                            <td>{{ $cycle->rollover_option ? ucwords(str_replace('_', ' ', $cycle->rollover_option)) : 'No' }}</td>
+                                            <td class="text-end">{{ number_format($cycle->rolled_over_amount, 2) }}</td>
+                                            <td class="text-end">{{ number_format($cycle->available_balance, 2) }}</td>
+                                            <td>{{ optional($cycle->next_maturity_date)->format('d M Y') ?: '—' }}</td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+            </div>
+        @endif
 
         {{-- Transactions --}}
         <div class="card shadow-sm mt-3">

@@ -125,6 +125,11 @@ class SavingsTransactionsController extends Controller
                     ]);
                 }
 
+                if ($account->savingsProduct && $account->savingsProduct->product_type === 'fixed_deposit' &&
+                    in_array($validated['transaction_type'], ['deposit', 'transfer_in'], true)) {
+                    throw ValidationException::withMessages(['transaction_type' => 'Fixed deposits are funded once when the account is opened.']);
+                }
+
                 if ($validated['transaction_type'] === 'adjustment') {
                     $direction = $validated['direction'] ?? null;
 
@@ -253,7 +258,7 @@ class SavingsTransactionsController extends Controller
                 $amount = round((float) $transaction->amount, 2);
                 $ledgerBalance = round((float) $account->ledger_balance, 2);
                 $heldBalance = round((float) $account->held_balance, 2);
-                $availableBalance = round($ledgerBalance - $heldBalance, 2);
+                $availableBalance = round($ledgerBalance - $heldBalance - (float) $account->fixed_deposit_locked_principal, 2);
 
                 /*
                  * Determine the financial effect.
@@ -279,7 +284,7 @@ class SavingsTransactionsController extends Controller
                 }
 
                 $newAvailableBalance = round(
-                    $newLedgerBalance - $heldBalance,
+                    $newLedgerBalance - $heldBalance - (float) $account->fixed_deposit_locked_principal,
                     2
                 );
 
@@ -297,8 +302,12 @@ class SavingsTransactionsController extends Controller
                 if (!$product) {
                     throw ValidationException::withMessages(['savings_account_id' => 'Savings product was not found.']);
                 }
+
+                if ($product->product_type === 'fixed_deposit' && in_array($transaction->transaction_type, ['deposit', 'transfer_in'], true)) {
+                    throw ValidationException::withMessages(['transaction' => 'Fixed deposits are funded once when the account is opened.']);
+                }
                 if ($transaction->transaction_type === 'transfer_out') {
-                    app(\App\Services\SavingsWithdrawalPolicy::class)->validate($product, $transaction->created_at);
+                    app(\App\Services\SavingsWithdrawalPolicy::class)->validate($product, $transaction->created_at, $account, $amount);
                 }
                 if ($transaction->direction === 'debit' &&
                     $newAvailableBalance < round((float) $product->minimum_balance, 2)) {
@@ -469,7 +478,7 @@ class SavingsTransactionsController extends Controller
                 $amount = round((float) $original->amount, 2);
                 $ledgerBalance = round((float) $account->ledger_balance, 2);
                 $heldBalance = round((float) $account->held_balance, 2);
-                $availableBalance = round($ledgerBalance - $heldBalance, 2);
+                $availableBalance = round($ledgerBalance - $heldBalance - (float) $account->fixed_deposit_locked_principal, 2);
 
                 $direction = $original->direction === 'credit' ? 'debit' : 'credit';
 
@@ -484,7 +493,7 @@ class SavingsTransactionsController extends Controller
                     ? $ledgerBalance + $amount
                     : $ledgerBalance - $amount;
 
-                $newAvailableBalance = $newLedgerBalance - $heldBalance;
+                $newAvailableBalance = $newLedgerBalance - $heldBalance - (float) $account->fixed_deposit_locked_principal;
 
                 if ($newAvailableBalance < 0) {
                     // throw ValidationException::withMessages([
@@ -683,7 +692,7 @@ class SavingsTransactionsController extends Controller
 
                 $ledgerBalance = round((float) $account->ledger_balance, 2);
                 $heldBalance = round((float) $account->held_balance, 2);
-                $availableBalance = round($ledgerBalance - $heldBalance, 2);
+                $availableBalance = round($ledgerBalance - $heldBalance - (float) $account->fixed_deposit_locked_principal, 2);
 
                 if ($direction === 'debit' && $amount > $availableBalance) {
                     throw ValidationException::withMessages([
@@ -692,14 +701,17 @@ class SavingsTransactionsController extends Controller
                 }
 
                 if ($direction === 'credit') {
-                    $newLedgerBalance = round($ledgerBalance + $amount, 2);
+                    $proposedLedgerBalance = round($ledgerBalance + $amount, 2);
                 } else {
-                    $newLedgerBalance = round($ledgerBalance - $amount, 2);
+                    $proposedLedgerBalance = round($ledgerBalance - $amount, 2);
                 }
 
-                $newAvailableBalance = round($newLedgerBalance - $heldBalance, 2);
+                $proposedAvailableBalance = round(
+                    $proposedLedgerBalance - $heldBalance - (float) $account->fixed_deposit_locked_principal,
+                    2
+                );
 
-                if ($newAvailableBalance < 0) {
+                if ($proposedAvailableBalance < 0) {
                     throw ValidationException::withMessages([
                         'amount' => 'The transaction would result in a negative available balance.'
                     ]);
@@ -707,11 +719,29 @@ class SavingsTransactionsController extends Controller
 
                 $product = SavingsProduct::find($account->savings_product_id);
 
+                if (!$product) {
+                    throw ValidationException::withMessages(['savings_account_id' => 'Savings product was not found.']);
+                }
+
+                if ($product->product_type === 'fixed_deposit' && in_array($validated['transaction_type'], ['deposit', 'transfer_in'], true)) {
+                    throw ValidationException::withMessages(['transaction_type' => 'Fixed deposits are funded once when the account is opened.']);
+                }
+
+                if ($validated['transaction_type'] === 'transfer_out') {
+                    app(\App\Services\SavingsWithdrawalPolicy::class)->validate($product, $transaction->created_at, $account, $amount);
+                }
+
+                if ($direction === 'debit' && $product->product_type !== 'fixed_deposit' &&
+                    $proposedAvailableBalance < round((float) $product->minimum_balance, 2)) {
+                    throw ValidationException::withMessages([
+                        'amount' => 'The transaction would reduce available savings below the product minimum balance.'
+                    ]);
+                }
+
                 if (
                     $direction === 'credit' &&
-                    $product &&
                     !is_null($product->maximum_balance) &&
-                    $newLedgerBalance > $product->maximum_balance
+                    $proposedLedgerBalance > $product->maximum_balance
                 ) {
                     throw ValidationException::withMessages([
                         'amount' => 'The transaction would exceed the maximum balance allowed for this savings product.'
@@ -725,26 +755,13 @@ class SavingsTransactionsController extends Controller
                     'transaction_type' => $validated['transaction_type'],
                     'direction' => $direction,
                     'amount' => $amount,
-                    'running_balance' => $newLedgerBalance,
+                    'running_balance' => $ledgerBalance,
                     'transaction_date' => $validated['transaction_date'],
                     'value_date' => $validated['value_date'],
                     'payment_method' => $validated['payment_method'] ?? null,
                     'external_reference' => $validated['external_reference'] ?? null,
                     'receipt_number' => $validated['receipt_number'] ?: null,
                     'description' => $validated['description'] ?? null,
-                ]);
-
-                /*
-                 * If the pending transaction is actually included in the
-                 * account balance in your pending workflow, update it here.
-                 *
-                 * Your current store() method creates transactions as
-                 * confirmed, so normally this branch should not be needed.
-                 */
-                $account->update([
-                    'ledger_balance' => $newLedgerBalance,
-                    'available_balance' => $newAvailableBalance,
-                    'last_transaction_date' => $validated['transaction_date'],
                 ]);
 
                 return $transaction;

@@ -18,7 +18,9 @@ class CreditSavingsInterest extends Command
 
     public function handle(SavingsInterestService $service)
     {
-        $date = $this->option('date') ? Carbon::parse($this->option('date'))->startOfDay() : Carbon::yesterday();
+        $explicitDate = $this->option('date') ? Carbon::parse($this->option('date'))->startOfDay() : null;
+        $date = $explicitDate ?: Carbon::yesterday();
+        $maturityAsOf = $explicitDate ?: Carbon::today();
 
         $actorId = $this->option('user') ?: DB::table('model_has_roles')
             ->join('roles', 'roles.id', '=', 'model_has_roles.role_id')
@@ -31,11 +33,13 @@ class CreditSavingsInterest extends Command
             return 1;
         }
 
-        $result = $service->run($date, (int) $actorId);
+        $result = $service->run($date, (int) $actorId, $maturityAsOf);
         $this->info(sprintf(
-            'Interest for period ending %s: %d account(s) credited, %d skipped, %d failed, total %s.',
+            'Interest for period ending %s: %d account(s) credited, %d fixed deposit(s) matured (%d rolled over), %d skipped, %d failed, total %s.',
             $date->toDateString(),
             $result['credited'],
+            $result['matured'] ?? 0,
+            $result['rolled_over'] ?? 0,
             $result['skipped'],
             $result['failed'],
             number_format($result['total'], 2)
