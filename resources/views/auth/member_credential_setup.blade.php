@@ -76,6 +76,10 @@
                                             <button class="btn btn-primary w-100" type="submit">Save login credentials</button>
                                         </div>
                                     </form>
+
+                                    <div class="pt-3 text-start">
+                                        <a href="{{ url('/logout') }}" class="small">Back to login</a>
+                                    </div>
                                 </div>
                             </div>
 
