@@ -389,7 +389,7 @@
                                                             <option value="accepted">Accepted</option>
                                                             <option value="declined">Declined</option>
                                                         </select>
-                                                        <input type="file" name="signature" class="form-control form-control-sm mb-1" accept=".jpg,.jpeg,.png,.pdf" title="Signed guarantee form">
+                                                        <input type="file" name="signature" class="form-control form-control-sm mb-1" accept=".jpg,.jpeg,.png,.pdf" title="Signed guarantor consent form">
                                                         <input type="text" name="note" class="form-control form-control-sm mb-1" placeholder="Note (required if declined)">
                                                         <button type="submit" class="btn btn-sm btn-outline-primary">Record response</button>
                                                     </form>

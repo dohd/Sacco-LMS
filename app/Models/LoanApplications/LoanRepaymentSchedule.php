@@ -14,6 +14,10 @@ class LoanRepaymentSchedule extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'interest_waived' => 'decimal:2',
+    ];
+
     /**
      * The "booted" method of the model.
      */

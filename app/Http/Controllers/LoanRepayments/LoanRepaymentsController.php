@@ -26,7 +26,7 @@ class LoanRepaymentsController extends Controller
         $this->middleware(function ($request, $next) {
             $action = $request->route()->getActionMethod();
             $isMember = auth()->user()->hasRoleCode('member');
-            if ($isMember && in_array($action, ['create', 'store'], true)) {
+            if ($isMember && in_array($action, ['create', 'store', 'earlySettlementQuote'], true)) {
                 $this->requireSaccoPermission('view-own-loan');
             } elseif (!in_array($action, ['index', 'show'], true)) {
                 $this->requireSaccoPermission($action === 'reverse' ? 'reverse-repayment' : 'confirm-repayment');
@@ -101,6 +101,7 @@ class LoanRepaymentsController extends Controller
             'payment_date' => ['required', 'date'],
             'value_date' => ['nullable', 'date'],
             'amount_paid' => ['required', 'numeric', 'gt:0'],
+            'is_early_settlement' => ['nullable', 'boolean'],
             'payment_method' => [
                 'required',
                 'in:cash,bank_transfer,mobile_money,cheque,standing_order,check_off,post_dated_cheque,account_credit'
@@ -158,6 +159,8 @@ class LoanRepaymentsController extends Controller
 
                     'amount_paid' =>
                         round((float) $validated['amount_paid'], 2),
+
+                    'is_early_settlement' => (bool) ($validated['is_early_settlement'] ?? false),
 
                     'principal_amount' => 0,
                     'interest_amount' => 0,
@@ -280,6 +283,7 @@ class LoanRepaymentsController extends Controller
             'payment_date' => ['required', 'date'],
             'value_date' => ['nullable', 'date'],
             'amount_paid' => ['required', 'numeric', 'gt:0'],
+            'is_early_settlement' => ['nullable', 'boolean'],
             'payment_method' => [
                 'required',
                 'in:cash,bank_transfer,mobile_money,cheque,standing_order,check_off,post_dated_cheque,account_credit'
@@ -321,6 +325,8 @@ class LoanRepaymentsController extends Controller
 
                     'amount_paid' =>
                         round((float) $validated['amount_paid'], 2),
+
+                    'is_early_settlement' => (bool) ($validated['is_early_settlement'] ?? false),
 
                     'payment_method' =>
                         $validated['payment_method'],
@@ -394,6 +400,30 @@ class LoanRepaymentsController extends Controller
         }
     }
 
+    /** Return the current payoff quote for a loan and settlement date. */
+    public function earlySettlementQuote(Request $request)
+    {
+        $validated = $request->validate([
+            'loan_id' => ['required', 'integer', 'exists:loans,id'],
+            'payment_date' => ['required', 'date'],
+        ]);
+
+        $loan = Loan::findOrFail($validated['loan_id']);
+        if (auth()->user()->hasRoleCode('member')) {
+            abort_unless($this->ownsMember($loan->member_id), 403);
+        }
+        if (!in_array($loan->status, ['active', 'in_arrears', 'restructured'], true)) {
+            throw ValidationException::withMessages([
+                'loan_id' => 'Only an active, in-arrears, or restructured loan can be settled.',
+            ]);
+        }
+
+        return response()->json([
+            'quote' => app(\App\Services\LoanEarlySettlementService::class)
+                ->quote($loan, $validated['payment_date']),
+        ]);
+    }
+
     // reverse repayment
     public function reverse(Request $request, $id)
     {
@@ -431,6 +461,8 @@ class LoanRepaymentsController extends Controller
                 )
                 ->lockForUpdate()
                 ->get();
+
+                $isEarlySettlement = (bool) $repayment->is_early_settlement;
 
                 /*
                  * Reverse schedule allocations.
@@ -530,6 +562,36 @@ class LoanRepaymentsController extends Controller
                     ]);
                 }
 
+                if ($isEarlySettlement) {
+                    $waivedSchedules = LoanRepaymentSchedule::where('loan_id', $loan->id)
+                        ->where('interest_waived', '>', 0)
+                        ->lockForUpdate()
+                        ->get();
+
+                    foreach ($waivedSchedules as $schedule) {
+                        $waived = round((float) $schedule->interest_waived, 2);
+                        $interestDue = round((float) $schedule->interest_due + $waived, 2);
+                        $totalDue = round((float) $schedule->total_due + $waived, 2);
+                        $totalPaid = round((float) $schedule->total_paid, 2);
+                        $outstanding = max(0, round($totalDue - $totalPaid, 2));
+
+                        if ($loan->interest_deferred) {
+                            $schedule->deferred_interest_due = round((float) $schedule->deferred_interest_due + $waived, 2);
+                        }
+                        $schedule->interest_due = $interestDue;
+                        $schedule->total_due = $totalDue;
+                        $schedule->outstanding_amount = $outstanding;
+                        $schedule->interest_waived = 0;
+                        $schedule->status = $outstanding <= 0
+                            ? 'paid'
+                            : (Carbon::parse($schedule->due_date)->lt(now())
+                                ? 'overdue'
+                                : ($totalPaid > 0 ? 'partially_paid' : 'pending'));
+                        $schedule->fully_paid_date = $schedule->status === 'paid' ? $schedule->fully_paid_date : null;
+                        $schedule->save();
+                    }
+                }
+
                 /*
                  * Restore loan balances.
                  */
@@ -544,7 +606,8 @@ class LoanRepaymentsController extends Controller
 
                 $interestBalance = round(
                     $loan->interest_balance +
-                    $repayment->interest_amount,
+                    $repayment->interest_amount +
+                    ($isEarlySettlement ? $repayment->interest_waived : 0),
                     2
                 );
 
@@ -618,11 +681,13 @@ class LoanRepaymentsController extends Controller
                     ->exists();
                 $hasScheduleHistory = LoanRepaymentSchedule::where('loan_id', $loan->id)->exists();
 
-                $status = $totalOutstanding <= 0
+                $status = $isEarlySettlement
+                    ? ($repayment->loan_status_before ?: 'active')
+                    : ($totalOutstanding <= 0
                     ? 'fully_paid'
                     : ($loan->is_opening_balance && !$hasScheduleHistory
                         ? ($repayment->loan_status_before ?: 'active')
-                        : ($hasOverdue ? 'in_arrears' : ($loan->status === 'restructured' ? 'restructured' : 'active')));
+                        : ($hasOverdue ? 'in_arrears' : ($loan->status === 'restructured' ? 'restructured' : 'active'))));
 
                 $loan->update([
                     'principal_balance' => $principalBalance,
@@ -639,6 +704,9 @@ class LoanRepaymentsController extends Controller
                     'total_paid' => $totalPaid,
 
                     'status' => $status,
+                    'closed_date' => $isEarlySettlement ? null : $loan->closed_date,
+                    'closed_by' => $isEarlySettlement ? null : $loan->closed_by,
+                    'closure_reason' => $isEarlySettlement ? null : $loan->closure_reason,
                 ]);
 
                 // Reversing the payment that cleared a loan restores the guarantees.
@@ -658,6 +726,9 @@ class LoanRepaymentsController extends Controller
 
                 // Reverse the ledger entry posted at confirmation.
                 app(JournalPostingService::class)->reverseLoanRepaymentReceipt($repayment->fresh(), $validated['reversal_reason']);
+                if ($isEarlySettlement) {
+                    app(JournalPostingService::class)->reverseEarlySettlementInterestWaiver($repayment->fresh(), $validated['reversal_reason']);
+                }
             });
 
             return redirect()

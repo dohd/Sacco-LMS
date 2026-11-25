@@ -63,6 +63,12 @@
                 </div>
             </div>
         </div>
+        @if($loanRepayment->is_early_settlement)
+            <div class="alert alert-info mb-4">
+                <strong>Early loan settlement.</strong>
+                Future interest waived: KES {{ number_format($loanRepayment->interest_waived, 2) }}.
+            </div>
+        @endif
         {{-- Payment Summary --}}
         <div class="row g-3 mb-4">
             <div class="col-md-3">

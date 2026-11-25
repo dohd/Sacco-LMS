@@ -64,6 +64,57 @@ class LoanRepaymentConfirmationService
             ->lockForUpdate()
             ->get();
 
+        $isEarlySettlement = (bool) $repayment->is_early_settlement;
+        if ($isEarlySettlement && !$post) {
+            throw ValidationException::withMessages([
+                'repayment' => 'Early settlements require the normal ledger-posting workflow.',
+            ]);
+        }
+        $interestWaived = 0.0;
+        if ($isEarlySettlement) {
+            $settlementService = app(LoanEarlySettlementService::class);
+            $quote = $settlementService->quote($loan, $repayment->payment_date, $schedules);
+            if (abs(round((float) $repayment->amount_paid, 2) - $quote['settlement_amount']) > 0.009) {
+                throw ValidationException::withMessages([
+                    'amount_paid' => 'The early settlement amount is no longer current. Refresh the settlement quote before confirming.',
+                ]);
+            }
+
+            $waiverRemaining = $quote['interest_waived'];
+            foreach ($schedules as $schedule) {
+                if (Carbon::parse($schedule->due_date)->toDateString() <= Carbon::parse($repayment->payment_date)->toDateString()) {
+                    continue;
+                }
+
+                $unpaidInterest = $settlementService->unpaidFutureInterest($schedule);
+                $waived = round(min($unpaidInterest, $waiverRemaining), 2);
+                if ($waived <= 0) {
+                    continue;
+                }
+
+                $updates = [
+                    'interest_due' => round((float) $schedule->interest_due - $waived, 2),
+                    'interest_waived' => round((float) $schedule->interest_waived + $waived, 2),
+                    'total_due' => max(0, round((float) $schedule->total_due - $waived, 2)),
+                ];
+                if ($loan->interest_deferred) {
+                    $updates['deferred_interest_due'] = max(0, round((float) $schedule->deferred_interest_due - $waived, 2));
+                }
+                $schedule->update($updates);
+                $schedule->outstanding_amount = max(0, round((float) $schedule->total_due - (float) $schedule->total_paid, 2));
+                $schedule->save();
+
+                $interestWaived = round($interestWaived + $waived, 2);
+                $waiverRemaining = max(0, round($waiverRemaining - $waived, 2));
+            }
+
+            if (abs($interestWaived - $quote['interest_waived']) > 0.009) {
+                throw ValidationException::withMessages([
+                    'interest' => 'The scheduled future interest does not match the loan balance. Review the schedule before early settlement.',
+                ]);
+            }
+        }
+
         $scheduleFreeOpeningLoan = $loan->is_opening_balance
             && !LoanRepaymentSchedule::where('loan_id', $loan->id)->exists();
 
@@ -181,7 +232,7 @@ class LoanRepaymentConfirmationService
          * both principalAmount and feesAmount are deducted from the principal_balance parameter.
          */
         $newPrincipalBalance = max(0, round($loan->principal_balance - ($principalAmount + $feesAmount), 4));
-        $newInterestBalance = max(0, round($loan->interest_balance - $interestAmount, 4));
+        $newInterestBalance = max(0, round($loan->interest_balance - $interestAmount - $interestWaived, 4));
         $newFeesBalance = max(0, round($loan->fees_balance - $feesAmount, 4));
         $newPenaltyBalance = max(0, round($loan->penalty_balance - $penaltyAmount, 4));
 
@@ -201,6 +252,12 @@ class LoanRepaymentConfirmationService
             : ($scheduleFreeOpeningLoan
                 ? $loan->status
                 : ($hasOverdue ? 'in_arrears' : ($loan->status === 'restructured' ? 'restructured' : 'active')));
+
+        if ($isEarlySettlement && ($newTotalOutstanding > 0.001 || $unallocatedAmount > 0.001)) {
+            throw ValidationException::withMessages([
+                'amount_paid' => 'The early settlement quote does not fully clear this loan. Review its balances and schedule before confirming.',
+            ]);
+        }
 
         /*
          * Persist transaction allocation detail records
@@ -230,6 +287,7 @@ class LoanRepaymentConfirmationService
             'interest_amount' => round($interestAmount, 2),
             'fees_amount' => round($feesAmount, 2),
             'penalty_amount' => round($penaltyAmount, 2),
+            'interest_waived' => round($interestWaived, 2),
             'unallocated_amount' => round($unallocatedAmount, 2),
             'status' => 'confirmed',
         ]);
@@ -249,6 +307,11 @@ class LoanRepaymentConfirmationService
             'penalties_paid' => round($newLoanPenaltiesPaid, 2),
             'total_paid' => round($newTotalPaid, 2),
             'status' => $loanStatus,
+            'closed_date' => $isEarlySettlement ? $repayment->payment_date : $loan->closed_date,
+            'closed_by' => $isEarlySettlement ? Auth::id() : $loan->closed_by,
+            'closure_reason' => $isEarlySettlement
+                ? 'Early settlement via repayment ' . $repayment->repayment_number
+                : $loan->closure_reason,
         ]);
 
         // A fully repaid loan frees the guarantors' shares.
@@ -259,6 +322,9 @@ class LoanRepaymentConfirmationService
         // Post the receipt to the general ledger; any failure rolls back the confirmation.
         // Guarantee repayments are posted by the guarantee invocation itself.
         if ($post) {
+            if ($isEarlySettlement && $interestWaived > 0) {
+                app(JournalPostingService::class)->postEarlySettlementInterestWaiver($repayment->fresh(), $interestWaived);
+            }
             app(JournalPostingService::class)->postLoanRepaymentReceipt($repayment->fresh());
         }
 

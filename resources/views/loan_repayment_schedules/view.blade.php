@@ -391,6 +391,15 @@
 
                                     </tr>
 
+                                    @if((float) $schedule->interest_waived > 0)
+                                        <tr>
+                                            <td class="fw-semibold text-muted">Future Interest Waived</td>
+                                            <td class="text-end text-muted" colspan="3">
+                                                {{ number_format($schedule->interest_waived, 2) }}
+                                            </td>
+                                        </tr>
+                                    @endif
+
 
                                     <tr>
 

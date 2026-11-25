@@ -15,6 +15,11 @@ class LoanRepayment extends Model
 
     protected $guarded = ['id'];
 
+    protected $casts = [
+        'is_early_settlement' => 'boolean',
+        'interest_waived' => 'decimal:2',
+    ];
+
     /**
      * The "booted" method of the model.
      */

@@ -225,6 +225,25 @@
 
                 </div>
 
+                <div class="col-12">
+                    <div class="form-check">
+                        <input type="checkbox"
+                               class="form-check-input"
+                               id="is_early_settlement"
+                               name="is_early_settlement"
+                               value="1"
+                               data-quote-url="{{ route('loan_repayments.early_settlement_quote') }}"
+                               {{ old('is_early_settlement', $isEdit ? $loanRepayment->is_early_settlement : false) ? 'checked' : '' }}>
+                        <label class="form-check-label fw-semibold" for="is_early_settlement">
+                            Early loan settlement
+                        </label>
+                        <div class="form-text">
+                            Quotes installments due by the payment date and waives unpaid interest on later installments. No daily interest pro-rating is applied.
+                        </div>
+                    </div>
+                    <div id="settlementQuote" class="alert alert-info mt-3 mb-0 d-none" aria-live="polite"></div>
+                </div>
+
 
                 {{-- Payment date --}}
                 <div class="col-md-4">
@@ -235,6 +254,7 @@
                     </label>
 
                     <input type="date"
+                           id="payment_date"
                            name="payment_date"
                            class="form-control"
                            required

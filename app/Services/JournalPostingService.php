@@ -374,6 +374,80 @@ class JournalPostingService
         });
     }
 
+    /** Clear future interest waived by an early settlement from receivables. */
+    public function postEarlySettlementInterestWaiver(LoanRepayment $repayment, float $amount): ?JournalEntry
+    {
+        $amount = round($amount, 2);
+        if ($amount <= 0) {
+            return null;
+        }
+
+        $repayment->loadMissing('loan.loanApplication.loanProduct');
+        $loan = $repayment->loan;
+        $product = optional(optional($loan)->loanApplication)->loanProduct;
+        if (!$loan || !$product || !$product->interest_receivable_account_id) {
+            throw ValidationException::withMessages([
+                'ledger' => 'The loan product must have an interest receivable account before future interest can be waived.',
+            ]);
+        }
+
+        $lines = [];
+        if ($loan->interest_deferred) {
+            if (!$product->unearned_interest_account_id || !$product->interest_income_account_id) {
+                throw ValidationException::withMessages([
+                    'ledger' => 'Configure unearned interest and interest income accounts before settling this deferred-interest loan early.',
+                ]);
+            }
+
+            $releasedWaiver = round((float) LoanRepaymentSchedule::where('loan_id', $loan->id)
+                ->where('interest_waived', '>', 0)
+                ->whereNotNull('interest_released_on')
+                ->sum('interest_waived'), 2);
+            $releasedWaiver = min($amount, $releasedWaiver);
+            $unreleasedWaiver = round($amount - $releasedWaiver, 2);
+
+            if ($unreleasedWaiver > 0) {
+                $lines[] = ['account' => $product->unearned_interest_account_id, 'debit' => $unreleasedWaiver, 'description' => 'Unearned future interest waived'];
+            }
+            if ($releasedWaiver > 0) {
+                $lines[] = ['account' => $product->interest_income_account_id, 'debit' => $releasedWaiver, 'description' => 'Recognized future interest waived'];
+            }
+        } elseif ($product->interest_income_account_id) {
+            $lines[] = ['account' => $product->interest_income_account_id, 'debit' => $amount, 'description' => 'Future interest income waived'];
+        } else {
+            throw ValidationException::withMessages([
+                'ledger' => 'Configure an interest income account before settling this loan early.',
+            ]);
+        }
+        $lines[] = ['account' => $product->interest_receivable_account_id, 'credit' => $amount, 'description' => 'Future interest receivable waived'];
+
+        return $this->postEntry([
+            'posting_key' => 'loan_early_settlement:' . $repayment->id . ':interest_waiver',
+            'event_type' => 'loan_early_settlement_interest_waiver',
+            'source' => $repayment,
+            'transaction_date' => $repayment->payment_date,
+            'posting_date' => $repayment->value_date ?: $repayment->payment_date,
+            'reference_number' => $repayment->transaction_reference ?: $repayment->receipt_number ?: $repayment->repayment_number,
+            'description' => 'Future interest waived on early settlement of loan ' . $loan->loan_number,
+            'created_by' => $repayment->recorded_by,
+            'member_id' => $loan->member_id,
+            'loan_id' => $loan->id,
+        ], $lines);
+    }
+
+    /** Reverse the interest waiver journal when an early-settlement receipt is reversed. */
+    public function reverseEarlySettlementInterestWaiver(LoanRepayment $repayment, string $reason): ?JournalEntry
+    {
+        return $this->reverseEntry(
+            'loan_early_settlement:' . $repayment->id . ':interest_waiver',
+            'loan_early_settlement:' . $repayment->id . ':interest_waiver_reversed',
+            'loan_early_settlement_reversal',
+            $repayment,
+            $reason,
+            'early settlement interest waiver'
+        );
+    }
+
     /**
      * Reverse the journal posted for a repayment. Repayments confirmed before
      * ledger posting existed have no entry, so there is nothing to reverse.

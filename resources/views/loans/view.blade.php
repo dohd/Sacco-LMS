@@ -747,10 +747,10 @@
             @if(userCan('invoke-guarantee'))
             <div class="modal fade" id="invokeModal{{ $guarantor->id }}" tabindex="-1" aria-hidden="true">
                 <div class="modal-dialog modal-dialog-centered">
-                    <form method="POST" action="{{ route('loans.guarantee_invoke', [$loan->id, $guarantor->id]) }}" class="modal-content">
+                    <form method="POST" action="{{ route('loans.guarantors.invoke', [$loan->id, $guarantor->id]) }}" class="modal-content">
                         @csrf
                         <div class="modal-header">
-                            <h5 class="modal-title">Invoke Guarantee: {{ $guarantor->guarantor_name }}</h5>
+                            <h5 class="modal-title">Apply Held Shares: {{ $guarantor->guarantor_name }}</h5>
                             <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
                         </div>
                         <div class="modal-body">
@@ -773,7 +773,7 @@
                         </div>
                         <div class="modal-footer">
                             <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                            <button type="submit" class="btn btn-danger">Invoke Guarantee</button>
+                            <button type="submit" class="btn btn-danger">Apply Shares to Loan</button>
                         </div>
                     </form>
                 </div>
