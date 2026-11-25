@@ -376,8 +376,8 @@ class LoanApplicationWorkflowTest extends TestCase
         $this->assertEquals(12000, $application->fresh()->guarantor_security);
 
         // Held guarantees are listed for staff; none are in arrears yet.
-        $this->get(route('loan_guarantees.index'))->assertOk()->assertSee($replacement->full_name)->assertDontSee($this->guarantor->full_name);
-        $this->get(route('loan_guarantees.index', ['filter' => 'in_arrears']))->assertOk()->assertDontSee($replacement->full_name);
+        $this->get(route('loan_guarantors.index'))->assertOk()->assertSee($replacement->full_name)->assertDontSee($this->guarantor->full_name);
+        $this->get(route('loan_guarantors.index', ['filter' => 'in_arrears']))->assertOk()->assertDontSee($replacement->full_name);
         $this->get(route('loan_applications.show', $application))->assertOk()->assertSee('Replaced');
     }
 

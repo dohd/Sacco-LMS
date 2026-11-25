@@ -216,7 +216,7 @@ class LoanGuaranteeInvocationTest extends TestCase
 
     private function invoke(array $overrides = [])
     {
-        return $this->postJson(route('loans.guarantee_invoke', [$this->loan, $this->guarantor]), array_replace([
+        return $this->postJson(route('loans.guarantors.invoke', [$this->loan, $this->guarantor]), array_replace([
             'invocation_date' => today()->toDateString(), 'invocation_reason' => 'Borrower in default',
         ], $overrides));
     }

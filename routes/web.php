@@ -97,7 +97,7 @@ Route::group(['middleware' => ['auth', 'member.credentials']], function() {
     Route::patch('loan_products/status/{loanProduct}', [LoanProductsController::class, 'status'])->name('loan_products.status');
     Route::resource('loan_products', LoanProductsController::class);
 
-    Route::get('loan_guarantees', [\App\Http\Controllers\LoanGuarantees\LoanGuaranteesController::class, 'index'])->name('loan_guarantees.index');
+    Route::get('loan_guarantors', [\App\Http\Controllers\LoanGuarantors\LoanGuarantorsController::class, 'index'])->name('loan_guarantors.index');
     Route::patch('loan_applications/{application}/approve', [LoanApplicationsController::class, 'approve'])->name('loan_applications.approve');
     Route::patch('loan_applications/{application}/workflow', [LoanApplicationsController::class, 'workflow'])->name('loan_applications.workflow');
     Route::patch('loan_applications/{application}/guarantors/{guarantor}/consent', [LoanApplicationsController::class, 'recordGuarantorConsent'])->name('loan_applications.guarantor_consent');
@@ -105,7 +105,7 @@ Route::group(['middleware' => ['auth', 'member.credentials']], function() {
     Route::patch('loan_applications/{application}/verify-security', [LoanApplicationsController::class, 'verifySecurity'])->name('loan_applications.verify_security');
     Route::resource('loan_applications', LoanApplicationsController::class)->parameters(['loan_applications' => 'application']);
 
-    Route::post('loans/{loan}/guarantors/{guarantor}/invoke', [LoansController::class, 'invokeGuarantee'])->name('loans.guarantee_invoke');
+    Route::post('loans/{loan}/guarantors/{guarantor}/invoke', [LoansController::class, 'invokeGuarantee'])->name('loans.guarantors.invoke');
     Route::post('loans/{loan}/write-off', [LoansController::class, 'writeOff'])->name('loans.write_off');
     Route::post('loans/{loan}/restructure', [LoansController::class, 'restructure'])->name('loans.restructure');
     Route::resource('loans', LoansController::class);
@@ -120,6 +120,7 @@ Route::group(['middleware' => ['auth', 'member.credentials']], function() {
 
     Route::post('loan_repayments/reverse/{id}', [LoanRepaymentsController::class, 'reverse'])->name('loan_repayments.reverse');
     Route::post('loan_repayments/confirm/{id}', [LoanRepaymentsController::class, 'confirm'])->name('loan_repayments.confirm');
+    Route::get('loan_repayments/early-settlement-quote', [LoanRepaymentsController::class, 'earlySettlementQuote'])->name('loan_repayments.early_settlement_quote');
     Route::resource('loan_repayments', LoanRepaymentsController::class);
 
     // Savings

@@ -1,21 +1,21 @@
 @extends('layouts.core')
-@section('title', 'Loan Guarantees')
+@section('title', 'Loan Guarantors')
 
 @section('content')
 <div class="pagetitle">
   <div class="row">
     <div class="col-6">
-      <h1>Loan Guarantees</h1>
+      <h1>Loan Guarantors</h1>
     </div>
     <div class="col-6">
-      <a href="{{ route('loan_guarantees.index', ['filter' => 'in_arrears']) }}" class="btn btn-{{ $arrearsOnly ? 'danger' : 'outline-danger' }} float-end ms-1">In arrears</a>
-      <a href="{{ route('loan_guarantees.index') }}" class="btn btn-{{ $arrearsOnly ? 'outline-secondary' : 'secondary' }} float-end">All held</a>
+      <a href="{{ route('loan_guarantors.index', ['filter' => 'in_arrears']) }}" class="btn btn-{{ $arrearsOnly ? 'danger' : 'outline-danger' }} float-end ms-1">Loans in arrears</a>
+      <a href="{{ route('loan_guarantors.index') }}" class="btn btn-{{ $arrearsOnly ? 'outline-secondary' : 'secondary' }} float-end">All held guarantors</a>
     </div>
   </div>
   <nav>
     <ol class="breadcrumb">
       <li class="breadcrumb-item"><a href="{{ route('home') }}">Dashboard</a></li>
-      <li class="breadcrumb-item active">Loan Guarantees</li>
+      <li class="breadcrumb-item active">Loan Guarantors</li>
     </ol>
   </nav>
 </div>
@@ -37,7 +37,7 @@
             </tr>
           </thead>
           <tbody>
-            @foreach ($guarantees as $row)
+            @foreach ($guarantors as $row)
               <tr>
                 <td>{{ $row->guarantor_name }}</td>
                 <td>{{ $row->member_number }}</td>
